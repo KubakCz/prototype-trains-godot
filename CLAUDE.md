@@ -27,13 +27,15 @@ Godot_v4.7.2-stable_win64_console.exe --headless --path . --check-only --script 
 # Run a scene headlessly (harness scenes, smoke checks).
 Godot_v4.7.2-stable_win64_console.exe --headless --path . res://some/scene.tscn --quit-after 2000
 
-# Turnout regression checks: geometry, the passage table, driving through points,
-# and both scenes' level data. Exits non-zero on failure.
-Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://scripts/debug/turnout_checks.gd
+# The whole regression suite (see "Tests" below). Exits non-zero on failure.
+tests/run.ps1                    # or: bash tests/run.sh
+tests/run.ps1 driving passage    # only matching suites
+tests/run.ps1 -List
+tests/run.ps1 -Color always      # colour survives a pipe; -NoColor turns it off
 
-# Same, plus synthetic-click checks (3D pick and floating widget) - needs a window.
+# Same, plus the synthetic-click tests (3D pick and floating widget) - needs a window.
 # Do NOT add --resolution: see the coordinate-space gotcha below.
-Godot_v4.7.2-stable_win64_console.exe --path . --script res://scripts/debug/turnout_checks.gd
+tests/run.ps1 -Windowed
 
 # Open a scene in the editor without a human, to exercise @tool paths.
 Godot_v4.7.2-stable_win64_console.exe --headless --path . --editor res://scenes/main.tscn --quit-after 90
@@ -58,12 +60,16 @@ scripts/debug/train_debug_panel.gd            : PanelContainer — driving keys 
 scripts/debug/turnout_debug_panel.gd          : PanelContainer — turnout keys (debug)
 scripts/debug/turnout_overlay.gd  TurnoutOverlay : Control — the four turnout presentations
 scripts/debug/turnout_widget.gd   TurnoutWidget  : Control — one floating turnout marker
-scripts/debug/turnout_checks.gd               : SceneTree — headless step-2 checks
+
+tests/framework/test_case.gd      TestCase       : RefCounted — the base class suites extend
+tests/framework/test_runner.gd                   : SceneTree — discovery, reporting, exit code
+tests/support/turnout_demo_case.gd TurnoutDemoCase — fixture for the turnout demo layout
+tests/*_test.gd                                  — the suites themselves
 ```
 
 Scenes: `scenes/main.tscn` (the running prototype) and `scenes/demos/turnouts.tscn`
 (flat ground, a passing loop and a dead-end stub — every turnout case in one place).
-Both are the regression suite; keep them working.
+Both are driven by the tests under `tests/`; keep them working.
 
 **Rails are `Path3D` + `Curve3D`.** Free in-editor point/tangent gizmos, arc-length-accurate
 `sample_baked`, and scene serialisation for nothing. `Rail` adds an arc-length sampling API
@@ -152,6 +158,43 @@ post and a banner that swings onto the set route) is the turnout's *model*, not 
 stays in every mode — it also carries the click collider. Debug keys: `[T]` select, `[G]` throw,
 `[O]` cycle presentation, left click throws whatever is under the cursor.
 
+## Tests
+
+`tests/` holds the regression suite; `tests/README.md` is the guide to writing one, and this is
+just the shape of it. Run it with `tests/run.ps1` (or `bash tests/run.sh`), which finds Godot,
+rebuilds the class cache if it has never been built, and exits 0 / 1 / 2 for pass / failure /
+bad argument.
+
+There is no third-party framework in here. GUT and gdUnit4 both exist and both would work, but
+they are thousands of lines vendored into `addons/` for a prototype whose tests are all
+"instantiate a level, run the physics, look at the trains" — `tests/framework/` is 440 lines of
+code and produces exactly the report we want. If the suite ever outgrows it, that is the moment
+to reconsider, not before.
+
+The shape is the familiar one: a `*_test.gd` under `tests/` extending `TestCase`, `test_*`
+methods run in declaration order, `before_all` / `after_all` / `before_each` / `after_each`,
+and `assert_*` calls that take the claim as their last argument. Notes recorded with `note()`
+print under the test and land in the `--json` report, which is where all the numbers the old
+`turnout_checks.gd` printed have gone.
+
+Three things specific to GDScript shaped it:
+
+- **A failed assertion cannot abort the test** — no exceptions. So assertions record and return
+  a bool, the test carries on, and a report lists every failure in the test rather than the
+  first. `if not assert_not_null(x, "..."): return` where continuing would be nonsense.
+- **One suite instance, not one per test.** `before_all` may stash state in members; nothing is
+  reset between tests, so per-test state belongs in `before_each`. `load_scene()` frees what a
+  test took but keeps what `before_all` took until the suite ends.
+- **`await case.call(name)` covers coroutine and plain methods alike**, because a GDScript call
+  that suspends hands back a signal to await and one that does not hands back its value. That
+  is what lets a test `await` freely without declaring anything.
+
+**Time is counted in physics frames, never in wall clock.** The runner sets
+`Engine.physics_ticks_per_second = 60 * speed` *and* `Engine.time_scale = speed`, which leaves
+the physics delta at exactly 1/60 s while stepping the simulation `speed` times faster than
+real time. The default 16 took the suite from 87 s to 14 s, and `--speed 1` and `--speed 16`
+print identical numbers — verified by diffing the runs.
+
 ## Gotchas found the hard way
 
 - **Hand-written `.tscn`: exported node references need `node_paths` on the node header**,
@@ -212,10 +255,37 @@ stays in every mode — it also carries the click collider. Debug keys: `[T]` se
   base size while the 3D render target follows the window, so `unproject_position` and
   `Input.parse_input_event` end up in different coordinate spaces and every click misses. Run at
   native resolution. (`--resolution` is fine for screenshots.)
+- **Godot writes terminal colour into pipes too.** Neither `print_rich` nor a raw ANSI escape
+  is filtered when stdout is a file or a pipe — the engine does no tty detection, and GDScript
+  has no `isatty` to do it with. So the caller decides: `tests/run.ps1` and `tests/run.sh` pass
+  `--color never` when `[Console]::IsOutputRedirected` / `! -t 1` says nobody is watching, and
+  the runner also honours `NO_COLOR`. Pad before painting, never after — the escapes count
+  towards `%-4s` and friends.
 - **GDScript's `%` format has no `%g`.** Use `%f`/`%.Nf`/`%s`; `%g` raises "unsupported format
   character" at runtime, not parse time.
 - **Array literals are `Variant`, so annotate the loop variable**: `for t: Turnout in [a, b]:`.
   Without it every `t.method()` is `Variant` and warnings-are-errors kills the next `var x :=`.
+- **Physics steps per real second are `Engine.physics_ticks_per_second`; the physics delta is
+  `time_scale / physics_ticks_per_second`.** Measured, all four combinations: `time_scale` alone
+  does *not* run a headless simulation faster, it makes each step cover more ground (at
+  `time_scale = 8`, `delta` is 0.133 s and a train jumps 2 m per step, which is how you skip
+  clean over a turnout). Raise **both** — `ticks = 60 * n`, `time_scale = n` — and the delta
+  stays 1/60 s while the simulation runs `n` times faster than real time. That is the whole
+  trick behind `tests/run.ps1` finishing in 14 s instead of 87 s.
+- **`await physics_frame` is one step; `await process_frame` is however many steps fit.** So with
+  the clock sped up, waiting on an idle frame advances the simulation by an unpredictable
+  amount. Anything that needs a repeatable starting state waits on physics frames
+  (`TestCase.load_scene` does).
+- **A `Variant` holding a bool or an int cannot be cast with `as`.** `value as Node` raises
+  "Invalid cast: can't convert a non-object value to an object type" at runtime, where
+  object-to-object casts merely give `null`. Test `if value is Object` before casting anything
+  that came in as `Variant`.
+- **`Script.get_script_method_list()` includes the base scripts' methods too**, derived first,
+  each in declaration order — so an inherited method appears twice and the first sighting is the
+  override. Fine for ordering tests by declaration, but it has to be de-duplicated.
+- **PowerShell binds bare arguments to the first non-switch parameter declared.** A wrapper that
+  wants pass-through arguments must declare its `ValueFromRemainingArguments` parameter *first*
+  (`tests/run.ps1` does), or `run.ps1 driving` tries to parse `driving` as `-Speed`.
 - `Tab` is swallowed by the GUI focus system in `_unhandled_key_input`; the debug panel uses
   `_input` instead.
 - Debug controls use physical keycodes rather than `InputMap` actions, keeping the project's

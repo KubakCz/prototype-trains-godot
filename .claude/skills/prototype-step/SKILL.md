@@ -65,7 +65,7 @@ against it, a signal at danger). Add the debug UI needed to see what the system 
 
 Extend `scenes/main.tscn` when the new feature belongs in the running prototype; add a focused
 scene under `scenes/demos/` when the step needs a layout of its own (a yard, a crossover, a
-double slip switch). Keep older demo scenes working — they're the regression suite.
+double slip switch). Keep older demo scenes working — the suite under `tests/` drives them.
 
 ## Verify it, don't assume it
 
@@ -73,10 +73,17 @@ Before reporting done, actually run things (binary paths and flags are in CLAUDE
 
 1. `--headless --path . --import` after adding any `class_name`.
 2. `--check-only --script res://…` on every script you touched or created.
-3. Run the playable scene headlessly with `--quit-after` and read the output — no errors,
+3. `tests/run.ps1` — the whole suite, not just the part you touched. It drives both scenes, so
+   it is how you find out you broke an earlier step.
+4. Run the playable scene headlessly with `--quit-after` and read the output — no errors,
    no warnings, and the behaviour you expect actually printed.
-4. Take a screenshot with the throwaway-scene recipe in CLAUDE.md and **look at it**, for
+5. Take a screenshot with the throwaway-scene recipe in CLAUDE.md and **look at it**, for
    anything visual. Godot fails visually in silence far more often than it errors.
+
+**Leave tests behind for the step you just built.** Add a `tests/<thing>_test.gd` covering the
+new rule and the failure cases the plan calls out — `tests/README.md` says how, and the existing
+suites are the pattern to copy. A step's playable scene shows a human it works; the suite is
+what keeps it working.
 
 Report what you ran and what it said. If something is broken or unfinished, say that plainly.
 
