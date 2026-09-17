@@ -2,7 +2,7 @@
 
 Plan of prototype implementation.
 
-## 1. Curves and Trains
+## 1. Curves and Trains *(done)*
 
 * Explore curve implementations for godot. If none would work for this project, implement own curves. Requirements:
   * easy to edit in editor
@@ -13,7 +13,7 @@ Plan of prototype implementation.
   * Just a box, that follows the curve and has constant speed
   * It has to be able to travel on the curve in both directions - this means that direction (or speed) of the train can be different than direction of the followed curve - the train has front side and if it goas forward, it must go forward independently of the direction of the underlying curve.
 
-## 2. Turnouts
+## 2. Turnouts *(done)*
 
 * We need to connect multiple curves together with turnouts
 * Turnout has two positions - normal and reverse
@@ -64,6 +64,11 @@ Plan of prototype implementation.
 ## 5. Simple editor
 
 TODO
+
+* Place a turnout by dragging its gizmo along the main rail, projecting onto the nearest point
+  of the curve to set `main_distance` — step 2 deliberately kept placement numeric and left this
+  here.
+* Run **Align Branch To Turnout** as part of editing rather than as a manual button press.
 
 ## 6. Rail models
 

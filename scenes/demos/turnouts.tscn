@@ -1,0 +1,192 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
+[ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
+[ext_resource type="Script" path="res://scripts/rails/turnout.gd" id="3_turnout"]
+[ext_resource type="Script" path="res://scripts/trains/train.gd" id="4_train"]
+[ext_resource type="Script" path="res://scripts/debug/camera_rig.gd" id="5_camera"]
+[ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="6_trains"]
+[ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="7_turnouts"]
+[ext_resource type="Script" path="res://scripts/debug/turnout_overlay.gd" id="8_overlay"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
+ground_bottom_color = Color(0.22, 0.24, 0.24, 1)
+ground_horizon_color = Color(0.66, 0.7, 0.74, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+tonemap_mode = 2
+ssao_enabled = true
+
+[sub_resource type="Curve3D" id="Curve3D_main"]
+_data = {
+"points": PackedVector3Array(-18, 0, 0, 18, 0, 0, -115, 0, 0, -18, 0, 0, 18, 0, 0, -60, 0, 0, -13, 0, 0, 13, 0, 0, -20, 0, 0, -13, 0, 0, 13, 0, 0, 20, 0, 0, -18, 0, 0, 18, 0, 0, 60, 0, 0, -18, 0, 0, 18, 0, 0, 115, 0, 0),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0)
+}
+point_count = 6
+
+[sub_resource type="Curve3D" id="Curve3D_loop"]
+_data = {
+"points": PackedVector3Array(-14, 0, 0, 14, 0, 0, -60, 0, 0, -14, 0, 0, 20, 0, 0, -30, 0, -12, -20, 0, 0, 14, 0, 0, 30, 0, -12, -14, 0, 0, 14, 0, 0, 60, 0, 0),
+"tilts": PackedFloat32Array(0, 0, 0, 0)
+}
+point_count = 4
+
+[sub_resource type="Curve3D" id="Curve3D_stub"]
+_data = {
+"points": PackedVector3Array(-12, 0, 0, 12, 0, 0, 20, 0, 0, -13, 0, 0, 13, 0, 0, 48, 0, 12, -9, 0, 0, 9, 0, 0, 74, 0, 15),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[node name="TurnoutDemo" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.6452, -0.628, 0.4352, 0, 0.5696, 0.822, -0.764, -0.5303, 0.3675, 0, 60, 0)
+light_energy = 1.3
+shadow_enabled = true
+
+[node name="Ground" type="MeshInstance3D" parent="." groups=["snap_surface"]]
+script = ExtResource("1_ground")
+size = Vector2(280, 120)
+subdivisions = 60
+hill_height = 0.0
+
+[node name="Rails" type="Node3D" parent="."]
+
+[node name="MainLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_main")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="LoopLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_loop")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="StubLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_stub")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="Turnouts" type="Node3D" parent="."]
+
+[node name="LoopWest" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../Rails/MainLine")
+main_distance = 55.0000
+diverge_towards = 1
+branch_rail = NodePath("../../Rails/LoopLine")
+branch_end = 0
+
+[node name="StubPoints" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../Rails/MainLine")
+main_distance = 135.0000
+diverge_towards = 1
+branch_rail = NodePath("../../Rails/StubLine")
+branch_end = 0
+
+[node name="LoopEast" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../Rails/MainLine")
+main_distance = 175.0000
+diverge_towards = 0
+branch_rail = NodePath("../../Rails/LoopLine")
+branch_end = 1
+
+[node name="Trains" type="Node3D" parent="."]
+
+[node name="Shuttle" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("4_train")
+rail = NodePath("../../Rails/MainLine")
+distance = 20.0
+facing = 1
+speed = 16.0
+end_behavior = 2
+body_length = 16.0
+
+[node name="LoopShunter" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("4_train")
+rail = NodePath("../../Rails/LoopLine")
+distance = 70.0
+facing = -1
+throttle = 0
+speed = 9.0
+end_behavior = 0
+body_length = 11.0
+body_width = 3.1
+body_height = 3.8
+
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+script = ExtResource("5_camera")
+yaw_degrees = -12.0
+pitch_degrees = -34.0
+camera = NodePath("Camera3D")
+zoom = 130.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+far = 2000.0
+
+[node name="DebugUi" type="CanvasLayer" parent="."]
+
+[node name="TurnoutOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("8_overlay")
+camera = NodePath("../../CameraRig/Camera3D")
+
+[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi" node_paths=PackedStringArray("readout")]
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 700.0
+offset_bottom = 150.0
+script = ExtResource("6_trains")
+readout = NodePath("Margin/Readout")
+
+[node name="Margin" type="MarginContainer" parent="DebugUi/TrainDebugPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="Readout" type="Label" parent="DebugUi/TrainDebugPanel/Margin"]
+layout_mode = 2
+text = "..."
+
+[node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi" node_paths=PackedStringArray("readout", "overlay")]
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = -172.0
+offset_right = 800.0
+offset_bottom = -12.0
+grow_vertical = 0
+script = ExtResource("7_turnouts")
+readout = NodePath("Margin/Readout")
+overlay = NodePath("../TurnoutOverlay")
+
+[node name="Margin" type="MarginContainer" parent="DebugUi/TurnoutDebugPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="Readout" type="Label" parent="DebugUi/TurnoutDebugPanel/Margin"]
+layout_mode = 2
+text = "..."

@@ -66,7 +66,7 @@ func _refresh() -> void:
 	_collect_trains()
 	var lines: Array[String] = [
 		"[ Tab ] select   [ Space ] stop/go   [ R ] reverse",
-		"[ F ] turn around   [ E ] end behaviour",
+		"[ F ] turn around   [ E ] end behaviour (dead ends only)",
 		"RMB orbit   MMB/WASD pan   wheel zoom",
 		"",
 	]
@@ -78,7 +78,7 @@ func _refresh() -> void:
 func _describe(train: Train, is_selected: bool) -> String:
 	var rail_name: String = str(train.rail.name) if train.rail != null else "<no rail>"
 	var rail_length: float = train.rail.rail_length() if train.rail != null else 0.0
-	return "%s %s  on %s  %.1f / %.1f m  nose %s  %s  end:%s" % [
+	var line := "%s %s  on %s  %.1f / %.1f m  nose %s  %s  end:%s" % [
 		">" if is_selected else " ",
 		train.name,
 		rail_name,
@@ -88,6 +88,10 @@ func _describe(train: Train, is_selected: bool) -> String:
 		_describe_motion(train),
 		Train.EndBehavior.keys()[train.end_behavior],
 	]
+	# A held train still shows its throttle open: it is waiting, not stopped, and
+	# will roll on by itself once the points are thrown.
+	var blocked := train.blocked_description()
+	return line if blocked.is_empty() else "%s  <- %s" % [line, blocked]
 
 
 ## The point of the readout: "forward" is about the train's nose, not the rail's

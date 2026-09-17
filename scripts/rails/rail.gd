@@ -48,6 +48,12 @@ const _COLOR_END := Color(1.0, 0.25, 0.2)
 var _debug_mesh: MeshInstance3D
 static var _debug_material: StandardMaterial3D
 
+## Nodes that sit on this rail and govern how trains leave it - [Turnout] now,
+## signals later. Deliberately typed as [Node] rather than a concrete class:
+## a turnout has to name [Rail], so naming it back here would make the two
+## scripts mutually dependent.
+var _attachments: Array[Node] = []
+
 
 func _ready() -> void:
 	if curve == null:
@@ -136,6 +142,24 @@ static func basis_from_forward_up(forward: Vector3, up: Vector3) -> Basis:
 		right = Vector3.FORWARD.cross(back)
 	right = right.normalized()
 	return Basis(right, back.cross(right), back)
+#endregion
+
+
+#region Attachments
+## Registers [param node] as living on this rail. Called by the attachment
+## itself, which owns the distances at which it touches the rail.
+func attach(node: Node) -> void:
+	if node != null and not _attachments.has(node):
+		_attachments.append(node)
+
+
+func detach(node: Node) -> void:
+	_attachments.erase(node)
+
+
+## Every node currently attached to this rail, in registration order.
+func attachments() -> Array[Node]:
+	return _attachments
 #endregion
 
 
