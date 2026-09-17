@@ -14,7 +14,7 @@ As a Railroad Dispatcher, your objective is to guide a constant stream of traffi
 
 * Manual control - direct interaction with switches and signals, backed by "realistic-ish" safety safeguards to prevent head-on collisions.
 * Progressive difficulty - as the network expands and traffic density increases, the difficulty increases as well.
-* Efficiency under pressure - optimize the flow to minimize delays and remamber that the shortest path for one train might not be optimal for the whole network.
+* Efficiency under pressure - optimize the flow to minimize delays and remember that the shortest path for one train might not be optimal for the whole network.
 
 **Target audience:**
 
@@ -25,13 +25,23 @@ As a Railroad Dispatcher, your objective is to guide a constant stream of traffi
 
 *TODO*
 
----
-
 ## Gameplay
 
 The game is split between individual levels. Each level comes with a predefined railroad layout, and player must guide trains throughout the level.
 
-The interaction with trains is non-direct - trains are controlled by interaction with signals and switches. The objective for each level might be slightly different, but it always forces player to dispatch trains as fast and as efficiently as possible. As player progresses trhoughout the levels, they get larger, more complex, and with more trains.
+The interaction with trains is non-direct - trains are controlled by interaction with signals and switches. The objective for each level might be slightly different, but it always forces player to dispatch trains as fast and as efficiently as possible. As player progresses throughout the levels, they get larger, more complex, and with more trains.
+
+The player must:
+
+* Set turnout positions by clicking them
+* Set signal aspects by clicking them
+* Route trains efficiently to their destination
+
+The game automatically:
+
+* Prevents two trains entering the same block (no collisions possible)
+* Returns signals to danger after train passage
+* Locks nearby signals and turnouts while a train is approaching
 
 ### Level Loop
 
@@ -54,17 +64,14 @@ The interaction with trains is non-direct - trains are controlled by interaction
   * Wait until it arrives to the desired destination
 * Train leaves the level
 
-### Additional notes
+### Score System
 
 * Ideally, we'll have a score system, so players can compare how efficiently they finished the level between each other
-
----
+* *TODO think more about how this should work*
 
 ## Mechanics
 
 *TODO*
-
----
 
 ## Level Structure
 
@@ -73,7 +80,7 @@ Each level has:
 * Unique rail network layout
 * [Goal and bonus goal](#goals) (success condition, e.g., dispatch x trains) 
 * Optional [fail condition](#fail-conditions) (e.g., accumulated delay must stay bellow x minutes)
-* Optional [restrictions](#restrictions) (e.g., electric trains and only partially electrized network)
+* Optional [restrictions](#restrictions) (e.g., electric trains and only partially electrified network)
 
 ### Layout
 
@@ -98,150 +105,7 @@ Each level has:
 
 ### Level Progression
 
-*TODO*
-
----
-
-## Visuals
-
-*TODO: expand this section*
-
-Stylized and simplified 3D that looks like a model railroad.
-
----
-
-## Story
-
-*TODO*
-
----
-
-# Naming Conventions
-
-This section defines the core terminology used in the game.
-
-## Track Infrastructure
-
-### Turnout
-
-The full assembly where one track diverges from another.
-
-* Neutral/technical term: **Turnout**
-* US term: **Switch**
-* UK term: **Points**
-
-**Code:** connection of exactly 2 splines through which the train passes.
-
-
-### Turnout Positions
-
-Each turnout has two possible positions:
-
-* **Normal**
-  The designated default position.
-  In most cases aligned with the **main (through) route**.
-
-* **Reverse**
-  The diverging alignment.
-
-**Code:** normal == the train stays on the same spline; reverse == the train switches splines.
-
----
-
-## Routes
-
-* **Main Route** (or Through Route)
-  The primary track alignment.
-  **Code:** a single spline.
-
-* **Diverging Route**
-  The branch path leaving the main track.
-  **Code:** a spline which's end lie on another route.
-
----
-
-## Signaling
-
-### Signal Aspects
-
-* **Clear** → proceed (green)
-* **Danger** → stop (red)
-
----
-
-## Blocks
-
-A track section that can only contain one train at a time.
-
----
-
-## Safety Logic
-
-
-### Interlocking
-
-The automatic system that prevents conflicting movements.
-
-Interlocking ensures:
-
-* No two conflicting routes can be set simultaneously
-* No two signals can clear into the same block
-* Switches cannot be moved under an approaching train
-* Signals return to danger after a train passes
-
-Signal returning to red after passage can be described as:
-
-* **Automatic signal replacement**
-
----
-
-## Player Role Naming
-
-Recommended primary role:
-
-### Dispatcher
-
-Why:
-
-* Scales from small layouts to large networks
-* Works for both local and wide-area control
-* Clear and intuitive for players
-
-Alternative early-game flavor:
-
-* Signalman (traditional)
-* Signaller (modern, gender-neutral)
-
-Recommended final title:
-**Railway Dispatcher**
-
----
-
-# Gameplay Structure
-
-## Core Gameplay
-
-The player must:
-
-* Set turnout positions (Normal / Reverse)
-* Set signal aspects (Clear / Danger)
-* Prevent collisions
-* Route trains efficiently
-
-The game automatically:
-
-* Prevents conflicting routes
-* Prevents two trains entering the same block
-* Returns signals to danger after train passage
-* Locks routes while a train is approaching
-
-This creates manual control with realistic safety enforcement.
-
----
-
-## Progression Concept
-
-### Early Game – Local Control
+#### Early Game – Local Control
 
 * Small layout
 * Manual switch and signal setting
@@ -249,73 +113,40 @@ This creates manual control with realistic safety enforcement.
 
 Player feels like a local signaller.
 
----
+#### Mid Game – Interlocked Control
 
-### Mid Game – Interlocked Control
-
-* Larger stations
-* Automatic conflict prevention
-* Route locking
+* Larger maps
 * More simultaneous trains
+* Route locking
+  * Plan a route through multiple blocks by clicking a sequence of signals and turnouts
+  * Whole route gets locked, so player doesn't accidentally block a train when planning a second route
 
 Player grows into a dispatcher role.
 
----
+#### Late Game – Route-Based Control
 
-### Late Game – Route-Based Control
-
+* Large map with lot of trains
 * Player sets complete routes instead of individual switches
-* Turnouts align automatically along selected path
+  * Player creates waypoints for a train
+  * Signals automatically change to green in front of a train
+  * Turnouts align automatically along selected path
 * Still manual decision-making, not full automation
 
 Represents evolution from mechanical signaling to panel/relay control.
 
----
+## Visuals
 
-# Ideas Section
+*TODO: expand this section*
 
-## Upgrade Path Concept
+Stylized and simplified 3D that looks like a model railroad.
 
-The player role can evolve:
+## Story
 
-* Junior Signalman
-* Senior Signaller
-* Dispatcher
-* Chief Dispatcher
+*TODO*
 
-Upgrades may unlock:
-
-* Faster switch throw time
-* Automated route locking
-* Advanced interlocking
-* Traffic prioritization tools
-* Network overview panel
-
----
-
-## Optional Realism Enhancements
-
-Future features could include:
+## Ideas Section
 
 * Delayed switch movement time
-* Train approach locking (switches cannot move when occupied)
 * Different block systems (manual vs automatic)
 * Timetable-based routing challenges
 * Emergency override with penalties
-
----
-
-## Design Philosophy
-
-The goal is:
-
-* Authentic terminology
-* Intuitive gameplay
-* Increasing strategic depth
-* Realistic safety behavior without overwhelming micromanagement
-
-Manual control remains central, but realistic interlocking ensures fairness and prevents frustration.
-
----
-
-*End of Draft*
