@@ -17,7 +17,9 @@ extends SceneTree
 ##                   "driving::held" or "::spanning" all work
 ## --list            list what would run and stop
 ## --json <path>     write a machine-readable report as well
-## --speed <n>       run the clock n times faster (default 16)
+## --speed <n>       run the clock n times faster (default 128)
+## --window <where>  where a windowed run puts its window: desktop (the default,
+##                   set up by the wrapper), minimized, offscreen or visible
 ## --quiet           result lines only, no per-test notes
 ## --color <when>    always, never, or auto - the default, which colours unless
 ##                   NO_COLOR is set (run.ps1 / run.sh turn it off when redirected)
@@ -64,12 +66,20 @@ const _STATUS_STYLES: Dictionary[String, String] = {
 
 const _COLOUR_CHOICES: PackedStringArray = ["auto", "always", "never"]
 
+## Where a windowed run puts its window. See [method _place_window].
+const _WINDOW_CHOICES: PackedStringArray = ["desktop", "minimized", "offscreen", "visible"]
+
+## How far below the lowest screen [code]--window offscreen[/code] parks the
+## window, so that no part of a frame or a shadow reaches back onto a desktop.
+const _OFFSCREEN_MARGIN := 64
+
 var _filters: PackedStringArray = []
 var _json_path := ""
-var _speed := 16
+var _speed := 128
 var _quiet := false
 var _list_only := false
 var _colour_when := "auto"
+var _window_where := "desktop"
 ## Resolved from [member _colour_when] once the arguments are in.
 var _colour := false
 
@@ -86,7 +96,97 @@ func _initialize() -> void:
 		quit(2)
 		return
 	_colour = _colour_enabled()
+	_size_headless_canvas()
+	_place_window()
 	_run()
+
+
+## Headless gives the root window a 64x64 placeholder and refuses to be talked
+## out of it - setting [member Window.size] sticks only until the first idle
+## frame, because the dummy display server reports no window at all. The project
+## runs with stretch mode "disabled", so that placeholder *is* the canvas, and
+## everything that lays itself out on screen - the marker overlay above all - gets
+## a 64 px screen to do it on. (Under the old "canvas_items" mode the canvas was
+## the base size whatever the window did, which is why this was not needed
+## before.)
+##
+## So headless runs are given a fixed canvas the size of the project's own window
+## instead, which is the screen the layout tests are written against. A windowed
+## run keeps the real window and the project's own stretch settings: that is the
+## configuration the click tests measure.
+func _size_headless_canvas() -> void:
+	if DisplayServer.get_name() != "headless":
+		return
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	root.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
+	root.content_scale_size = _project_window_size()
+
+
+## The window size the project asks for, which is the screen every layout test is
+## written against.
+func _project_window_size() -> Vector2i:
+	return Vector2i(
+			ProjectSettings.get_setting("display/window/size/viewport_width", 1152),
+			ProjectSettings.get_setting("display/window/size/viewport_height", 648))
+
+
+## Gets the window out of the way. A windowed run exists for the click tests,
+## which need a real display server rather than a window anybody looks at, and a
+## window that appears in the middle of the screen every time the suite runs -
+## taking the keyboard with it for the twenty seconds it lasts - is a tax on
+## running the tests at all.
+##
+## Godot clamps the [code]--position[/code] given on the command line into the
+## screen it lands on, so the window cannot be *created* out of sight; it can only
+## be moved once the engine is up, which is here, before the first frame is drawn.
+## Measured, the window is on screen for about 6 ms either way, so what is left to
+## decide is how big it is while it is there: the wrappers ask for
+## [code]--resolution 1x1[/code] and this restores the project's size, which turns
+## the flash into a 120x1 sliver in a corner.
+##
+## [b]desktop[/b], the default, is the one placement this method does nothing for:
+## [code]tests/private_desktop.ps1[/code] has already started the engine on a
+## Windows desktop of its own, where the window is free to open wherever it likes
+## because that desktop is not the one being composited. Nothing else gets closer
+## than a few milliseconds.
+##
+## [b]minimized[/b] is the best that can be done on the desktop the user is looking
+## at, and the only one there that also hands the keyboard back: Windows returns
+## focus to whatever had it when a window minimises, while a window merely parked
+## off the screen keeps the focus it stole. It parks the window first and minimises
+## it second, so that the minimise animation - which is longer than the window was
+## ever on screen - plays off the desktop as well. The window keeps its size, the
+## canvas keeps its scale and physics picking carries on, because none of that is
+## drawing.
+##
+## [b]offscreen[/b] only parks it, for a display server that will not minimise or a
+## run being watched over remote desktop. [b]visible[/b] leaves it where it opened,
+## which is what you want when a click test is failing and you would like to see
+## what it is clicking on.
+func _place_window() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	if _window_where == "visible" or _window_where == "desktop":
+		return
+	# run.ps1 / run.sh ask for a 1x1 window, which Windows rounds up to a sliver
+	# about 120 px wide and one pixel tall: that is what is briefly on screen.
+	# Full size before the first frame, so nothing ever lays itself out small.
+	DisplayServer.window_set_size(_project_window_size())
+	DisplayServer.window_set_position(_below_every_screen())
+	if _window_where == "minimized":
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MINIMIZED)
+
+
+## A point far enough down that a window placed there is off every desktop, on
+## any arrangement of monitors.
+func _below_every_screen() -> Vector2i:
+	var left := 0
+	var bottom := 0
+	for screen in DisplayServer.get_screen_count():
+		var position := DisplayServer.screen_get_position(screen)
+		left = position.x if screen == 0 else mini(left, position.x)
+		bottom = maxi(bottom, position.y + DisplayServer.screen_get_size(screen).y)
+	return Vector2i(left, bottom + _OFFSCREEN_MARGIN)
 
 
 func _run() -> void:
@@ -117,7 +217,8 @@ func _run() -> void:
 	print(_paint("%d test%s in %d suite%s, clock x%d, %s"
 			% [total, "" if total == 1 else "s", plan.size(),
 			"" if plan.size() == 1 else "s", _speed,
-			"headless" if DisplayServer.get_name() == "headless" else "windowed"], "faint"))
+			"headless" if DisplayServer.get_name() == "headless"
+			else "windowed, %s" % _window_where], "faint"))
 
 	var started := Time.get_ticks_msec()
 	for entry: Dictionary in plan:
@@ -470,6 +571,14 @@ func _parse_arguments() -> bool:
 					printerr("--color wants always, never or auto")
 					return false
 				_colour_when = when
+			"--window":
+				var where: String = value if not value.is_empty() else _next(args, index)
+				if value.is_empty():
+					index += 1
+				if not _WINDOW_CHOICES.has(where):
+					printerr("--window wants desktop, minimized, offscreen or visible")
+					return false
+				_window_where = where
 			"--json":
 				_json_path = value if not value.is_empty() else _next(args, index)
 				if value.is_empty():
@@ -505,8 +614,10 @@ func _print_usage() -> void:
                   "driving::held" and "::spanning" all work
   --list          list what would run and stop
   --json <path>   also write a machine-readable report
-  --speed <n>     run the clock n times faster than real time (default 16)
+  --speed <n>     run the clock n times faster than real time (default 128)
   --quiet         result lines only, no per-test notes
   --color <when>  always, never or auto (the default; honours NO_COLOR)
-  --windowed      keep a window, so the click tests run too (or -Windowed)""")
+  --windowed      keep a window, so the click tests run too (or -Windowed)
+  --window <where>  where that window goes: desktop (the default), minimized,
+                  offscreen or visible - see run.ps1, which sets the desktop up""")
 #endregion

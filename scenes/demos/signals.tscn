@@ -1,0 +1,204 @@
+[gd_scene load_steps=16 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
+[ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
+[ext_resource type="Script" path="res://scripts/rails/turnout.gd" id="3_turnout"]
+[ext_resource type="Script" path="res://scripts/rails/rail_signal.gd" id="4_signal"]
+[ext_resource type="Script" path="res://scripts/trains/train.gd" id="5_train"]
+[ext_resource type="Script" path="res://scripts/debug/camera_rig.gd" id="6_camera"]
+[ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="7_trains"]
+[ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="8_turnouts"]
+[ext_resource type="Script" path="res://scripts/debug/signal_debug_panel.gd" id="9_signals"]
+[ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="10_overlay"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
+ground_bottom_color = Color(0.22, 0.24, 0.24, 1)
+ground_horizon_color = Color(0.66, 0.7, 0.74, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+tonemap_mode = 2
+ssao_enabled = true
+
+[sub_resource type="Curve3D" id="Curve3D_main"]
+_data = {
+"points": PackedVector3Array(-23, 0, 0, 23, 0, 0, -140, 0, 0, -23, 0, 0, 23, 0, 0, -70, 0, 0, -23, 0, 0, 23, 0, 0, 0, 0, 0, -23, 0, 0, 23, 0, 0, 70, 0, 0, -23, 0, 0, 23, 0, 0, 140, 0, 0),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0)
+}
+point_count = 5
+
+[sub_resource type="Curve3D" id="Curve3D_siding"]
+_data = {
+"points": PackedVector3Array(-12, 0, 0, 12, 0, 0, 50, 0, 0, -12, 0, 0, 12, 0, 0, 85, 0, -13, -10, 0, 0, 10, 0, 0, 115, 0, -15),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[node name="SignalDemo" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.6452, -0.628, 0.4352, 0, 0.5696, 0.822, -0.764, -0.5303, 0.3675, 0, 60, 0)
+light_energy = 1.3
+shadow_enabled = true
+
+[node name="Ground" type="MeshInstance3D" parent="." groups=["snap_surface"]]
+script = ExtResource("1_ground")
+size = Vector2(320, 140)
+subdivisions = 64
+hill_height = 0.0
+
+[node name="Rails" type="Node3D" parent="."]
+
+[node name="MainLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_main")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="SidingLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_siding")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="Turnouts" type="Node3D" parent="."]
+
+[node name="SidingPoints" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../Rails/MainLine")
+main_distance = 190.0
+diverge_towards = 1
+branch_rail = NodePath("../../Rails/SidingLine")
+branch_end = 0
+
+[node name="Signals" type="Node3D" parent="."]
+
+[node name="HomeBack" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("4_signal")
+rail = NodePath("../../Rails/MainLine")
+distance = 56.0
+governs = 1
+
+[node name="Home" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("4_signal")
+rail = NodePath("../../Rails/MainLine")
+distance = 60.0
+governs = 0
+
+[node name="YardA" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("4_signal")
+rail = NodePath("../../Rails/MainLine")
+distance = 120.0
+governs = 0
+
+[node name="YardB" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("4_signal")
+rail = NodePath("../../Rails/MainLine")
+distance = 124.0
+governs = 1
+
+[node name="YardC" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("4_signal")
+rail = NodePath("../../Rails/MainLine")
+distance = 128.0
+governs = 0
+
+[node name="Section" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("4_signal")
+rail = NodePath("../../Rails/MainLine")
+distance = 240.0
+governs = 0
+
+[node name="SidingExit" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("4_signal")
+rail = NodePath("../../Rails/SidingLine")
+distance = 12.0
+governs = 1
+
+[node name="Trains" type="Node3D" parent="."]
+
+[node name="Local" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("5_train")
+rail = NodePath("../../Rails/MainLine")
+distance = 20.0
+facing = 1
+speed = 16.0
+end_behavior = 0
+body_length = 16.0
+
+[node name="Goods" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("5_train")
+rail = NodePath("../../Rails/MainLine")
+distance = 255.0
+facing = -1
+speed = 12.0
+end_behavior = 0
+body_length = 20.0
+body_width = 3.1
+body_height = 3.9
+
+[node name="Shunter" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("5_train")
+rail = NodePath("../../Rails/SidingLine")
+distance = 45.0
+facing = -1
+throttle = 0
+speed = 9.0
+end_behavior = 0
+body_length = 11.0
+body_width = 3.1
+body_height = 3.6
+
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 2, -20)
+script = ExtResource("6_camera")
+yaw_degrees = -14.0
+pitch_degrees = -32.0
+camera = NodePath("Camera3D")
+zoom = 68.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+far = 2000.0
+
+[node name="DebugUi" type="CanvasLayer" parent="."]
+
+[node name="Panels" type="VBoxContainer" parent="DebugUi"]
+offset_left = 12.0
+offset_top = 12.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi/Panels"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("7_trains")
+
+[node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("8_turnouts")
+overlay = NodePath("../../MarkerOverlay")
+
+[node name="SignalDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("9_signals")
+overlay = NodePath("../../MarkerOverlay")
+
+[node name="MarkerOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("10_overlay")
+camera = NodePath("../../CameraRig/Camera3D")

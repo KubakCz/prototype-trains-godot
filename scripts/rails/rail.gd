@@ -54,6 +54,12 @@ static var _debug_material: StandardMaterial3D
 ## scripts mutually dependent.
 var _attachments: Array[Node] = []
 
+## The level's ground, baked into global space. Collecting it walks every mesh
+## below [member surface_root], and everything that stands beside the track asks
+## for a height, so the result is kept - see [method _ground_surfaces].
+var _ground_cache: Array[SurfaceSnapper.Surface] = []
+var _ground_collected := false
+
 
 func _ready() -> void:
 	if curve == null:
@@ -169,7 +175,7 @@ func snap_points_to_surface() -> void:
 	if curve == null or curve.point_count == 0:
 		push_warning("Rail '%s' has no curve points to snap." % name)
 		return
-	var surfaces := SurfaceSnapper.collect(_surface_nodes())
+	var surfaces := _ground_surfaces()
 	if surfaces.is_empty():
 		push_warning(("Rail '%s' found no snapping surface. Set 'surface_root', " +
 				"or add the ground to the '%s' group.") % [name, surface_group])
@@ -227,6 +233,57 @@ func _surface_nodes() -> Array[Node]:
 	if is_inside_tree():
 		nodes.assign(get_tree().get_nodes_in_group(surface_group))
 	return nodes
+#endregion
+
+
+#region Ground queries
+## Height of the ground directly below [param global_point], or [code]null[/code]
+## where the column hits nothing.
+##
+## The ground itself, not the railhead: [member surface_offset] is deliberately
+## not added, because what asks is something standing on the ground beside the
+## track - a signal's mast, a turnout's post - rather than on the sleepers.
+func ground_height_at(global_point: Vector3) -> Variant:
+	return SurfaceSnapper.height_at(_ground_surfaces(), global_point.x, global_point.z)
+
+
+## Frame for something standing on the ground beside the track: origin on the
+## ground [param side_offset] metres to the right of the centre line, measured
+## horizontally, with +Y straight up and -Z along [param heading].
+##
+## The track's own frame is no use for this, on two counts. It pitches with the
+## gradient and banks with the curve's tilt, so anything built in it leans; and
+## its origin is the railhead, which is [member surface_offset] above the ground
+## under the track and says nothing at all about the ground a couple of metres to
+## the side. A post built in this frame stands upright and reaches the ground.
+func ground_frame(distance: float, heading: Vector3, side_offset: float) -> Transform3D:
+	var railhead := sample_position(clamp_distance(distance))
+	var flat := Vector3(heading.x, 0.0, heading.z)
+	if flat.length_squared() < 1e-9:
+		# Track heading straight up or down: any yaw is as good as any other.
+		flat = Vector3.FORWARD
+	var basis := basis_from_forward_up(flat.normalized(), Vector3.UP)
+	var origin := railhead + basis.x * side_offset
+	var height = ground_height_at(origin)
+	# Nothing below the mast: assume the ground runs on at the level the track
+	# sits on, which is what a level with no surface mesh at all wants.
+	var ground_y: float = railhead.y - surface_offset
+	if height != null:
+		ground_y = float(height)
+	origin.y = ground_y
+	return Transform3D(basis, origin)
+
+
+## Every ground triangle, baked once. Cached for the level's lifetime, but never
+## in the editor: there the terrain is still being edited, and a stale cache
+## would answer for a surface that has since moved.
+func _ground_surfaces() -> Array[SurfaceSnapper.Surface]:
+	if Engine.is_editor_hint():
+		return SurfaceSnapper.collect(_surface_nodes())
+	if not _ground_collected:
+		_ground_cache = SurfaceSnapper.collect(_surface_nodes())
+		_ground_collected = true
+	return _ground_cache
 #endregion
 
 

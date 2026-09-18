@@ -15,7 +15,8 @@ extends Node3D
 ##
 ## Movement and body placement both go through [TrackWalker], so a train drives
 ## from rail to rail through [Turnout]s without knowing they are there, and stops
-## when its leading end reaches points that are set against it.
+## when its leading end reaches points that are set against it or a [RailSignal]
+## at danger.
 
 ## Nose points towards increasing rail distance.
 const ALONG_RAIL := 1
@@ -61,6 +62,9 @@ const _COLOR_NOSE := Color(1.0, 0.82, 0.1)
 ## Points that are refusing this train, while they refuse it. The train holds at
 ## them with its throttle still open and rolls on as soon as they are thrown.
 var blocking_turnout: Turnout
+## The signal at danger holding this train, while it holds it. Held exactly as at
+## a turnout: the throttle stays open and the train goes as soon as it clears.
+var blocking_signal: RailSignal
 ## Whether the train is sitting against a dead end.
 var at_dead_end := false
 
@@ -83,8 +87,13 @@ func _ready() -> void:
 ## what the train is about to run into, and one to move the centre as far as that
 ## allows. Splitting them is what makes a train stop with its nose on the points
 ## rather than overshooting them by half its length.
+##
+## The probe obeys signals from half a body length on - from the nose outwards,
+## in other words. A signal nearer than that is one the nose has already passed,
+## and a signal only stops a train that has yet to reach it.
 func _physics_process(delta: float) -> void:
 	blocking_turnout = null
+	blocking_signal = null
 	at_dead_end = false
 	if rail == null or throttle == 0:
 		return
@@ -92,7 +101,7 @@ func _physics_process(delta: float) -> void:
 	var half := body_length * 0.5
 	var travel := speed * delta
 
-	var probe := TrackWalker.walk(rail, distance, motion, half + travel)
+	var probe := TrackWalker.walk(rail, distance, motion, half + travel, half)
 	var allowed := probe.travelled - half
 	if allowed > _AT_REST:
 		var moved := TrackWalker.walk(rail, distance, motion, allowed)
@@ -104,10 +113,11 @@ func _physics_process(delta: float) -> void:
 		return
 
 	blocking_turnout = probe.blocking_turnout
+	blocking_signal = probe.blocking_signal
 	at_dead_end = probe.at_dead_end
-	# Points set against the train: hold, throttle still open, and roll on the
-	# moment the player throws them. Only a dead end falls back to
-	# `end_behavior`, and only once the train has come to rest against it.
+	# Points set against the train, or a signal at danger: hold, throttle still
+	# open, and roll on the moment the player changes it. Only a dead end falls
+	# back to `end_behavior`, and only once the train has come to rest against it.
 	if at_dead_end and allowed <= _AT_REST:
 		_handle_end_of_rail()
 
@@ -125,6 +135,8 @@ func _handle_end_of_rail() -> void:
 
 ## What is stopping the train, for the debug readouts.
 func blocked_description() -> String:
+	if blocking_signal != null:
+		return "held at %s (danger)" % blocking_signal.name
 	if blocking_turnout != null:
 		return "held by %s (set %s)" % [blocking_turnout.name,
 				Turnout.Position.keys()[blocking_turnout.turnout_position]]

@@ -29,7 +29,7 @@ Plan of prototype implementation.
 * We have to have some way of setting this all up in the editor
 * It must be possible to connect the turnouts into more complex setups, this will be implemented later in step 4
 
-## 3. Signals
+## 3. Signals *(done)*
 
 * Lives along the rail similar to switch
 * Can stop trains along the rail - green == go (clear signal), red == stop

@@ -1,8 +1,9 @@
 # Tests
 
-The regression suite for the prototype. It drives the real scenes — `scenes/main.tscn`
-and `scenes/demos/turnouts.tscn` — so these are integration tests more than unit tests:
-they instantiate a level, run the physics, and assert on what the trains and turnouts did.
+The regression suite for the prototype. It drives the real scenes — `scenes/main.tscn`,
+`scenes/demos/turnouts.tscn` and `scenes/demos/signals.tscn` — so these are integration tests
+more than unit tests: they instantiate a level, run the physics, and assert on what the trains,
+turnouts and signals did.
 
 ## Running them
 
@@ -14,18 +15,49 @@ tests\run.ps1 driving::held         # tests whose name contains "held", in that 
 tests\run.ps1 ::spanning            # by test name, whichever suite it is in
 tests\run.ps1 -List                 # what would run, as suite::test lines
 tests\run.ps1 -Windowed             # keep a window, so the click tests run too
+tests\run.ps1 -Window visible      # ... on your own desktop, where you can watch it
 tests\run.ps1 -Json results.json    # machine-readable report as well
 tests\run.ps1 -Speed 1              # real time instead of 16x
 tests\run.ps1 -Color always         # colour even through a pipe (-NoColor for none)
 ```
 
-`tests/run.sh` is the same thing for a POSIX shell (`--windowed`, `--json=path`, `--speed=4`).
+`tests/run.sh` is the same thing for a POSIX shell (`--windowed`, `--window visible`,
+`--json=path`, `--speed=4`).
 Both find Godot at `C:\Godot\Godot_v4.7.2-stable_win64_console.exe` unless `$env:GODOT` /
 `$GODOT` says otherwise, rebuild the script class cache if it has never been built, and exit
 **0** when everything passed or skipped, **1** on a failure, **2** on a bad argument.
 
 Filters match on substrings and `::` splits suite from test, so a filter can be as vague or as
 exact as you like.
+
+### The window a windowed run opens
+
+The click tests need a real display server, not a window anybody looks at, so `-Windowed`
+**opens it on a private Windows desktop**: a session can hold more than one desktop, only one
+is composited, and a window only exists on the desktop its process started on. Nothing of the
+run reaches the screen, nothing takes the keyboard, and the window is free to be its normal
+size - see [private_desktop.ps1](private_desktop.ps1), which `run.ps1` and `run.sh` both hand
+the launch to. A run costs about three seconds more than a minimized one, because a window
+nobody can see is still drawn.
+
+`-Window` picks something else, and naming one implies `-Windowed`:
+
+| where | what happens |
+| --- | --- |
+| `desktop` | the default, above |
+| `minimized` | parked below every screen and minimized, on your own desktop |
+| `offscreen` | parked below every screen, keeping the focus it took |
+| `visible` | left where it opened, for watching a click test fail |
+
+The three that stay on your desktop cannot hide the window completely. Godot clamps the
+`--position` given on its command line back onto the screen, so the window cannot be *created*
+out of sight; the wrappers ask for `--resolution 1x1` and the runner restores the size, parks
+it and minimizes it before the first frame, which leaves a 120x1 sliver in a corner for about
+6 ms. `minimized` is the best of the three because it is the one that hands the keyboard back:
+Windows returns focus to whatever had it when a window minimizes, while a parked window keeps
+the focus it took for the whole run.
+
+If the machine refuses a private desktop, both wrappers say so and fall back to `minimized`.
 
 ### Reading the output
 
@@ -86,7 +118,10 @@ Assertions: `assert_true`, `assert_false`, `assert_eq`, `assert_ne`, `assert_nea
 
 Alongside them: `note()` for a line of context, `skip()` for a test that does not apply here,
 `load_scene()` / `own()` for anything that should be freed afterwards, `frames()` and
-`physics_frames()` for waiting, `has_display()` for tests that need a window.
+`physics_frames()` for waiting, `has_display()` for tests that need a window, and three that
+feed the real input path for those that have one: `click_at()`, `hover_at()` and `hover_probe()`
+(a 3D collider's hover is a pulse rather than a state under synthetic input — see the gotcha in
+[CLAUDE.md](../CLAUDE.md)).
 
 Three things that are not like Python or TypeScript:
 
@@ -102,9 +137,10 @@ Three things that are not like Python or TypeScript:
   verified: the same run at `--speed 1` and `--speed 16` prints identical numbers.
 
 Shared fixtures live in `tests/support/` and are not collected as suites, because they do not
-end in `_test.gd`. [`TurnoutDemoCase`](support/turnout_demo_case.gd) is the one that exists: it
-builds a fresh copy of the turnout demo for every test and exposes its rails, turnouts and the
-shuttle.
+end in `_test.gd`. There are two: [`TurnoutDemoCase`](support/turnout_demo_case.gd) builds a
+fresh copy of the turnout demo for every test and exposes its rails, turnouts and the shuttle;
+[`SignalDemoCase`](support/signal_demo_case.gd) does the same for the signal demo and exposes
+its seven signals, its turnout and its three trains.
 
 ## What is here
 
@@ -114,4 +150,9 @@ shuttle.
 | `turnout_passage_test.gd` | the passage table straight through `Turnout.traverse`, every leg in both positions |
 | `turnout_driving_test.gd` | a train driving all of it: diverging, being held and released, the dead-end siding, a body spanning two rails, points thrown underneath |
 | `main_scene_test.gd` | `scenes/main.tscn`: turnouts still welded after surface snapping, the freight train held at the junction, bodies at the arc position their distance says |
-| `turnout_click_test.gd` | throwing points by clicking the 3D marker and the floating widget, through the real input path (needs `-Windowed`) |
+| `turnout_click_test.gd` | throwing points by clicking the 3D marker and the floating widget, and the marker reporting the pointer over it, through the real input path (needs `-Windowed`) |
+| `signal_passage_test.gd` | the stopping rule through `TrackWalker`: which direction a signal governs, the walks that ignore signals, a signal the nose has passed, one standing on a turnout, which side the mast lands on, configuration warnings |
+| `signal_driving_test.gd` | trains at signals: held at danger and away when it clears, untouched by the signal facing the other way, not stranded when one goes back to danger underneath them, held past the points and on the branch |
+| `signal_overlay_test.gd` | `MarkerOverlay`: signals and turnouts in one overlay, widgets shifted out of each other's way, all three collapse rules, hover reopening a collapsed widget, the direction a widget shows |
+| `signal_click_test.gd` | changing a signal by clicking the mast and the floating widget, the mast reporting the pointer over it, and `player_operable = false` refusing a click (needs `-Windowed`) |
+| `debug_panel_test.gd` | the debug HUD: every section folded on open, the number keys, a click on a header, the cycle rows that carry the open presentation questions, and the `>` that follows the mouse (the last needs `-Windowed`) |

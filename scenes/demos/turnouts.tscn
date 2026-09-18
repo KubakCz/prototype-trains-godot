@@ -7,7 +7,7 @@
 [ext_resource type="Script" path="res://scripts/debug/camera_rig.gd" id="5_camera"]
 [ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="6_trains"]
 [ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="7_turnouts"]
-[ext_resource type="Script" path="res://scripts/debug/turnout_overlay.gd" id="8_overlay"]
+[ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="8_overlay"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
@@ -142,51 +142,28 @@ far = 2000.0
 
 [node name="DebugUi" type="CanvasLayer" parent="."]
 
-[node name="TurnoutOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
+[node name="Panels" type="VBoxContainer" parent="DebugUi"]
+offset_left = 12.0
+offset_top = 12.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi/Panels"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("6_trains")
+
+[node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("7_turnouts")
+overlay = NodePath("../../MarkerOverlay")
+
+[node name="MarkerOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 script = ExtResource("8_overlay")
 camera = NodePath("../../CameraRig/Camera3D")
-
-[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi" node_paths=PackedStringArray("readout")]
-offset_left = 12.0
-offset_top = 12.0
-offset_right = 700.0
-offset_bottom = 150.0
-script = ExtResource("6_trains")
-readout = NodePath("Margin/Readout")
-
-[node name="Margin" type="MarginContainer" parent="DebugUi/TrainDebugPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 10
-
-[node name="Readout" type="Label" parent="DebugUi/TrainDebugPanel/Margin"]
-layout_mode = 2
-text = "..."
-
-[node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi" node_paths=PackedStringArray("readout", "overlay")]
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 12.0
-offset_top = -172.0
-offset_right = 800.0
-offset_bottom = -12.0
-grow_vertical = 0
-script = ExtResource("7_turnouts")
-readout = NodePath("Margin/Readout")
-overlay = NodePath("../TurnoutOverlay")
-
-[node name="Margin" type="MarginContainer" parent="DebugUi/TurnoutDebugPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 10
-
-[node name="Readout" type="Label" parent="DebugUi/TurnoutDebugPanel/Margin"]
-layout_mode = 2
-text = "..."

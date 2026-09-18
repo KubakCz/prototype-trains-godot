@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
 [ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
@@ -7,7 +7,9 @@
 [ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="5_panel"]
 [ext_resource type="Script" path="res://scripts/rails/turnout.gd" id="6_turnout"]
 [ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="7_tpanel"]
-[ext_resource type="Script" path="res://scripts/debug/turnout_overlay.gd" id="8_overlay"]
+[ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="8_overlay"]
+[ext_resource type="Script" path="res://scripts/rails/rail_signal.gd" id="9_signal"]
+[ext_resource type="Script" path="res://scripts/debug/signal_debug_panel.gd" id="10_spanel"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
@@ -98,6 +100,26 @@ diverge_towards = 1
 branch_rail = NodePath("../../Rails/SidingLine")
 branch_end = 0
 
+[node name="Signals" type="Node3D" parent="."]
+
+[node name="SectionEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/MainLine")
+distance = 150.0
+governs = 0
+
+[node name="SectionWest" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/MainLine")
+distance = 146.0
+governs = 1
+
+[node name="SidingExit" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/SidingLine")
+distance = 20.0
+governs = 1
+
 [node name="Trains" type="Node3D" parent="."]
 
 [node name="PassengerTrain" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
@@ -131,51 +153,36 @@ far = 2000.0
 
 [node name="DebugUi" type="CanvasLayer" parent="."]
 
-[node name="TurnoutOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
+[node name="Panels" type="VBoxContainer" parent="DebugUi"]
+offset_left = 12.0
+offset_top = 12.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi/Panels"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("5_panel")
+
+[node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("7_tpanel")
+overlay = NodePath("../../MarkerOverlay")
+
+[node name="SignalDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("10_spanel")
+overlay = NodePath("../../MarkerOverlay")
+
+[node name="MarkerOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 script = ExtResource("8_overlay")
 camera = NodePath("../../CameraRig/Camera3D")
 
-[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi" node_paths=PackedStringArray("readout")]
-offset_left = 12.0
-offset_top = 12.0
-offset_right = 760.0
-offset_bottom = 150.0
-script = ExtResource("5_panel")
-readout = NodePath("Margin/Readout")
-
-[node name="Margin" type="MarginContainer" parent="DebugUi/TrainDebugPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 10
-
-[node name="Readout" type="Label" parent="DebugUi/TrainDebugPanel/Margin"]
-layout_mode = 2
-text = "..."
-
-[node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi" node_paths=PackedStringArray("readout", "overlay")]
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 12.0
-offset_top = -152.0
-offset_right = 830.0
-offset_bottom = -12.0
-grow_vertical = 0
-script = ExtResource("7_tpanel")
-readout = NodePath("Margin/Readout")
-overlay = NodePath("../TurnoutOverlay")
-
-[node name="Margin" type="MarginContainer" parent="DebugUi/TurnoutDebugPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 10
-
-[node name="Readout" type="Label" parent="DebugUi/TurnoutDebugPanel/Margin"]
-layout_mode = 2
-text = "..."

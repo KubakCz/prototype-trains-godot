@@ -1,4 +1,4 @@
-extends PanelContainer
+extends DebugPanel
 ## Keyboard driving controls and live readout for every [Train] in the level.
 ##
 ## Throwaway scaffolding for step 1: it exists so the rail-following behaviour can
@@ -8,7 +8,6 @@ extends PanelContainer
 ## Trains found in this group become controllable. Selection order follows the
 ## scene tree.
 @export var train_group: StringName = &"trains"
-@export var readout: Label
 
 ## Held only for the duration of a refresh or a keypress. Trains come and go as
 ## they enter and leave a level, so the group is re-read rather than cached; the
@@ -18,14 +17,14 @@ var _selected: Train
 
 
 func _ready() -> void:
+	super._ready()
 	_collect_trains()
 	if _trains.is_empty():
 		push_warning("No trains in group '%s'." % train_group)
-	_refresh()
 
 
-func _process(_delta: float) -> void:
-	_refresh()
+func _panel_title() -> String:
+	return "Trains"
 
 
 func _collect_trains() -> void:
@@ -34,16 +33,12 @@ func _collect_trains() -> void:
 		_selected = _trains[0] if not _trains.is_empty() else null
 
 
-## Handled in [method Node._input] rather than [method Node._unhandled_key_input]
-## because the GUI layer would otherwise swallow Tab for focus navigation.
-func _input(event: InputEvent) -> void:
-	if not (event is InputEventKey) or not event.is_pressed() or event.is_echo():
-		return
+func _panel_key(keycode: Key) -> bool:
 	_collect_trains()
 	var train := _selected
 	if train == null:
-		return
-	match (event as InputEventKey).physical_keycode:
+		return false
+	match keycode:
 		KEY_TAB:
 			_selected = _trains[(_trains.find(train) + 1) % _trains.size()]
 		KEY_SPACE:
@@ -55,24 +50,20 @@ func _input(event: InputEvent) -> void:
 		KEY_E:
 			train.end_behavior = (train.end_behavior + 1) % Train.EndBehavior.size()
 		_:
-			return
-	get_viewport().set_input_as_handled()
-	_refresh()
+			return false
+	return true
 
 
-func _refresh() -> void:
-	if readout == null:
-		return
+func _panel_lines() -> Array[String]:
 	_collect_trains()
 	var lines: Array[String] = [
 		"[ Tab ] select   [ Space ] stop/go   [ R ] reverse",
 		"[ F ] turn around   [ E ] end behaviour (dead ends only)",
-		"RMB orbit   MMB/WASD pan   wheel zoom",
 		"",
 	]
 	for train in _trains:
 		lines.append(_describe(train, train == _selected))
-	readout.text = "\n".join(lines)
+	return lines
 
 
 func _describe(train: Train, is_selected: bool) -> String:

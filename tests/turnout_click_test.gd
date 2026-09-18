@@ -3,13 +3,12 @@ extends TurnoutDemoCase
 ## floating widget over it. Clicks are fed through Input.parse_input_event, so GUI
 ## routing and physics object picking are both exercised for real.
 ##
-## Needs a window - skipped under --headless. Run it with `tests/run.ps1 -Windowed`,
-## and do not resize the window: with window/stretch/mode = "canvas_items" a resized
-## window leaves the 2D canvas at the project's base size while the 3D render target
-## follows the window, so unproject_position and Input.parse_input_event end up in
-## different coordinate spaces and every click misses.
+## Needs a window - skipped under --headless. Run it with `tests/run.ps1 -Windowed`.
+## Clicks go through TestCase.click_at, which converts the canvas coordinates
+## unproject_position hands back into the window coordinates the input system wants,
+## so the window may be any size.
 
-var _overlay: TurnoutOverlay
+var _overlay: MarkerOverlay
 var _camera: Camera3D
 
 
@@ -20,7 +19,7 @@ func before_all() -> void:
 
 func before_each() -> void:
 	await super.before_each()
-	_overlay = demo.get_node("DebugUi/TurnoutOverlay")
+	_overlay = demo.get_node("DebugUi/MarkerOverlay")
 	_camera = demo.get_node("CameraRig/Camera3D")
 	var rig: CameraRig = demo.get_node("CameraRig")
 	rig.position = stub.points_position()
@@ -31,27 +30,27 @@ func before_each() -> void:
 
 
 func test_a_click_on_the_marker_throws_the_points() -> void:
-	_overlay.mode = TurnoutOverlay.Mode.LEGS_3D
+	_overlay.mode = MarkerOverlay.Mode.LEGS_3D
 	await _settle()
-	# The click target sits beside the track on the branch side; see
-	# Turnout._rebuild_marker.
-	var marker := stub.global_transform * Vector3(float(stub.branch_side()) * 2.4, 0.9, 0.0)
+	# The click target sits beside the track on the branch side, on the ground
+	# rather than at railhead height; see Turnout._rebuild_marker.
+	var marker := stub.click_target_position()
 	var before := stub.turnout_position
-	await _click(_camera.unproject_position(marker))
+	await click_at(_camera.unproject_position(marker))
 	note("clicked the marker at %s" % _camera.unproject_position(marker))
 	assert_ne(stub.turnout_position, before, "the 3D click threw the points")
 
 
 func test_a_click_on_empty_ground_throws_nothing() -> void:
-	_overlay.mode = TurnoutOverlay.Mode.LEGS_3D
+	_overlay.mode = MarkerOverlay.Mode.LEGS_3D
 	await _settle()
 	var before := stub.turnout_position
-	await _click(Vector2(60.0, tree.root.get_visible_rect().size.y - 300.0))
+	await click_at(Vector2(60.0, tree.root.get_visible_rect().size.y - 300.0))
 	assert_eq(stub.turnout_position, before, "nothing was thrown")
 
 
 func test_a_click_on_the_floating_widget_throws_the_points_once() -> void:
-	_overlay.mode = TurnoutOverlay.Mode.LEGS_AND_SCHEMATIC
+	_overlay.mode = MarkerOverlay.Mode.LEGS_AND_SCHEMATIC
 	await _settle()
 	var widget := _widget_for(stub)
 	if not assert_not_null(widget, "StubPoints has a widget on screen"):
@@ -60,7 +59,7 @@ func test_a_click_on_the_floating_widget_throws_the_points_once() -> void:
 		return
 
 	var before := stub.turnout_position
-	await _click(widget.get_global_rect().get_center())
+	await click_at(widget.get_global_rect().get_center())
 	# Once, not twice: a Control that calls accept_event() consumes the click
 	# before picking sees it, which is what stops the widget and the 3D collider
 	# under it both throwing the same points - if both fired, the position would
@@ -76,19 +75,19 @@ func _widget_for(turnout: Turnout) -> TurnoutWidget:
 	return null
 
 
+## The readouts mark whatever the mouse is on, and the 3D marker is half of what
+## "on" means: the floating widget answers for its own rect, the model for its
+## collider. In LEGS_3D there is no widget at all, so this is the collider alone.
+func test_hovering_the_marker_is_reported_by_the_turnout() -> void:
+	_overlay.mode = MarkerOverlay.Mode.LEGS_3D
+	await _settle()
+	var on_marker: bool = await hover_probe(
+			_camera.unproject_position(stub.click_target_position()), stub.is_pointer_over)
+	assert_true(on_marker, "the pointer is reported over StubPoints")
+	var on_ground: bool = await hover_probe(
+			Vector2(60.0, tree.root.get_visible_rect().size.y - 300.0), stub.is_pointer_over, 2)
+	assert_false(on_ground, "and not over it from empty ground")
+
+
 func _settle() -> void:
 	await frames(4)
-
-
-## A press and a release, pushed through the real input path.
-func _click(at: Vector2) -> void:
-	for pressed: bool in [true, false]:
-		var event := InputEventMouseButton.new()
-		event.button_index = MOUSE_BUTTON_LEFT
-		event.pressed = pressed
-		event.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
-		event.position = at
-		event.global_position = at
-		Input.parse_input_event(event)
-		await frames(1)
-	await frames(1)

@@ -12,6 +12,7 @@ const SETTLE_FRAMES := 460
 
 var _scene: Node
 var _turnouts: Array[Turnout] = []
+var _signals: Array[RailSignal] = []
 var _trains: Array[Train] = []
 
 
@@ -19,6 +20,8 @@ func before_all() -> void:
 	_scene = await load_scene(MAIN_SCENE)
 	for turnout: Turnout in _scene.get_node("Turnouts").get_children():
 		_turnouts.append(turnout)
+	for rail_signal: RailSignal in _scene.get_node("Signals").get_children():
+		_signals.append(rail_signal)
 	for train: Train in _scene.get_node("Trains").get_children():
 		_trains.append(train)
 	await physics_frames(SETTLE_FRAMES)
@@ -73,3 +76,78 @@ func test_every_train_sits_at_the_arc_position_its_distance_says() -> void:
 		assert_near(projected, train.distance, 0.6,
 				"%s sits at the arc position its distance says" % train.name)
 		assert_less(inset, 2.5, "%s is not flung off %s" % [train.name, train.rail.name])
+
+
+## The one scene with hills in it, which is what makes this worth asserting.
+##
+## A signal's mast and a turnout's marker post used to be built in their node's
+## own frame, and that frame is the rail's: it pitches with the gradient, banks
+## with the curve's tilt, and has its origin on the railhead. So on a slope the
+## posts leaned, and since the ground a couple of metres to the side of the track
+## is not the ground under it, they also floated clear of it or sank into it.
+## They are built in [method Rail.ground_frame] now - upright, on the ground.
+func test_every_post_beside_the_track_stands_upright_on_it() -> void:
+	for node: Node3D in _masts():
+		var rail := _rail_of(node)
+		var post := _post_of(node)
+		if not assert_not_null(post, "%s has a post" % node.name):
+			continue
+		var height := (post.mesh as BoxMesh).size.y
+		var foot := post.global_position - post.global_basis.y * (height * 0.5)
+		var ground = rail.ground_height_at(foot)
+		if not assert_not_null(ground, "%s stands over the terrain" % node.name):
+			continue
+		var lean := rad_to_deg(post.global_basis.y.angle_to(Vector3.UP))
+		note("%-13s post %.2f m tall, foot %+.3f m from the ground, leaning %.2f deg"
+				% [node.name, height, foot.y - float(ground), lean])
+		assert_less(lean, 0.01, "%s stands upright" % node.name)
+		assert_near(foot.y, float(ground), 0.01, "%s reaches the ground" % node.name)
+
+
+## The same posts, on terrain that actually moves under them: if every one of
+## them happened to sit on flat ground the test above would pass on a scene that
+## could not show the bug.
+func test_the_terrain_under_the_posts_is_uneven_enough_to_be_worth_testing() -> void:
+	var lowest := INF
+	var highest := -INF
+	for node: Node3D in _masts():
+		var lift := 0.0
+		if node is RailSignal:
+			lift = (node as RailSignal).mast_lift()
+		else:
+			lift = (node as Turnout).marker_lift()
+		lowest = minf(lowest, lift)
+		highest = maxf(highest, lift)
+	note("railhead stands %.2f - %.2f m above the ground at the posts" % [lowest, highest])
+	assert_greater(highest - lowest, 0.1,
+			"the posts stand on ground of visibly different heights")
+
+
+## Every signal and turnout in the level, as the plain [Node3D]s they have in
+## common. Typed loosely on purpose: what is being checked is the model each one
+## builds, and both build the same kind of post.
+func _masts() -> Array[Node3D]:
+	var found: Array[Node3D] = []
+	for turnout: Turnout in _turnouts:
+		found.append(turnout)
+	for rail_signal: RailSignal in _signals:
+		found.append(rail_signal)
+	return found
+
+
+func _rail_of(node: Node3D) -> Rail:
+	if node is RailSignal:
+		return (node as RailSignal).rail
+	return (node as Turnout).main_rail
+
+
+## The post out of the generated model. Internal children, hence the `true`:
+## these nodes are built at runtime and never saved into the scene.
+func _post_of(node: Node3D) -> MeshInstance3D:
+	for child: Node in node.get_children(true):
+		if child.name != "Mast" and child.name != "Marker":
+			continue
+		for part: Node in child.get_children(true):
+			if part is MeshInstance3D and part.name == "Post":
+				return part as MeshInstance3D
+	return null

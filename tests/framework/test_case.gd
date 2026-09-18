@@ -196,6 +196,70 @@ func physics_frames(count := 1) -> void:
 ## need one, and should [method skip] themselves when it is missing.
 func has_display() -> bool:
 	return DisplayServer.get_name() != "headless"
+
+
+## Feeds a left click - a press and a release - through the real input path, so
+## GUI routing and physics object picking are both exercised.
+##
+## [param at] is in [b]canvas[/b] coordinates: what [method Camera3D.unproject_position]
+## returns and what a [Control] is laid out in. [method Input.parse_input_event]
+## wants [b]window[/b] coordinates, and with window/stretch/mode = "canvas_items"
+## the two only agree when the window happens to be at the project's base size.
+## The viewport's screen transform is the conversion between them, so a click
+## lands on its target whatever size the window is.
+func click_at(at: Vector2) -> void:
+	var window_point: Vector2 = tree.root.get_screen_transform() * at
+	for pressed: bool in [true, false]:
+		var event := InputEventMouseButton.new()
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.pressed = pressed
+		event.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+		event.position = window_point
+		event.global_position = window_point
+		Input.parse_input_event(event)
+		await frames(1)
+	await frames(1)
+
+
+## Moves the pointer to [param at], in the same canvas coordinates
+## [method click_at] takes. Hovering is an event of its own: a [Control]'s
+## [signal Control.mouse_entered] and a collider's
+## [signal CollisionObject3D.mouse_entered] both come from mouse motion, so a
+## click alone never produces one.
+func hover_at(at: Vector2) -> void:
+	var window_point: Vector2 = tree.root.get_screen_transform() * at
+	var event := InputEventMouseMotion.new()
+	event.position = window_point
+	event.global_position = window_point
+	Input.parse_input_event(event)
+	await frames(2)
+
+
+## Sends the pointer to [param at] and reports whether [param probe] came back
+## true while it was there.
+##
+## A synthetic motion moves the pointer for the GUI, which keeps its own
+## "mouse over" until the next event arrives, but only for a frame as far as
+## physics picking is concerned: picking re-picks from the real cursor on the
+## frame after, and a collider the test never really pointed at reports the
+## mouse leaving again. So a [CollisionObject3D]'s hover is a pulse under test
+## where a [Control]'s is a state, and it has to be watched for rather than read
+## once. Watched on physics frames, because that is where picking runs, and
+## never from frame zero: at the moment the event goes in, the probe still holds
+## whatever the previous position left it. A negative - "this is not what the
+## pointer is on" - wants a short [param watch] for the same reason, since the
+## real cursor is loose in the window and picking keeps consulting it.
+func hover_probe(at: Vector2, probe: Callable, watch := 8) -> bool:
+	var window_point: Vector2 = tree.root.get_screen_transform() * at
+	var event := InputEventMouseMotion.new()
+	event.position = window_point
+	event.global_position = window_point
+	Input.parse_input_event(event)
+	for _i in watch:
+		await physics_frames(1)
+		if bool(probe.call()):
+			return true
+	return false
 #endregion
 
 
