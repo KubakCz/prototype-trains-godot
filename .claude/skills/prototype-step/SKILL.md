@@ -6,10 +6,24 @@ description: Implement a step, sub-step, or bullet from prototype_goals.md in th
 # Implementing a prototype step
 
 You are implementing a prototype of a game where the player is a railroad dispatcher.
-Game design is in [README.md](../../../README.md), the implementation plan is in
-[prototype_goals.md](../../../prototype_goals.md), and working notes / engine gotchas are in
-[CLAUDE.md](../../../CLAUDE.md). Read the relevant sections of all three before writing code —
-CLAUDE.md especially, it exists to stop you re-discovering the same Godot traps.
+Game design is in [README.md](../../../README.md); the implementation plan is in
+[prototype_goals.md](../../../prototype_goals.md). **That plan belongs to the project owner —
+read it, never edit it**, only allowed change is to tick a step off as done. If it needs changing, say so in
+conversation and let them make the change. What earlier steps left for the one you are on is in
+[docs/further_development.md](../../../docs/further_development.md), which *is* yours to write.
+
+The working notes are split in two, and both matter before you write code:
+
+- [CLAUDE.md](../../../CLAUDE.md) is already in your context — project facts, commands, the
+  architecture map and the **gotchas**, which exist to stop you re-discovering the same Godot
+  traps. Re-read the gotchas; they are the expensive ones.
+- [docs/](../../../docs/) has one file per subsystem — `turnouts.md`, `signals.md`, `ui.md`,
+  `level_authoring.md`, plus `further_development.md`, `naming_conventions.md`, and
+  [tests/README.md](../../../tests/README.md) for the suite. **Open the ones your step touches**,
+  and the ones it builds on — starting with `further_development.md`, which is where the last
+  implementer wrote down what they left you. CLAUDE.md lists them all and summarises the four
+  rules that cut across everything. A step that extends turnouts without reading
+  `docs/turnouts.md` will re-litigate decisions that were already made.
 
 ## Scope
 
@@ -39,8 +53,8 @@ steps build on, something that constrains how a step the plan hasn't specified y
 or how a feature gets authored in the editor. Ordinary code decisions — file layout, naming,
 class structure, which Godot node to use — are yours to make; make them and move on.
 
-Anything you can settle from README.md, prototype_goals.md, CLAUDE.md, or the existing code,
-settle yourself. Don't ask permission to proceed.
+Anything you can settle from README.md, prototype_goals.md, CLAUDE.md, `docs/`, or the existing
+code, settle yourself. Don't ask permission to proceed.
 
 ## House rules (this repo)
 
@@ -89,14 +103,34 @@ Report what you ran and what it said. If something is broken or unfinished, say 
 
 ## Afterwards
 
-- **Update CLAUDE.md**: new architecture entries, anything you learned the hard way, and notes
-  for whoever implements the next step. This is expected, not optional.
-- Update `prototype_goals.md` only to record progress or fold in decisions made with the user —
-  it's their plan, so don't rewrite its intent.
+Writing the notes up is expected, not optional — but each kind goes in one place:
+
+- **CLAUDE.md** gets only what every future session needs *before* it knows it needs it: new
+  entries in the architecture map, and **anything you learned the hard way** — a Godot trap, a
+  silent failure, an hour lost to something that looked like it worked. Keep the entry in the
+  voice of the others, including what it cost; that is what makes it stick. Do not add a
+  subsystem walkthrough here.
+- **`docs/<subsystem>.md`** gets how the thing you just built actually works and *why it is that
+  way*: the rules, the cases that look like bugs and are not, and the decisions you took.
+  Extend the existing file if your step extended that subsystem; add a new one, and a row in
+  CLAUDE.md's "The rest of the notes" table, if the step introduced a subsystem of its own.
+- **`docs/further_development.md`** gets what your step leaves for a later one, under that
+  step's heading: seams you deliberately left, limits the next implementer will hit, decisions
+  already taken that they should not re-open. Delete the notes you have just made obsolete by
+  building the thing they were about.
+- **`prototype_goals.md` gets nothing.** It is the owner's plan and it is read-only to you —
+  excluding only the *(done)* markers. If your step changed what a later step should be, write that
+  in `docs/further_development.md` and mention it in conversation.
+- **`tests/README.md`** gets anything new about running or writing the suite.
+
+When a step supersedes something these files describe — a placeholder replaced, a rule changed —
+**edit the old text out** rather than adding a note beside it. Two descriptions of one rule is
+how a doc starts lying.
 - Never run any git commands - this is handled manually.
 
 ## Subagents
 
 Use them for read-only fan-out — surveying Godot 4.7 API options, reading how an existing
 subsystem works, reviewing a finished implementation against the plan. Keep writing to one
-agent: concurrent edits to the same `.tscn` or to CLAUDE.md will clobber each other.
+agent: concurrent edits to the same `.tscn`, to CLAUDE.md or to a file under `docs/` will
+clobber each other.

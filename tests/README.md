@@ -5,6 +5,12 @@ The regression suite for the prototype. It drives the real scenes — `scenes/ma
 more than unit tests: they instantiate a level, run the physics, and assert on what the trains,
 turnouts and signals did.
 
+There is no third-party framework in here. GUT and gdUnit4 both exist and both would work, but
+they are thousands of lines vendored into `addons/` for a prototype whose tests are all
+"instantiate a level, run the physics, look at the trains" — `tests/framework/` is under a
+thousand lines and produces exactly the report we want. If the suite ever outgrows it, that is
+the moment to reconsider, not before.
+
 ## Running them
 
 ```powershell
@@ -17,7 +23,7 @@ tests\run.ps1 -List                 # what would run, as suite::test lines
 tests\run.ps1 -Windowed             # keep a window, so the click tests run too
 tests\run.ps1 -Window visible      # ... on your own desktop, where you can watch it
 tests\run.ps1 -Json results.json    # machine-readable report as well
-tests\run.ps1 -Speed 1              # real time instead of 16x
+tests\run.ps1 -Speed 1              # real time instead of the default 128x
 tests\run.ps1 -Color always         # colour even through a pipe (-NoColor for none)
 ```
 
@@ -29,6 +35,20 @@ Both find Godot at `C:\Godot\Godot_v4.7.2-stable_win64_console.exe` unless `$env
 
 Filters match on substrings and `::` splits suite from test, so a filter can be as vague or as
 exact as you like.
+
+### How fast to run the clock
+
+**Time is counted in physics frames, never in wall clock.** The runner sets
+`Engine.physics_ticks_per_second = 60 * speed` *and* `Engine.time_scale = speed`, which leaves
+the physics delta at exactly 1/60 s while stepping the simulation `speed` times faster than real
+time. `--speed 1` and `--speed 128` print identical numbers — verified by diffing the runs.
+
+**"Unlimited" speed is not a thing — there's a real floor, and past it the number actively
+hurts.** Each physics tick still costs whatever it costs regardless of `speed` (the delta is
+always 1/60 s), so the total tick count for a fixed suite is fixed too; `speed` only controls
+how many of them the engine is *allowed* to cram into one real second before it renders a frame.
+Once `speed` is high enough that the engine is already CPU-bound and catching up every frame,
+raising it further cannot shrink the floor — and measured, it does not stay flat, it gets worse.
 
 ### The window a windowed run opens
 
@@ -56,6 +76,11 @@ it and minimizes it before the first frame, which leaves a 120x1 sliver in a cor
 6 ms. `minimized` is the best of the three because it is the one that hands the keyboard back:
 Windows returns focus to whatever had it when a window minimizes, while a parked window keeps
 the focus it took for the whole run.
+
+Two things that did *not* work, so nobody tries them again: `--position` off the desktop (Godot
+clamps it at startup - `--position 0,1200` landed at y=785) and `--wid <hwnd>`, which makes the
+game window *owned* by the given window rather than a child of it, so it still opens at the
+screen centre and still takes focus.
 
 If the machine refuses a private desktop, both wrappers say so and fall back to `minimized`.
 
@@ -123,7 +148,7 @@ feed the real input path for those that have one: `click_at()`, `hover_at()` and
 (a 3D collider's hover is a pulse rather than a state under synthetic input — see the gotcha in
 [CLAUDE.md](../CLAUDE.md)).
 
-Three things that are not like Python or TypeScript:
+Four things that are not like Python or TypeScript:
 
 - **One suite instance, not one per test.** `before_all` can stash state in members; nothing is
   reset between tests, so per-test state goes in `before_each`.
@@ -132,9 +157,13 @@ Three things that are not like Python or TypeScript:
   you want in a scene test. Bail out by hand where carrying on would be nonsense:
   `if not assert_not_null(x, "..."): return`.
 - **Time is counted in frames, never in seconds of wall clock.** The runner speeds the clock up
-  16x by stepping physics that much more often while leaving the physics delta at exactly
-  1/60 s, so `await physics_frames(60)` is one second of game time at any `--speed`. Both are
-  verified: the same run at `--speed 1` and `--speed 16` prints identical numbers.
+  128x by stepping physics that much more often while leaving the physics delta at exactly
+  1/60 s, so `await physics_frames(60)` is one second of game time at any `--speed` — see
+  [How fast to run the clock](#how-fast-to-run-the-clock).
+- **`await` works on every hook and test without either of you declaring anything**, because a
+  GDScript call that suspends hands back a signal to await and one that does not hands back its
+  value. That is what `await case.call(name)` in the runner relies on, and why a plain method and
+  a coroutine are written the same way here.
 
 Shared fixtures live in `tests/support/` and are not collected as suites, because they do not
 end in `_test.gd`. There are two: [`TurnoutDemoCase`](support/turnout_demo_case.gd) builds a

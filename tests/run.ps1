@@ -41,7 +41,7 @@
     How many times faster than real time to run the clock (default 128). The physics
     delta stays at 1/60 s either way, so this changes how long the run takes and
     nothing about what it simulates. Diminishing returns past a few hundred, and
-    values in the thousands make it slower or hang - see the gotcha in CLAUDE.md.
+    values in the thousands make it slower or hang - see tests/README.md.
 
 .EXAMPLE
     tests/run.ps1
