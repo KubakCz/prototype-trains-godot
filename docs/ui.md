@@ -24,7 +24,10 @@ before) scales the UI by exactly `window / 1152`, which made the readouts 1.557x
 
 ## The floating layer
 
-`MarkerOverlay` owns **every** floating marker — signals and turnouts together. One overlay
+`MarkerOverlay` owns **every** floating marker — signals, turnouts and compound assemblies
+together. A turnout that is a member of an assembly gets no widget: the assembly's
+`CompoundTurnoutWidget` is its one control, and follows the same turnout mode as a single
+turnout's widget ([compound_turnouts.md](compound_turnouts.md)). One overlay
 rather than one each, because de-cluttering only works if it knows about every widget on
 screen: two overlays would each lay its own markers out neatly and then draw over the other's.
 Folding turnouts in is what fixed the overlap step 2 left behind.
@@ -85,6 +88,9 @@ Open a section by clicking its header or with its **number key**: `[1]` trains, 
 siblings) rather than authored, so they always run down it in order and reordering the panels
 renumbers them.
 
+The turnout section lists single turnouts, then each compound assembly with its members
+indented under it, then each crossing with the trains standing over it.
+
 **The turnout and signal sections own no keys at all.** They used to: `[T]`/`[G]` selected a
 turnout and threw it, `[N]`/`[C]` did the same for a signal. Clicking one is the player's actual
 interface, so the keyboard path was a second way in that had to keep working and that nobody
@@ -99,7 +105,8 @@ still worth printing are the train section's, which are neither standard nor gue
 Two consequences worth knowing:
 
 - **The switches for the open presentation questions are rows, not keys.** `_panel_controls()`
-  returns one label per row and the base builds a flat `Button` for each; a press calls
+  returns one label per row and the base builds a `Button` for each, styled as a button (fill,
+  rim, rounded corners, hover and pressed looks) so it doesn't read as more readout; a press calls
   `_panel_control_pressed(index)`. A `Button` consumes its click, which is what keeps a press on
   a row from also reaching the 3D picking behind the panel. The rows live in the body, so they
   fold with it and only exist once a section has been opened.
@@ -111,6 +118,10 @@ Two consequences worth knowing:
   `RailSignal.is_pointer_over()`, both off the picker's `mouse_entered` / `mouse_exited`). The
   model has to answer for itself because the widget is not always what the pointer is on — in
   `LEGS_3D` there is no widget at all, and the mast or the marker is a target in every mode.
+
+The overlay writes the current mode onto every turnout and assembly **every frame**
+(`debug_draw`), so both setters return early on an unchanged value — without that, every
+assembly re-walked its routes and rebuilt its mesh each frame, which more than doubled the demo's frame time.
 
 Two things the base has to get right, both of them bitten-once:
 
@@ -127,8 +138,8 @@ header, the cycle rows and the hover marker.
 
 ## Two presentation questions are still open
 
-They are deliberately unsettled, and switchable rather than decided: which of the four turnout
-modes, which of the three signal widget styles, and which of the three collapse rules. All three
-are cycle rows in the debug panels. Whoever settles them should **delete the losers** rather
+They are deliberately unsettled, and switchable rather than decided: which of the three turnout
+modes and what the turnout schematic is captioned with, which of the three signal widget styles,
+and which of the three collapse rules. All four are cycle rows in the debug panels. Whoever settles them should **delete the losers** rather
 than leave the switches in — they exist to be tried against a real camera and a real human, not
 forever.

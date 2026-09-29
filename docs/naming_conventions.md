@@ -27,6 +27,28 @@ Each turnout has two possible positions:
 
 **Code:** normal == the train stays on the same spline; reverse == the train switches splines.
 
+### Compound turnouts
+
+Several turnouts the player works as one, with a single control.
+
+* **Three-way turnout** — one track splitting into three. **Code:** `CompoundTurnout.Kind.THREE_WAY`,
+  two turnouts on one rail a few metres apart; positions **Straight / Left / Right**.
+* **Crossover** — two parallel tracks joined by one connecting track, so a train can change track
+  in one direction. **Code:** `CROSSOVER`; positions **Parallel / Cross**.
+* **Double crossover** (UK **scissors crossover**) — two crossovers facing opposite ways, their
+  connecting tracks crossing in an X. The plan calls it "double crossing / slip switch".
+  **Code:** `DOUBLE_CROSSOVER`; positions **Parallel / Cross**.
+* **Double slip** (German **DKW**, *Doppelkreuzungsweiche*) — a diamond crossing with a slip road
+  on each side, so a train can go straight across or change track from either end.
+  **Code:** `DOUBLE_SLIP`; positions **Straight / Slip**, worked in pairs like the crossovers.
+  A **single slip** has only one of the two slip roads, and is not built.
+
+### Crossing
+
+Two tracks crossing each other with no way between them (US **diamond**).
+
+**Code:** `Crossing` — two rails and the distance along each at which they meet.
+
 ## Routes
 
 * **Main Route** (or Through Route)

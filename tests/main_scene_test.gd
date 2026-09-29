@@ -1,7 +1,7 @@
 extends TestCase
 ## The running prototype, scenes/main.tscn: turnouts that survive surface snapping,
-## a train held at the junction from the moment the level opens, and bodies that sit
-## where their distance says they do.
+## a train held at the junction from the moment the level opens, bodies that sit
+## where their distance says they do, and the crossover on the western stretch.
 ##
 ## The scene is built once for the whole suite and run for 460 physics frames
 ## (7.7 s of game time) in before_all, because every test here observes the same
@@ -11,7 +11,9 @@ const MAIN_SCENE := "res://scenes/main.tscn"
 const SETTLE_FRAMES := 460
 
 var _scene: Node
+## Every turnout, including the members of compound assemblies.
 var _turnouts: Array[Turnout] = []
+var _compounds: Array[CompoundTurnout] = []
 var _signals: Array[RailSignal] = []
 var _trains: Array[Train] = []
 
@@ -20,6 +22,9 @@ func before_all() -> void:
 	_scene = await load_scene(MAIN_SCENE)
 	for turnout: Turnout in _scene.get_node("Turnouts").get_children():
 		_turnouts.append(turnout)
+	for compound: CompoundTurnout in _scene.get_node("Compounds").get_children():
+		_compounds.append(compound)
+		_turnouts.append_array(compound.members)
 	for rail_signal: RailSignal in _scene.get_node("Signals").get_children():
 		_signals.append(rail_signal)
 	for train: Train in _scene.get_node("Trains").get_children():
@@ -47,6 +52,31 @@ func test_the_level_has_no_configuration_warnings() -> void:
 		if not warnings.is_empty():
 			note("%s: %s" % [turnout.name, ", ".join(warnings)])
 		assert_true(warnings.is_empty(), "%s: no configuration warnings" % turnout.name)
+	for compound in _compounds:
+		var warnings := compound._get_configuration_warnings()
+		if not warnings.is_empty():
+			note("%s: %s" % [compound.name, ", ".join(warnings)])
+		assert_true(warnings.is_empty(), "%s: no configuration warnings" % compound.name)
+
+
+## The level's one compound assembly, on its hilly western stretch: set to cross,
+## a westbound train on the main line comes out on the parallel track, and an
+## eastbound one on the parallel track comes back.
+func test_the_west_crossover_joins_the_main_line_and_the_parallel_track() -> void:
+	var crossover: CompoundTurnout = _scene.get_node("Compounds/WestCrossover")
+	var main_line: Rail = _scene.get_node("Rails/MainLine")
+	var parallel: Rail = _scene.get_node("Rails/WestParallel")
+	var was := crossover.compound_position
+	crossover.compound_position = 1
+	var west := TrackWalker.walk(main_line, 70.0, -1, 60.0)
+	var east := TrackWalker.walk(parallel, 2.0, 1, 60.0)
+	crossover.compound_position = was
+	note("westbound off the main line: %s @ %.1f m  %s" % [west.rail.name, west.distance,
+			west.describe()])
+	note("eastbound off the parallel:  %s @ %.1f m  %s" % [east.rail.name, east.distance,
+			east.describe()])
+	assert_eq(west.rail, parallel, "set to cross, a westbound train crosses to the parallel")
+	assert_eq(east.rail, main_line, "and an eastbound one crosses back to the main line")
 
 
 ## The prototype is meant to open with a train already held at the junction, so the

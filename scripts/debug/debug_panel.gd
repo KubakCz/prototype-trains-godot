@@ -23,6 +23,17 @@ extends PanelContainer
 ## Font size of both the header and the readout, matching the other panels.
 const FONT_SIZE: int = 13
 
+## The cycle rows are drawn as buttons - a fill, a rim, rounded corners and a
+## hover and a pressed state - because as flat text they read as more readout.
+## The header only lights up under the mouse: it is a section heading first.
+const ROW_FILL := Color(1.0, 1.0, 1.0, 0.07)
+const ROW_RIM := Color(1.0, 1.0, 1.0, 0.22)
+const ROW_HOVER_FILL := Color(1.0, 1.0, 1.0, 0.15)
+const ROW_HOVER_RIM := Color(1.0, 1.0, 1.0, 0.5)
+const ROW_PRESSED_FILL := Color(0.36, 0.56, 0.86, 0.45)
+const ROW_PRESSED_RIM := Color(0.55, 0.72, 1.0, 0.8)
+const HEADER_HOVER_FILL := Color(1.0, 1.0, 1.0, 0.08)
+
 var _header: Button
 var _controls: VBoxContainer
 var _control_buttons: Array[Button] = []
@@ -89,18 +100,18 @@ func _build_chrome() -> void:
 	margin.add_child(rows)
 
 	_header = Button.new()
-	_header.flat = true
 	_header.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	# Without this the header joins the GUI focus chain, and Tab - the train
 	# panel's select key - would move focus between headers instead.
 	_header.focus_mode = Control.FOCUS_NONE
 	_header.add_theme_font_size_override("font_size", FONT_SIZE)
+	_style_header(_header)
 	_header.pressed.connect(_on_header_pressed)
 	rows.add_child(_header)
 
 	_controls = VBoxContainer.new()
 	_controls.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_controls.add_theme_constant_override("separation", 2)
+	_controls.add_theme_constant_override("separation", 4)
 	rows.add_child(_controls)
 
 	_readout = Label.new()
@@ -148,15 +159,51 @@ func _rebuild_controls(count: int) -> void:
 	_control_buttons.clear()
 	for i in count:
 		var button := Button.new()
-		button.flat = true
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.focus_mode = Control.FOCUS_NONE
 		button.add_theme_font_size_override("font_size", FONT_SIZE)
+		_style_row(button)
 		# A `Button` consumes its click, which is what keeps a press on a cycle
 		# row from also reaching the 3D picking behind the panel.
 		button.pressed.connect(_on_control_pressed.bind(i))
 		_controls.add_child(button)
 		_control_buttons.append(button)
+
+
+## Not `flat`: a flat `Button` draws no stylebox in any state, hover included,
+## so the looks below are overrides on an ordinary button instead.
+static func _style_row(button: Button) -> void:
+	button.add_theme_stylebox_override("normal", _row_box(ROW_FILL, ROW_RIM))
+	button.add_theme_stylebox_override("hover", _row_box(ROW_HOVER_FILL, ROW_HOVER_RIM))
+	button.add_theme_stylebox_override("pressed", _row_box(ROW_PRESSED_FILL, ROW_PRESSED_RIM))
+	button.add_theme_stylebox_override("hover_pressed", _row_box(ROW_PRESSED_FILL, ROW_PRESSED_RIM))
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_color_override("font_pressed_color", Color.WHITE)
+	button.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
+
+
+static func _style_header(button: Button) -> void:
+	var still := _row_box(Color.TRANSPARENT, Color.TRANSPARENT)
+	var lit := _row_box(HEADER_HOVER_FILL, Color.TRANSPARENT)
+	button.add_theme_stylebox_override("normal", still)
+	button.add_theme_stylebox_override("hover", lit)
+	button.add_theme_stylebox_override("pressed", lit)
+	button.add_theme_stylebox_override("hover_pressed", lit)
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+
+
+static func _row_box(fill: Color, rim: Color) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = fill
+	box.border_color = rim
+	box.set_border_width_all(1 if rim.a > 0.0 else 0)
+	box.set_corner_radius_all(4)
+	box.content_margin_left = 8
+	box.content_margin_right = 8
+	box.content_margin_top = 3
+	box.content_margin_bottom = 3
+	return box
 
 
 func _on_control_pressed(index: int) -> void:

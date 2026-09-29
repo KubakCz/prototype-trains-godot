@@ -1,7 +1,8 @@
 # Tests
 
 The regression suite for the prototype. It drives the real scenes — `scenes/main.tscn`,
-`scenes/demos/turnouts.tscn` and `scenes/demos/signals.tscn` — so these are integration tests
+`scenes/demos/turnouts.tscn`, `scenes/demos/signals.tscn` and
+`scenes/demos/compound_turnouts.tscn` — so these are integration tests
 more than unit tests: they instantiate a level, run the physics, and assert on what the trains,
 turnouts and signals did.
 
@@ -166,10 +167,12 @@ Four things that are not like Python or TypeScript:
   a coroutine are written the same way here.
 
 Shared fixtures live in `tests/support/` and are not collected as suites, because they do not
-end in `_test.gd`. There are two: [`TurnoutDemoCase`](support/turnout_demo_case.gd) builds a
+end in `_test.gd`. There are three: [`TurnoutDemoCase`](support/turnout_demo_case.gd) builds a
 fresh copy of the turnout demo for every test and exposes its rails, turnouts and the shuttle;
 [`SignalDemoCase`](support/signal_demo_case.gd) does the same for the signal demo and exposes
-its seven signals, its turnout and its three trains.
+its seven signals, its turnout and its three trains; [`CompoundDemoCase`](support/compound_demo_case.gd)
+does it for the compound demo, exposing its four assemblies and three crossings, with helpers to
+walk from a named rail and to print a walk or a train in one line.
 
 ## What is here
 
@@ -178,10 +181,14 @@ its seven signals, its turnout and its three trains.
 | `turnout_geometry_test.gd` | branches welded to the points, tangent departure, which hand a turnout is, configuration warnings |
 | `turnout_passage_test.gd` | the passage table straight through `Turnout.traverse`, every leg in both positions |
 | `turnout_driving_test.gd` | a train driving all of it: diverging, being held and released, the dead-end siding, a body spanning two rails, points thrown underneath |
-| `main_scene_test.gd` | `scenes/main.tscn`: turnouts still welded after surface snapping, the freight train held at the junction, bodies at the arc position their distance says |
+| `main_scene_test.gd` | `scenes/main.tscn`: turnouts still welded after surface snapping (the crossover's members too), the freight train held at the junction, bodies at the arc position their distance says, the west crossover joining the two tracks |
 | `turnout_click_test.gd` | throwing points by clicking the 3D marker and the floating widget, and the marker reporting the pointer over it, through the real input path (needs `-Windowed`) |
 | `signal_passage_test.gd` | the stopping rule through `TrackWalker`: which direction a signal governs, the walks that ignore signals, a signal the nose has passed, one standing on a turnout, which side the mast lands on, configuration warnings |
 | `signal_driving_test.gd` | trains at signals: held at danger and away when it clears, untouched by the signal facing the other way, not stranded when one goes back to danger underneath them, held past the points and on the branch |
-| `signal_overlay_test.gd` | `MarkerOverlay`: signals and turnouts in one overlay, widgets shifted out of each other's way, all three collapse rules, hover reopening a collapsed widget, the direction a widget shows |
+| `signal_overlay_test.gd` | `MarkerOverlay`: signals and turnouts in one overlay, widgets shifted out of each other's way, all three collapse rules, hover reopening a collapsed widget, the direction a widget shows, the four turnout captions |
 | `signal_click_test.gd` | changing a signal by clicking the mast and the floating widget, the mast reporting the pointer over it, and `player_operable = false` refusing a click (needs `-Windowed`) |
+| `compound_turnout_test.gd` | `CompoundTurnout`: every kind's positions and cycle order, members taken off the player, a member thrown directly leaving it `MIXED`, the configuration warnings, one widget per assembly and none for members in every overlay mode, the assembly widget following the turnout caption, a double slip's two positions |
+| `compound_passage_test.gd` | trains through the assemblies: a three-way in all three positions both ways, a crossover crossing one direction and holding the other two, a double crossover crossing all four, a double slip opening both straight routes or both slip roads, trains driving over, taking the slip and being held, the drawn routes matching the walks |
+| `crossing_test.gd` | `Crossing`: located where the rails meet, attached to both rails, walked straight through, which trains are over it (on either rail, and a train crossing the scissors), the warnings and Locate Crossing fixing them |
+| `compound_click_test.gd` | an assembly worked through the real input path: a click on one member's marker cycles all of it, a click on the widget cycles it exactly once, hovering a member counts as the assembly (needs `-Windowed`) |
 | `debug_panel_test.gd` | the debug HUD: every section folded on open, the number keys, a click on a header, the cycle rows that carry the open presentation questions, and the `>` that follows the mouse (the last needs `-Windowed`) |

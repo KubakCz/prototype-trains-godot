@@ -1,8 +1,11 @@
 class_name MarkerOverlay
 extends Control
-## The floating layer: one [TrackMarkerWidget] for every [RailSignal] and every
-## [Turnout] in the level, kept from covering each other and collapsed when there
-## are too many of them to read.
+## The floating layer: one [TrackMarkerWidget] for every [RailSignal], every
+## [Turnout] and every [CompoundTurnout] in the level, kept from covering each
+## other and collapsed when there are too many of them to read.
+##
+## A turnout that is a member of a compound assembly gets no widget of its own:
+## the assembly's is the single control the player sees for all of its points.
 ##
 ## Signals and turnouts share one overlay rather than having one each, because
 ## de-cluttering only works if it knows about every widget on screen - two
@@ -12,19 +15,18 @@ extends Control
 ## Two things are still unsettled and so are switchable at runtime rather than
 ## decided here:
 ##
-## - [member mode] - the four candidate ways of presenting a turnout, inherited
-##   from step 2.
+## - [member mode] - the candidate ways of presenting a turnout, inherited from
+##   step 2, and [member turnout_caption] - what its miniature is labelled with.
 ## - [member signal_style] and [member collapse_rule] - how a signal's widget is
 ##   drawn, and what makes a widget collapse to a point. All three collapse rules
 ##   are implemented; which one a dispatcher actually wants is a question for a
 ##   camera and a human.
 
-## The four candidate ways of presenting a turnout. Step 2's, unchanged.
+## The candidate ways of presenting a turnout. Step 2's, less the name/position
+## badge, which never worked.
 enum Mode {
 	## The 3D legs alone, and no floating widget.
 	LEGS_3D,
-	## 3D legs plus a small name/position button.
-	LEGS_AND_BADGE,
 	## 3D legs plus a miniature of the real layout.
 	LEGS_AND_SCHEMATIC,
 	## The miniature carrying the whole job, with nothing drawn on the track.
@@ -59,7 +61,12 @@ const _MAX_COLLAPSE_ROUNDS := 6
 @export var turnout_group: StringName = &"turnouts"
 ## Signals in this group get a widget.
 @export var signal_group: StringName = &"signals"
+## Compound turnouts in this group get a widget, and their members do not.
+@export var compound_group: StringName = &"compound_turnouts"
 @export var mode := Mode.LEGS_AND_SCHEMATIC: set = _set_mode
+## The text under a turnout's or an assembly's miniature, in every mode that
+## shows one.
+@export var turnout_caption := TurnoutWidget.Caption.ALL
 @export var signal_style := SignalWidget.Style.ARROW: set = _set_signal_style
 
 @export_group("Collapsing")
@@ -77,7 +84,7 @@ const _MAX_COLLAPSE_ROUNDS := 6
 ## Pixels left between two widgets that had to be separated.
 @export var widget_gap := 6.0
 
-## Widget per subject - a [Turnout] or a [RailSignal]. Subjects are re-read every
+## Widget per subject - a [Turnout], a [CompoundTurnout] or a [RailSignal]. Subjects are re-read every
 ## frame, since a level may add or remove them, but their widgets are kept.
 var _widgets: Dictionary[Node, TrackMarkerWidget] = {}
 
@@ -101,6 +108,11 @@ func cycle_mode() -> void:
 	mode = ((mode + 1) % Mode.size()) as Mode
 
 
+func cycle_turnout_caption() -> void:
+	turnout_caption = ((turnout_caption + 1)
+			% TurnoutWidget.Caption.size()) as TurnoutWidget.Caption
+
+
 func cycle_signal_style() -> void:
 	signal_style = ((signal_style + 1) % SignalWidget.Style.size()) as SignalWidget.Style
 
@@ -111,6 +123,10 @@ func cycle_collapse_rule() -> void:
 
 func mode_label() -> String:
 	return Mode.keys()[mode]
+
+
+func turnout_caption_label() -> String:
+	return TurnoutWidget.Caption.keys()[turnout_caption]
 
 
 func signal_style_label() -> String:
@@ -129,13 +145,13 @@ func collapse_label() -> String:
 
 
 #region Widgets
-## The widget for one [Turnout] or [RailSignal], or null before the overlay has
+## The widget for one [Turnout], [CompoundTurnout] or [RailSignal], or null before the overlay has
 ## caught up with a subject that was just added to the level.
 func widget_for(subject: Node) -> TrackMarkerWidget:
 	return _widgets.get(subject)
 
 
-## The [Turnout] or [RailSignal] whose floating widget the pointer is over, or
+## The [Turnout], [CompoundTurnout] or [RailSignal] whose floating widget the pointer is over, or
 ## null. Only the widget layer is asked - the 3D marker under it answers for
 ## itself, because a mode that hides the widget still has a clickable model.
 func hovered_subject() -> Node:
@@ -166,18 +182,27 @@ func _sync_widgets() -> void:
 
 func _collect_subjects() -> Array[Node]:
 	var found: Array[Node] = []
-	found.assign(get_tree().get_nodes_in_group(turnout_group))
+	for node in get_tree().get_nodes_in_group(turnout_group):
+		var turnout := node as Turnout
+		if turnout != null and turnout.assembly == null:
+			found.append(turnout)
+	found.append_array(get_tree().get_nodes_in_group(compound_group))
 	found.append_array(get_tree().get_nodes_in_group(signal_group))
 	return found
 
 
 func _make_widget(subject: Node) -> TrackMarkerWidget:
 	var turnout := subject as Turnout
+	var compound := subject as CompoundTurnout
 	var widget: TrackMarkerWidget
 	if turnout != null:
 		var turnout_widget := TurnoutWidget.new()
 		turnout_widget.turnout = turnout
 		widget = turnout_widget
+	elif compound != null:
+		var compound_widget := CompoundTurnoutWidget.new()
+		compound_widget.compound = compound
+		widget = compound_widget
 	else:
 		var signal_widget := SignalWidget.new()
 		signal_widget.rail_signal = subject as RailSignal
@@ -194,15 +219,18 @@ func _apply_styles() -> void:
 	var wants_legs := mode != Mode.SCHEMATIC_ONLY
 	var wants_turnout_widget := mode != Mode.LEGS_3D
 	for subject in _widgets:
-		var turnout := subject as Turnout
-		if turnout == null:
-			(_widgets[subject] as SignalWidget).style = signal_style
+		var widget := _widgets[subject]
+		var signal_widget := widget as SignalWidget
+		if signal_widget != null:
+			signal_widget.style = signal_style
 			continue
-		turnout.debug_draw = wants_legs
-		var widget := _widgets[subject] as TurnoutWidget
-		widget.style = (TurnoutWidget.Style.BADGE if mode == Mode.LEGS_AND_BADGE
-				else TurnoutWidget.Style.SCHEMATIC)
+		_set_legs(subject, wants_legs)
 		widget.suppressed = not wants_turnout_widget
+		var turnout_widget := widget as TurnoutWidget
+		if turnout_widget != null:
+			turnout_widget.caption = turnout_caption
+		else:
+			(widget as CompoundTurnoutWidget).caption = turnout_caption
 #endregion
 
 
@@ -353,9 +381,18 @@ func _set_mode(value: Mode) -> void:
 		# Legs are the turnout's own draw, so a mode that hides them has to say
 		# so immediately rather than waiting for the next frame.
 		for subject in _widgets:
-			var turnout := subject as Turnout
-			if turnout != null:
-				turnout.debug_draw = mode != Mode.SCHEMATIC_ONLY
+			_set_legs(subject, mode != Mode.SCHEMATIC_ONLY)
+
+
+## The 3D legs are the turnout's own draw - or, for an assembly, the assembly's,
+## which draws the routes through all of its members at once.
+func _set_legs(subject: Node, shown: bool) -> void:
+	var turnout := subject as Turnout
+	if turnout != null:
+		turnout.debug_draw = shown
+	var compound := subject as CompoundTurnout
+	if compound != null:
+		compound.debug_draw = shown
 
 
 func _set_signal_style(value: SignalWidget.Style) -> void:

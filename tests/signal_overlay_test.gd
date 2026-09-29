@@ -66,6 +66,40 @@ func test_signals_and_turnouts_share_one_overlay() -> void:
 	assert_eq(turnout_widgets, 1, "the turnout has one too, from the same overlay")
 
 
+## The turnout's caption is a switch of its own, independent of the mode: each
+## setting writes what it says, and the widget is sized for the longer position so
+## throwing the points does not make it jump.
+func test_a_turnout_widget_is_captioned_as_the_overlay_says() -> void:
+	var widget := _overlay.widget_for(points) as TurnoutWidget
+	if not assert_not_null(widget, "the siding points have a widget"):
+		return
+	var sizes: Dictionary[TurnoutWidget.Caption, Vector2] = {}
+	for caption in TurnoutWidget.Caption.size():
+		_overlay.turnout_caption = caption as TurnoutWidget.Caption
+		await _settle()
+		var text := widget._caption_text(false)
+		sizes[_overlay.turnout_caption] = widget.expanded_size()
+		note("%-16s '%s'  %s" % [_overlay.turnout_caption_label(), text,
+				widget.expanded_size()])
+		var names := (caption == TurnoutWidget.Caption.TURNOUT_NAME
+				or caption == TurnoutWidget.Caption.ALL)
+		var positions := (caption == TurnoutWidget.Caption.TURNOUT_POSITION
+				or caption == TurnoutWidget.Caption.ALL)
+		assert_eq(text.contains(str(points.name)), names, "%s %s the name"
+				% [_overlay.turnout_caption_label(), "shows" if names else "leaves out"])
+		assert_eq(text.contains("NORMAL"), positions, "%s %s the position"
+				% [_overlay.turnout_caption_label(), "shows" if positions else "leaves out"])
+	assert_less(sizes[TurnoutWidget.Caption.NO_TEXT].y, sizes[TurnoutWidget.Caption.ALL].y,
+			"with no text the widget gives up the caption's strip")
+
+	var before := widget.expanded_size()
+	points.throw_points()
+	await _settle()
+	assert_eq(widget.expanded_size(), before,
+			"throwing the points leaves the widget's size alone")
+	points.throw_points()
+
+
 ## The problem step 3 was asked to solve: three signals within eight metres of
 ## each other whose widgets, left alone, would sit on top of one another.
 func test_widgets_that_would_cover_each_other_are_shifted_apart() -> void:

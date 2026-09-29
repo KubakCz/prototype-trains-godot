@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
 [ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="8_overlay"]
 [ext_resource type="Script" path="res://scripts/rails/rail_signal.gd" id="9_signal"]
 [ext_resource type="Script" path="res://scripts/debug/signal_debug_panel.gd" id="10_spanel"]
+[ext_resource type="Script" path="res://scripts/rails/compound_turnout.gd" id="11_compound"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
@@ -45,6 +46,20 @@ _data = {
 "tilts": PackedFloat32Array(0, 0, 0, 0)
 }
 point_count = 4
+
+[sub_resource type="Curve3D" id="Curve3D_parallel"]
+_data = {
+"points": PackedVector3Array(0, 0, 0.0000, 2.9232, 0.0000, -0.6745, -92.1187, 1.0237, -35.2832, -2.9232, 0, 0.6743, 2.9437, 0.0000, -0.6790, -83.3986, 0.0702, -37.2955, -2.9536, 0, 0.6346, 2.8827, 0.0000, -0.6194, -74.6413, -0.7882, -39.4653, -2.8627, 0, 0.7063, 3.1923, 0.0000, -0.7876, -65.9776, -0.6850, -41.2466, -3.2856, 0, 0.1267, 3.4116, 0.0000, -0.1315, -56.2474, 0.3474, -42.4938, -3.3026, 0, -0.8657, 2.9446, 0.0000, 0.7719, -46.0375, 1.1623, -42.4857, -2.9148, 0, -0.8778, 2.8767, 0.0000, 0.8663, -37.2307, 0.9603, -40.0778, -2.5952, 0, -1.5134, 0.0000, 0.0000, 0.0000, -29.3498, 0.0058, -35.8102),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 8
+
+[sub_resource type="Curve3D" id="Curve3D_link"]
+_data = {
+"points": PackedVector3Array(0.0000, 0.0000, 0.0000, 8.6682, 0.0000, -2.4214, -76.8447, -0.6743, -38.9282, -8.7815, 0, -1.9712, 0.0000, 0.0000, 0.0000, -48.1560, 1.1228, -38.3750),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
 
 [node name="Main" type="Node3D"]
 
@@ -82,6 +97,18 @@ script = ExtResource("2_rail")
 surface_root = NodePath("../../Ground")
 surface_offset = 0.25
 
+[node name="WestParallel" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_parallel")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="CrossoverLink" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_link")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
 [node name="Turnouts" type="Node3D" parent="."]
 
 [node name="MainJunction" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
@@ -98,6 +125,29 @@ main_rail = NodePath("../../Rails/MainLine")
 main_distance = 172.9
 diverge_towards = 1
 branch_rail = NodePath("../../Rails/SidingLine")
+branch_end = 0
+
+[node name="Compounds" type="Node3D" parent="."]
+
+[node name="WestCrossover" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("11_compound")
+kind = 1
+members = [NodePath("MainPoints"), NodePath("ParallelPoints")]
+
+[node name="MainPoints" type="Node3D" parent="Compounds/WestCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../../Rails/MainLine")
+main_distance = 48.0
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/CrossoverLink")
+branch_end = 1
+
+[node name="ParallelPoints" type="Node3D" parent="Compounds/WestCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../../Rails/WestParallel")
+main_distance = 16.0
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/CrossoverLink")
 branch_end = 0
 
 [node name="Signals" type="Node3D" parent="."]

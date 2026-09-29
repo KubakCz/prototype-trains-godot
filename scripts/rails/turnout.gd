@@ -100,6 +100,10 @@ const _POST_MIN_HEIGHT := 0.6
 
 ## Emitted whenever the points move, however they were moved.
 signal position_changed
+## Emitted when the player clicks the 3D marker, whether or not that throws the
+## points. A [CompoundTurnout] listens to its members through this, so a click on
+## any of them cycles the whole assembly.
+signal clicked
 
 @export_group("Main Rail")
 ## The rail that runs straight through the points.
@@ -128,8 +132,9 @@ signal position_changed
 
 @export_group("Position")
 @export var turnout_position := Position.NORMAL: set = _set_turnout_position
-## Whether clicking the turnout in the running game throws it. Turned off for
-## turnouts that a step-4 compound assembly drives on the player's behalf.
+## Whether clicking the turnout in the running game throws it. A
+## [CompoundTurnout] turns this off on its members, because it drives them on the
+## player's behalf.
 @export var player_operable := true
 
 @export_group("Debug Draw")
@@ -153,6 +158,10 @@ var _picker: StaticBody3D
 ## Whether the mouse is over the 3D marker. Only a readout uses it, but it is the
 ## model's own business: the floating widget has the same for its own rect.
 var _pointer_over := false
+## The [CompoundTurnout] this turnout is a member of, or null. Set by the
+## assembly, never authored. Typed as [Node3D] so this script does not have to
+## name that one back - the same reason [Rail] keeps its attachments untyped.
+var assembly: Node3D: set = _set_assembly
 static var _debug_material: StandardMaterial3D
 
 
@@ -297,6 +306,18 @@ func overlay_anchor() -> Vector3:
 	return points_position() + Vector3.UP * 2.4
 
 
+## Where [param leg] starts and which way it runs: the points, on the leg's
+## rail, travelling away from them. What a walk out along that leg starts from.
+func leg_exit(leg: Leg) -> Exit:
+	match leg:
+		Leg.DIVERGING:
+			return Exit.new(branch_rail, branch_distance(), branch_exit_sign())
+		Leg.THROUGH:
+			return Exit.new(main_rail, points_distance(), diverge_sign())
+		_:
+			return Exit.new(main_rail, points_distance(), -diverge_sign())
+
+
 ## Unit vector leaving the points along the toe leg.
 func toe_direction() -> Vector3:
 	if main_rail == null:
@@ -422,8 +443,8 @@ func _update_marker_frame() -> void:
 
 
 #region Player operation
-## The single entry point for throwing a turnout, whoever throws it. A step-4
-## compound assembly drives its members through this.
+## The single entry point for throwing a turnout, whoever throws it. A
+## [CompoundTurnout] drives its members through this.
 func throw_points() -> void:
 	turnout_position = (Position.NORMAL if turnout_position == Position.REVERSE
 			else Position.REVERSE)
@@ -431,7 +452,10 @@ func throw_points() -> void:
 
 func _on_picker_input(_camera: Node, event: InputEvent, _at: Vector3,
 		_normal: Vector3, _shape: int) -> void:
-	if player_operable and event.is_action_pressed(&"interact"):
+	if not event.is_action_pressed(&"interact"):
+		return
+	clicked.emit()
+	if player_operable:
 		throw_points()
 
 
@@ -636,7 +660,11 @@ func _refresh_debug_mesh() -> void:
 
 	var mesh := ImmediateMesh.new()
 	_debug_mesh.mesh = mesh
-	if not debug_draw or not is_usable():
+	# A member of a compound turnout leaves its legs to the assembly, which draws
+	# the routes through all of its members at once. Drawn one member at a time,
+	# a three-way's second set of points would paint its toe green straight over
+	# the first one's dead leg.
+	if not debug_draw or not is_usable() or assembly != null:
 		return
 
 	mesh.surface_begin(Mesh.PRIMITIVE_LINES, _get_debug_material())
@@ -777,6 +805,15 @@ func _set_turnout_position(value: Position) -> void:
 
 
 func _set_debug_draw(value: bool) -> void:
+	# The overlay pushes its mode onto every turnout every frame, so an unchanged
+	# value must not rebuild the mesh.
+	if debug_draw == value:
+		return
 	debug_draw = value
+	_refresh_debug_mesh()
+
+
+func _set_assembly(value: Node3D) -> void:
+	assembly = value
 	_refresh_debug_mesh()
 #endregion

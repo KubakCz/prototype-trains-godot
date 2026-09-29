@@ -1,6 +1,10 @@
 extends DebugPanel
-## Live readout for every [Turnout] in the level, and the switch for the
-## presentation question step 2 left open.
+## Live readout for every [Turnout], [CompoundTurnout] and [Crossing] in the
+## level, and the switches for the presentation question step 2 left open.
+##
+## A compound assembly is one line with its members indented under it, since the
+## assembly is what the player works; a crossing is one line saying which trains
+## are standing over it, since that is all there is to know about one yet.
 ##
 ## No keys of its own: clicking a turnout - the 3D marker or its floating widget -
 ## is the player's actual interface, so a second, keyboard-shaped way in was only
@@ -9,12 +13,16 @@ extends DebugPanel
 
 ## Turnouts found in this group are listed, in scene-tree order.
 @export var turnout_group: StringName = &"turnouts"
-## Cycled by this panel's overlay row. Optional; without it the row is dropped.
+@export var compound_group: StringName = &"compound_turnouts"
+@export var crossing_group: StringName = &"crossings"
+## Cycled by this panel's two rows. Optional; without it they are dropped.
 @export var overlay: MarkerOverlay
 ## Reported alongside each turnout, so it is obvious which train is being held.
 @export var train_group: StringName = &"trains"
 
 var _turnouts: Array[Turnout] = []
+var _compounds: Array[CompoundTurnout] = []
+var _crossings: Array[Crossing] = []
 
 
 func _ready() -> void:
@@ -31,28 +39,39 @@ func _panel_title() -> String:
 func _panel_controls() -> Array[String]:
 	if overlay == null:
 		return []
-	return ["overlay: %s   ▸" % overlay.mode_label()]
+	return [
+		"overlay: %s   ▸" % overlay.mode_label(),
+		"schematic text: %s   ▸" % overlay.turnout_caption_label(),
+	]
 
 
 func _panel_control_pressed(index: int) -> void:
-	if index == 0 and overlay != null:
-		overlay.cycle_mode()
+	if overlay == null:
+		return
+	match index:
+		0:
+			overlay.cycle_mode()
+		1:
+			overlay.cycle_turnout_caption()
 
 
 func _collect() -> void:
 	_turnouts.assign(get_tree().get_nodes_in_group(turnout_group))
+	_compounds.assign(get_tree().get_nodes_in_group(compound_group))
+	_crossings.assign(get_tree().get_nodes_in_group(crossing_group))
 
 
-## The turnout the mouse is on, from either of the two things that can be
-## clicked: the floating widget, or the 3D marker under it.
-func _hovered() -> Turnout:
+## The turnout or assembly the mouse is on, from either of the two things that
+## can be clicked: the floating widget, or the 3D marker under it. A member's
+## marker counts as its assembly, because that is what the click cycles.
+func _hovered() -> Node:
 	if overlay != null:
-		var subject := overlay.hovered_subject() as Turnout
-		if subject != null:
+		var subject := overlay.hovered_subject()
+		if subject is Turnout or subject is CompoundTurnout:
 			return subject
 	for turnout in _turnouts:
 		if turnout.is_pointer_over():
-			return turnout
+			return turnout.assembly if turnout.assembly != null else turnout
 	return null
 
 
@@ -61,8 +80,44 @@ func _panel_lines() -> Array[String]:
 	var lines: Array[String] = []
 	var hovered := _hovered()
 	for turnout in _turnouts:
-		lines.append(_describe(turnout, turnout == hovered))
+		if turnout.assembly == null:
+			lines.append(_describe(turnout, turnout == hovered))
+	for compound in _compounds:
+		lines.append(_describe_compound(compound, compound == hovered))
+		for member in compound.members:
+			if member != null:
+				lines.append("    " + _describe(member, false))
+	for crossing in _crossings:
+		lines.append(_describe_crossing(crossing))
 	return lines
+
+
+func _describe_compound(compound: CompoundTurnout, is_hovered: bool) -> String:
+	if not compound.is_usable():
+		return "%s %s  <not configured>" % [">" if is_hovered else " ", compound.name]
+	return "%s %s  %s  %s (%d of %d)" % [
+		">" if is_hovered else " ",
+		compound.name,
+		CompoundTurnout.Kind.keys()[compound.kind],
+		compound.position_label(compound.compound_position),
+		compound.compound_position + 1,
+		compound.position_count(),
+	]
+
+
+func _describe_crossing(crossing: Crossing) -> String:
+	if not crossing.is_usable():
+		return "  %s  <not configured>" % crossing.name
+	var names: Array[String] = []
+	for train in crossing.occupants():
+		names.append(str(train.name))
+	return "  %s  CROSSING  %s @ %.1f m x %s @ %.1f m  %.0f deg  %s" % [
+		crossing.name,
+		crossing.rail_a.name, crossing.distance_a,
+		crossing.rail_b.name, crossing.distance_b,
+		crossing.crossing_angle_degrees(),
+		"occupied by " + ", ".join(names) if not names.is_empty() else "clear",
+	]
 
 
 ## Everything needed to check a turnout is wired up the way the level intended:

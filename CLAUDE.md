@@ -58,6 +58,8 @@ that instantiates `main.tscn`, `await RenderingServer.frame_post_draw` ~30 times
 ```
 scripts/rails/rail.gd             Rail        : Path3D   — a stretch of track
 scripts/rails/turnout.gd          Turnout     : Node3D   — points joining two rails
+scripts/rails/compound_turnout.gd CompoundTurnout : Node3D — turnouts worked as one (3-way, crossovers, double slip)
+scripts/rails/crossing.gd         Crossing    : Node3D   — two rails crossing, no way between them
 scripts/rails/rail_signal.gd      RailSignal  : Node3D   — a one-directional stop signal
 scripts/rails/track_walker.gd     TrackWalker : RefCounted — arc length across the network
 scripts/rails/surface_snapper.gd  SurfaceSnapper        — ground raycasts
@@ -68,6 +70,7 @@ scripts/ui/marker_overlay.gd      MarkerOverlay      : Control — lays out ever
 scripts/ui/track_marker_widget.gd TrackMarkerWidget  : Control — base: follow, collapse, click
 scripts/ui/turnout_widget.gd      TurnoutWidget      : TrackMarkerWidget
 scripts/ui/signal_widget.gd       SignalWidget       : TrackMarkerWidget
+scripts/ui/compound_turnout_widget.gd CompoundTurnoutWidget : TrackMarkerWidget — an assembly's one control
 scripts/debug/camera_rig.gd       CameraRig   : Node3D   — orbit camera (debug)
 scripts/debug/debug_panel.gd      DebugPanel  : PanelContainer — a collapsible HUD section
 scripts/debug/train_debug_panel.gd            : DebugPanel — driving keys (debug)
@@ -78,14 +81,18 @@ tests/framework/test_case.gd      TestCase       : RefCounted — the base class
 tests/framework/test_runner.gd                   : SceneTree — discovery, reporting, exit code
 tests/support/turnout_demo_case.gd TurnoutDemoCase — fixture for the turnout demo layout
 tests/support/signal_demo_case.gd  SignalDemoCase  — fixture for the signal demo layout
+tests/support/compound_demo_case.gd CompoundDemoCase — fixture for the compound turnout demo
 tests/*_test.gd                                  — the suites themselves
 ```
 
-Scenes: `scenes/main.tscn` (the running prototype), `scenes/demos/turnouts.tscn` (flat ground,
-a passing loop and a dead-end stub — every turnout case in one place) and
-`scenes/demos/signals.tscn` (a straight 280 m main line with a siding: a back-to-back signal
-pair, a cluster of three that forces the widgets apart, a signal past the points, and one on
-the branch). All three are driven by the tests under `tests/`; keep them working.
+Scenes: `scenes/main.tscn` (the running prototype, with one crossover onto a parallel track on
+its western stretch), `scenes/demos/turnouts.tscn` (flat ground, a passing loop and a dead-end
+stub — every turnout case in one place), `scenes/demos/signals.tscn` (a straight 280 m main line
+with a siding: a back-to-back signal pair, a cluster of three that forces the widgets apart, a
+signal past the points, and one on the branch) and `scenes/demos/compound_turnouts.tscn` (flat
+ground, one of each: a three-way, a crossover, a double crossover with its middle crossing, a
+plain diamond crossing and a double slip, each with trains). All four are driven by the tests under `tests/`; keep
+them working.
 
 The overlay is `scripts/ui/`, not `scripts/debug/`: clicking a signal or a turnout is the
 player's actual interface, so it is gameplay UI that happens to still carry step 2's debug
@@ -126,7 +133,8 @@ the design record for its step, including the cases that look like bugs and are 
 
 | file | what is in it |
 | --- | --- |
-| [docs/turnouts.md](docs/turnouts.md) | the three legs, the passage table, refusal, what is authored vs. derived, the four presentation modes |
+| [docs/turnouts.md](docs/turnouts.md) | the three legs, the passage table, refusal, what is authored vs. derived, the presentation modes and the schematic caption |
+| [docs/compound_turnouts.md](docs/compound_turnouts.md) | assemblies of turnouts worked as one, their positions and single control, routes found by walking, crossings and their occupants |
 | [docs/signals.md](docs/signals.md) | which direction a signal governs, the stopping rule written from the nose, `signals_from`, the three widget styles |
 | [docs/ui.md](docs/ui.md) | interface scale, the floating marker layer and its de-cluttering, the debug HUD's panels and keys |
 | [docs/level_authoring.md](docs/level_authoring.md) | snapping rails to the terrain, and welding a branch onto a turnout (with and without the editor) |
@@ -161,6 +169,8 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
   rail = NodePath("../../Rails/MainLine")
   ```
   Only the editor writes that attribute automatically. Same for `surface_root`, `camera`, `readout`.
+  An exported *array* of nodes is the same, one entry in `node_paths` for the whole array:
+  `members = [NodePath("NorthPoints"), NodePath("SouthPoints")]` fills an `Array[Turnout]`.
 - **`Curve3D` in `.tscn`** stores `_data = {"points": PackedVector3Array(...), "tilts": ...}`
   with **three vectors per point, in the order `in`, `out`, `position`** (handles are relative
   to the point), plus a trailing `point_count`.
@@ -196,6 +206,17 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
 - **Editor physics is not stepped**, so `PhysicsDirectSpaceState3D.intersect_ray` finds nothing
   from a `@tool` script. `SurfaceSnapper` intersects mesh triangles
   (`Geometry3D.ray_intersects_triangle`) instead, which behaves identically in editor and game.
+- **`MarkerOverlay` assigns `debug_draw` on every turnout and assembly every frame**, so that
+  setter must return early when the value has not changed. Turnout's didn't, and rebuilt its
+  `ImmediateMesh` sixty times a second unnoticed; `CompoundTurnout`'s re-walks every route on a
+  rebuild and more than doubled the compound demo's frame time before the guard went in. Anything else the
+  overlay drives per frame wants the same guard.
+- **Something that registers itself on a `Rail` from a property setter must only do it inside the
+  tree.** A node built with `.new()`, configured and freed without ever entering the tree never
+  runs `_exit_tree`, so it stays in `Rail.attachments()` as a freed instance and the next walk
+  over that rail casts it. `Crossing` attaches in `_enter_tree` and guards its setters;
+  `Turnout`'s setters still attach unconditionally, which is harmless only because nothing
+  builds a turnout outside a scene yet.
 - **Generated nodes use `INTERNAL_MODE_BACK`** (`Rail`'s debug lines, `Train`'s body boxes) so
   they never get saved into the scene or show up in the scene tree.
 - **A rail distance exactly at a turnout does not say which side of the points you are on.**
@@ -320,5 +341,6 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
   one step 3's signals should reuse.
 - `Rail` stores its attachments as `Array[Node]`, not `Array[Turnout]`. `Turnout` has to name
   `Rail`, and naming it back would make the two scripts mutually dependent. `TrackWalker` casts.
-  For the same reason `Turnout.Exit` is an inner class of `Turnout` rather than of the walker.
+  For the same reason `Turnout.Exit` is an inner class of `Turnout` rather than of the walker,
+  and `Turnout.assembly` is typed `Node3D` rather than `CompoundTurnout`.
 

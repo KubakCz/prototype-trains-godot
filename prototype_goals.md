@@ -43,7 +43,7 @@ Plan of prototype implementation.
   * When too far away, the UI should colapse to a point that uncolapses when mouse is over it
 * The code must count on with extensions in steps 7 and 8
 
-## 4. Compound Turnouts
+## 4. Compound Turnouts *(done)*
 
 * We already have simple turnout that can be made into any shape - straight track with divert, turnout on a curve, Y shaped turnout
 * More complex turnouts can be made out of the simple turnout (they are multiple connected simple turnouts), but have a single control element for the player
@@ -60,6 +60,7 @@ Plan of prototype implementation.
   * crossing 
     * two tracks the cross each other
     * train is not allowed to switch tracks, there is no user interaction, but we need to track these crossings for logic introduced by later implementation steps
+* Each compound turnout should have only a singular controlling element (be it text or schema). We are still keeping all the variants.
 
 ## 5. Simple editor
 

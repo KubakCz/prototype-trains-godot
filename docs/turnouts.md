@@ -48,19 +48,30 @@ lets one script be a left-hand turnout, a right-hand one, a turnout on a curve o
 **Points can be thrown under a train**, deliberately, for now — the body visibly kinks onto the
 other route. Step 8 makes occupancy lock them.
 
-`Turnout.throw_points()` is the single entry point for throwing, whoever throws it; step 4's
-compound assemblies should drive their members through it and set `player_operable = false` on
-them. `position_changed` fires whenever the points move.
+`Turnout.throw_points()` is the single entry point for throwing, whoever throws it, and
+`position_changed` fires whenever the points move. A compound assembly — three-way, crossover,
+double crossover — is a group of these driven through that entry point; see
+[compound_turnouts.md](compound_turnouts.md). A member of one draws no legs of its own and gets no
+widget: its `assembly` does both for all of its members at once.
 
-**How a turnout is presented is not settled**, so all four candidates are in and the turnout
-panel's **overlay row** cycles them (`MarkerOverlay.Mode`):
+**How a turnout is presented is not settled**, so the candidates are in and the turnout panel's
+**overlay row** cycles them (`MarkerOverlay.Mode`):
 
 | mode | on the track | floating |
 | --- | --- | --- |
 | `LEGS_3D` | coloured legs | — |
-| `LEGS_AND_BADGE` | coloured legs | name + `N`/`R` pill |
 | `LEGS_AND_SCHEMATIC` | coloured legs | miniature of the real layout |
 | `SCHEMATIC_ONLY` | — | miniature only |
+
+A fourth, `LEGS_AND_BADGE` — the legs plus a name and `N`/`R` pill instead of the miniature — was
+tried and dropped: it did not work.
+
+What is written under the miniature is a second open question, cycled by the panel's
+**schematic text row** (`MarkerOverlay.turnout_caption`, a `TurnoutWidget.Caption`): `NO_TEXT`,
+`TURNOUT_NAME`, `TURNOUT_POSITION` (`NORMAL`/`REVERSE`) or `ALL`, the default. The position is
+drawn in the widget's accent colour — white for normal, orange for reverse — and the widget is
+sized for `REVERSE` whatever the points are set to, so throwing them does not make it jump.
+With `NO_TEXT` the widget drops the caption's strip and is just the miniature.
 
 The 3D legs are stubs sampled along the real rails, so they curve with the track: the toe and
 the set route in green, the dead leg in red with a cross on its end. The minimal box marker (a

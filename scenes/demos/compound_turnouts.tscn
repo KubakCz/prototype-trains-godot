@@ -1,0 +1,525 @@
+[gd_scene load_steps=30 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
+[ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
+[ext_resource type="Script" path="res://scripts/rails/turnout.gd" id="3_turnout"]
+[ext_resource type="Script" path="res://scripts/rails/compound_turnout.gd" id="4_compound"]
+[ext_resource type="Script" path="res://scripts/rails/crossing.gd" id="5_crossing"]
+[ext_resource type="Script" path="res://scripts/trains/train.gd" id="6_train"]
+[ext_resource type="Script" path="res://scripts/debug/camera_rig.gd" id="7_camera"]
+[ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="8_trains"]
+[ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="9_turnouts"]
+[ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="10_overlay"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
+ground_bottom_color = Color(0.22, 0.24, 0.24, 1)
+ground_horizon_color = Color(0.66, 0.7, 0.74, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+tonemap_mode = 2
+ssao_enabled = true
+
+[sub_resource type="Curve3D" id="Curve3D_3way_main"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 33.3333, 0, 0, -140, 0, -75, -33.3333, 0, 0, 20, 0, 0, -40, 0, -75, -20, 0, 0, 26.6667, 0, 0, 20, 0, -75, -26.6667, 0, 0, 0, 0, 0, 100, 0, -75),
+"tilts": PackedFloat32Array(0, 0, 0, 0)
+}
+point_count = 4
+
+[sub_resource type="Curve3D" id="Curve3D_3way_left"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 11, 0, 0, -40, 0, -75, -11, 0, 0, 29.3333, 0, 0, -8, 0, -81, -29.3333, 0, 0, 0, 0, 0, 80, 0, -81),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[sub_resource type="Curve3D" id="Curve3D_3way_right"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 11, 0, 0, -36, 0, -75, -11, 0, 0, 28, 0, 0, -4, 0, -69, -28, 0, 0, 0, 0, 0, 80, 0, -69),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[sub_resource type="Curve3D" id="Curve3D_cross_north"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 36.6667, 0, 0, -140, 0, -30, -36.6667, 0, 0, 10, 0, 0, -30, 0, -30, -10, 0, 0, 33.3333, 0, 0, 0, 0, -30, -33.3333, 0, 0, 0, 0, 0, 100, 0, -30),
+"tilts": PackedFloat32Array(0, 0, 0, 0)
+}
+point_count = 4
+
+[sub_resource type="Curve3D" id="Curve3D_cross_south"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 36.6667, 0, 0, -140, 0, -25.5, -36.6667, 0, 0, 10, 0, 0, -30, 0, -25.5, -10, 0, 0, 33.3333, 0, 0, 0, 0, -25.5, -33.3333, 0, 0, 0, 0, 0, 100, 0, -25.5),
+"tilts": PackedFloat32Array(0, 0, 0, 0)
+}
+point_count = 4
+
+[sub_resource type="Curve3D" id="Curve3D_cross_link"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 10, 0, 0, -30, 0, -30, -10, 0, 0, 0, 0, 0, 0, 0, -25.5),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_scissors_north"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 40.6667, 0, 0, -140, 0, 15, -40.6667, 0, 0, 12, 0, 0, -18, 0, 15, -12, 0, 0, 27.3333, 0, 0, 18, 0, 15, -27.3333, 0, 0, 0, 0, 0, 100, 0, 15),
+"tilts": PackedFloat32Array(0, 0, 0, 0)
+}
+point_count = 4
+
+[sub_resource type="Curve3D" id="Curve3D_scissors_south"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 40.6667, 0, 0, -140, 0, 19.5, -40.6667, 0, 0, 12, 0, 0, -18, 0, 19.5, -12, 0, 0, 27.3333, 0, 0, 18, 0, 19.5, -27.3333, 0, 0, 0, 0, 0, 100, 0, 19.5),
+"tilts": PackedFloat32Array(0, 0, 0, 0)
+}
+point_count = 4
+
+[sub_resource type="Curve3D" id="Curve3D_scissors_down"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 12, 0, 0, -18, 0, 15, -12, 0, 0, 0, 0, 0, 18, 0, 19.5),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_scissors_up"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 12, 0, 0, -18, 0, 19.5, -12, 0, 0, 0, 0, 0, 18, 0, 15),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_diamond_straight"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 33.3333, 0, 0, -140, 0, 60, -33.3333, 0, 0, 20, 0, 0, -40, 0, 60, -20, 0, 0, 26.6667, 0, 0, 20, 0, 60, -26.6667, 0, 0, 0, 0, 0, 100, 0, 60),
+"tilts": PackedFloat32Array(0, 0, 0, 0)
+}
+point_count = 4
+
+[sub_resource type="Curve3D" id="Curve3D_diamond_diagonal"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 20, 0, 12, -60, 0, 32, -20, 0, -12, 0, 0, 0, 40, 0, 92),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_slip_one"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 80, 0, 8.4083, -120, 0, 105.3875, -80, 0, -8.4083, 0, 0, 0, 120, 0, 130.6125),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_slip_two"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 80, 0, -8.4083, -120, 0, 130.6125, -80, 0, 8.4083, 0, 0, 0, 120, 0, 105.3875),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_slip_north"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 9.2822, 0, 0.9756, -13.9233, 0, 116.5366, -9.2822, 0, 0.9756, 0, 0, 0, 13.9233, 0, 116.5366),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_slip_south"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 9.2822, 0, -0.9756, -13.9233, 0, 119.4634, -9.2822, 0, -0.9756, 0, 0, 0, 13.9233, 0, 119.4634),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[node name="CompoundTurnoutDemo" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.6452, -0.628, 0.4352, 0, 0.5696, 0.822, -0.764, -0.5303, 0.3675, 0, 60, 0)
+light_energy = 1.3
+shadow_enabled = true
+
+[node name="Ground" type="MeshInstance3D" parent="." groups=["snap_surface"]]
+script = ExtResource("1_ground")
+size = Vector2(320, 300)
+subdivisions = 16
+hill_height = 0.0
+
+[node name="Rails" type="Node3D" parent="."]
+
+[node name="ThreeWayMain" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_3way_main")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="ThreeWayLeft" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_3way_left")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="ThreeWayRight" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_3way_right")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="CrossoverNorth" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_cross_north")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="CrossoverSouth" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_cross_south")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="CrossoverLink" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_cross_link")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="ScissorsNorth" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_scissors_north")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="ScissorsSouth" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_scissors_south")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="ScissorsDown" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_scissors_down")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="ScissorsUp" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_scissors_up")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="DiamondStraight" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_diamond_straight")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="DiamondDiagonal" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_diamond_diagonal")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="SlipLineOne" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_slip_one")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="SlipLineTwo" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_slip_two")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="SlipRoadNorth" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_slip_north")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="SlipRoadSouth" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_slip_south")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="Compounds" type="Node3D" parent="."]
+
+[node name="ThreeWay" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("4_compound")
+kind = 0
+members = [NodePath("LeftPoints"), NodePath("RightPoints")]
+
+[node name="LeftPoints" type="Node3D" parent="Compounds/ThreeWay" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/ThreeWayMain")
+main_distance = 100
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/ThreeWayLeft")
+branch_end = 0
+
+[node name="RightPoints" type="Node3D" parent="Compounds/ThreeWay" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/ThreeWayMain")
+main_distance = 104
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/ThreeWayRight")
+branch_end = 0
+
+[node name="Crossover" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("4_compound")
+kind = 1
+members = [NodePath("NorthPoints"), NodePath("SouthPoints")]
+
+[node name="NorthPoints" type="Node3D" parent="Compounds/Crossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/CrossoverNorth")
+main_distance = 110
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/CrossoverLink")
+branch_end = 0
+
+[node name="SouthPoints" type="Node3D" parent="Compounds/Crossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/CrossoverSouth")
+main_distance = 140
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/CrossoverLink")
+branch_end = 1
+
+[node name="Scissors" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("4_compound")
+kind = 2
+members = [NodePath("NorthWest"), NodePath("SouthEast"), NodePath("SouthWest"), NodePath("NorthEast")]
+
+[node name="NorthWest" type="Node3D" parent="Compounds/Scissors" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/ScissorsNorth")
+main_distance = 122
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/ScissorsDown")
+branch_end = 0
+
+[node name="SouthEast" type="Node3D" parent="Compounds/Scissors" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/ScissorsSouth")
+main_distance = 158
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/ScissorsDown")
+branch_end = 1
+
+[node name="SouthWest" type="Node3D" parent="Compounds/Scissors" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/ScissorsSouth")
+main_distance = 122
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/ScissorsUp")
+branch_end = 0
+
+[node name="NorthEast" type="Node3D" parent="Compounds/Scissors" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/ScissorsNorth")
+main_distance = 158
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/ScissorsUp")
+branch_end = 1
+
+[node name="DoubleSlip" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("4_compound")
+kind = 3
+members = [NodePath("WestOne"), NodePath("EastTwo"), NodePath("WestTwo"), NodePath("EastOne")]
+
+[node name="WestOne" type="Node3D" parent="Compounds/DoubleSlip" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/SlipLineOne")
+main_distance = 106.661
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/SlipRoadNorth")
+branch_end = 0
+
+[node name="EastTwo" type="Node3D" parent="Compounds/DoubleSlip" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/SlipLineTwo")
+main_distance = 134.661
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/SlipRoadNorth")
+branch_end = 1
+
+[node name="WestTwo" type="Node3D" parent="Compounds/DoubleSlip" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/SlipLineTwo")
+main_distance = 106.661
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/SlipRoadSouth")
+branch_end = 0
+
+[node name="EastOne" type="Node3D" parent="Compounds/DoubleSlip" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/SlipLineOne")
+main_distance = 134.661
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/SlipRoadSouth")
+branch_end = 1
+
+[node name="Crossings" type="Node3D" parent="."]
+
+[node name="ScissorsMiddle" type="Node3D" parent="Crossings" groups=["crossings"] node_paths=PackedStringArray("rail_a", "rail_b")]
+script = ExtResource("5_crossing")
+rail_a = NodePath("../../Rails/ScissorsDown")
+distance_a = 18
+rail_b = NodePath("../../Rails/ScissorsUp")
+distance_b = 18
+
+[node name="Diamond" type="Node3D" parent="Crossings" groups=["crossings"] node_paths=PackedStringArray("rail_a", "rail_b")]
+script = ExtResource("5_crossing")
+rail_a = NodePath("../../Rails/DiamondStraight")
+distance_a = 132
+rail_b = NodePath("../../Rails/DiamondDiagonal")
+distance_b = 50
+
+[node name="DoubleSlipMiddle" type="Node3D" parent="Crossings" groups=["crossings"] node_paths=PackedStringArray("rail_a", "rail_b")]
+script = ExtResource("5_crossing")
+rail_a = NodePath("../../Rails/SlipLineOne")
+distance_a = 120.661
+rail_b = NodePath("../../Rails/SlipLineTwo")
+distance_b = 120.661
+
+[node name="Trains" type="Node3D" parent="."]
+
+[node name="ThreeWayShuttle" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/ThreeWayMain")
+distance = 40
+facing = 1
+throttle = 1
+speed = 14
+end_behavior = 2
+body_length = 16
+
+[node name="CrossoverShuttle" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/CrossoverNorth")
+distance = 30
+facing = 1
+throttle = 1
+speed = 14
+end_behavior = 2
+body_length = 16
+
+[node name="CrossoverLocal" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/CrossoverSouth")
+distance = 60
+facing = 1
+throttle = 1
+speed = 10
+end_behavior = 2
+body_length = 12
+
+[node name="ScissorsEastbound" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/ScissorsNorth")
+distance = 30
+facing = 1
+throttle = 1
+speed = 14
+end_behavior = 2
+body_length = 16
+
+[node name="ScissorsWestbound" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/ScissorsSouth")
+distance = 210
+facing = -1
+throttle = 1
+speed = 12
+end_behavior = 2
+body_length = 14
+
+[node name="DiamondStraightTrain" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/DiamondStraight")
+distance = 60
+facing = 1
+throttle = 1
+speed = 12
+end_behavior = 2
+body_length = 14
+
+[node name="DiamondDiagonalTrain" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/DiamondDiagonal")
+distance = 20
+facing = 1
+throttle = 1
+speed = 9
+end_behavior = 2
+body_length = 12
+
+[node name="SlipEastbound" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/SlipLineOne")
+distance = 40
+facing = 1
+throttle = 1
+speed = 12
+end_behavior = 2
+body_length = 14
+
+[node name="SlipWestbound" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/SlipLineTwo")
+distance = 201.322
+facing = -1
+throttle = 1
+speed = 10
+end_behavior = 2
+body_length = 12
+
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 2, -10)
+script = ExtResource("7_camera")
+yaw_degrees = -8.0
+pitch_degrees = -60.0
+camera = NodePath("Camera3D")
+zoom = 120.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+far = 2000.0
+
+[node name="DebugUi" type="CanvasLayer" parent="."]
+
+[node name="Panels" type="VBoxContainer" parent="DebugUi"]
+offset_left = 12.0
+offset_top = 12.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi/Panels"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("8_trains")
+
+[node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("9_turnouts")
+overlay = NodePath("../../MarkerOverlay")
+
+[node name="MarkerOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("10_overlay")
+camera = NodePath("../../CameraRig/Camera3D")
+collapse_distance = 200.0

@@ -138,12 +138,40 @@ func blocked_description() -> String:
 	if blocking_signal != null:
 		return "held at %s (danger)" % blocking_signal.name
 	if blocking_turnout != null:
+		# A member of a compound turnout is named through its assembly, since
+		# the assembly is the thing the player has to change.
+		var assembly := blocking_turnout.assembly
+		if assembly != null:
+			return "held by %s/%s (set %s)" % [assembly.name, blocking_turnout.name,
+					Turnout.Position.keys()[blocking_turnout.turnout_position]]
 		return "held by %s (set %s)" % [blocking_turnout.name,
 				Turnout.Position.keys()[blocking_turnout.turnout_position]]
 	return "at dead end" if at_dead_end else ""
 
 
 #region Placement
+## Every stretch of rail the body is standing on, nose half and tail half. A
+## train crossing points stands on two rails at once, so this is the question to
+## ask rather than comparing [member distance] - it is how a [Crossing] knows who
+## is on it, and the start of what step 8's block occupancy needs.
+func occupied_spans() -> Array[TrackWalker.Span]:
+	var spans: Array[TrackWalker.Span] = []
+	if rail == null or rail.rail_length() <= 0.0:
+		return spans
+	var half := body_length * 0.5
+	spans.append_array(TrackWalker.walk(rail, distance, facing, half).spans)
+	spans.append_array(TrackWalker.walk(rail, distance, -facing, half).spans)
+	return spans
+
+
+## Whether any part of the body stands over [param at] on [param query_rail].
+func occupies(query_rail: Rail, at: float) -> bool:
+	for span in occupied_spans():
+		if span.covers(query_rail, at):
+			return true
+	return false
+
+
 ## Places the box using the rail positions under its two ends, so a long body
 ## sits along a curve as a chord rather than pivoting about its centre.
 ##

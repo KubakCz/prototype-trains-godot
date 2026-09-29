@@ -19,10 +19,6 @@ config/icon="res://icon.svg"
 
 UiScale="*res://scripts/ui/ui_scale.gd"
 
-[display]
-
-window/stretch/mode="disabled"
-
 [input]
 
 interact={

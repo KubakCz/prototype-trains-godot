@@ -67,8 +67,8 @@ func test_the_cycle_rows_belong_to_the_body() -> void:
 	await frames(2)
 	assert_eq(_panels[0].control_buttons().size(), 0,
 			"the train section has nothing to cycle")
-	assert_eq(_panels[1].control_buttons().size(), 1,
-			"the turnout section cycles the overlay mode")
+	assert_eq(_panels[1].control_buttons().size(), 2,
+			"the turnout section cycles the overlay mode and the schematic text")
 	assert_eq(_panels[2].control_buttons().size(), 2,
 			"the signal section cycles the widget style and the collapse rule")
 
@@ -85,6 +85,12 @@ func test_a_cycle_row_advances_the_overlay() -> void:
 	assert_true(_panels[1].control_buttons()[0].text.contains(_overlay.mode_label()),
 			"the row's label followed the change")
 	note("overlay mode %s -> %s" % [MarkerOverlay.Mode.keys()[mode], _overlay.mode_label()])
+
+	var caption := _overlay.turnout_caption
+	_panels[1].control_buttons()[1].pressed.emit()
+	assert_ne(_overlay.turnout_caption, caption, "the second turnout row cycled the caption")
+	assert_true(_panels[1].control_buttons()[1].text.contains(_overlay.turnout_caption_label()),
+			"its label followed the change")
 
 	var style := _overlay.signal_style
 	var rule := _overlay.collapse_rule

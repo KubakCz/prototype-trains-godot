@@ -18,6 +18,12 @@ extends RefCounted
 ## about track, so the walks that measure where a train's body reaches ignore
 ## them entirely; only the walk that decides whether a train may move obeys them.
 ##
+## A [Crossing] never stops the walk: both of its rails run straight through it,
+## and only [Turnout]s and [RailSignal]s are ever looked for among a rail's
+## attachments. Nor does a [CompoundTurnout] exist here - its members are
+## ordinary turnouts, walked through one after another.
+##
+## Every walk records the stretches of rail it covered in [member Step.spans].
 ## Step 8's block locking wants exactly this walk with the length turned up: look
 ## ahead from a train and report what it will reach.
 
@@ -49,6 +55,26 @@ const CLEARANCE := 4.0 * EPSILON
 const MAX_HOPS := 64
 
 
+## One stretch of a single rail that a walk covered, from [member from] to
+## [member to] in the order it was travelled - so [member from] is greater than
+## [member to] when the walk ran against the rail.
+class Span:
+	var rail: Rail
+	var from: float
+	var to: float
+
+	func _init(p_rail: Rail, p_from: float, p_to: float) -> void:
+		rail = p_rail
+		from = p_from
+		to = p_to
+
+
+	## Whether [param at] on [param query_rail] lies within this span, ends included.
+	func covers(query_rail: Rail, at: float) -> bool:
+		return (query_rail == rail and at >= minf(from, to) - EPSILON
+				and at <= maxf(from, to) + EPSILON)
+
+
 ## Where a walk ended up, and why it stopped there.
 class Step:
 	var rail: Rail
@@ -66,6 +92,18 @@ class Step:
 	var blocking_signal: RailSignal
 	## True when the walk ran off the end of a rail with nothing attached to it.
 	var at_dead_end: bool
+	## Every stretch of rail covered on the way, in order - one per rail the walk
+	## was on. What a train's body is standing on, when the walk is one of the two
+	## that place it; see [method Train.occupied_spans].
+	var spans: Array[Span] = []
+
+
+	## Whether the walk passed over [param at] on [param query_rail].
+	func covers(query_rail: Rail, at: float) -> bool:
+		for span in spans:
+			if span.covers(query_rail, at):
+				return true
+		return false
 
 	func is_blocked() -> bool:
 		return blocking_turnout != null or blocking_signal != null or at_dead_end
@@ -98,6 +136,8 @@ static func walk(rail: Rail, distance: float, direction: int, length: float,
 		return step
 	step.distance = rail.clamp_distance(distance)
 	var remaining := maxf(length, 0.0)
+	var span := Span.new(step.rail, step.distance, step.distance)
+	step.spans.append(span)
 
 	for _hop in MAX_HOPS:
 		if remaining <= EPSILON:
@@ -110,11 +150,13 @@ static func walk(rail: Rail, distance: float, direction: int, length: float,
 		if remaining < gap - EPSILON:
 			step.distance += float(step.direction) * remaining
 			step.travelled += remaining
+			span.to = step.distance
 			return step
 
 		step.travelled += gap
 		remaining -= gap
 		step.distance = ahead.distance
+		span.to = step.distance
 		if ahead.rail_signal != null:
 			# A signal is never crossed: it either lets the walk through, in
 			# which case it is not a stop at all, or it ends it here.
@@ -130,6 +172,8 @@ static func walk(rail: Rail, distance: float, direction: int, length: float,
 		step.rail = exit.rail
 		step.distance = exit.rail.clamp_distance(exit.distance)
 		step.direction = exit.direction
+		span = Span.new(step.rail, step.distance, step.distance)
+		step.spans.append(span)
 		remaining = maxf(remaining, CLEARANCE)
 
 	push_warning(("TrackWalker gave up after %d turnouts. A rail layout is looping back "
