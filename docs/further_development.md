@@ -35,6 +35,12 @@ both rails, next to the turnouts and signals. A double slip is where it gets tig
 points within 14 m of a 12° diamond, so blades, frogs and check rails all overlap, and the slip
 roads' sleepers have to merge with the diamond's.
 
+The desert level (`scenes/levels/desert.tscn`) adds two things a rail model has to cope with that
+no other scene has: a bridge, where the track is in the air over a gully with nothing under it,
+and tunnel mouths, where the terrain rises from the bed to the roof across one 3 m grid cell.
+Both are found by comparing the railhead with `Rail.ground_height_at()` - `desert_level_test.gd`
+does exactly that - and neither is recorded on the rail; a deck and portals would want them to be.
+
 ## Step 7 — Trains with wagons and better physics
 
 This is where a signal stops being a wall. A train currently stops dead on the signal; with
@@ -75,7 +81,9 @@ standing over keeps going, the next one up is held.
 ## Not tied to a step
 
 - **`Train.end_behavior` is a placeholder.** It now fires only at a genuine dead end, but real
-  levels will want buffer stops and off-level connections there instead.
+  levels will want buffer stops and off-level connections there instead. The desert level's four
+  exits are rails running into tunnels in the mountains and stopping there, which is where an
+  off-level connection would go: a train sent into one turns round in the dark and comes back.
 - **Two presentation questions are still open** — the turnout modes and the schematic's caption,
   the signal widget styles and the collapse rules are all switchable rather than decided. A
   compound assembly's widget follows the turnout mode and caption, so settling those settles both. Whoever settles them should delete the

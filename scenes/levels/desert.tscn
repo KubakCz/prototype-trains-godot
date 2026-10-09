@@ -1,0 +1,443 @@
+[gd_scene load_steps=26 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
+[ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
+[ext_resource type="Script" path="res://scripts/trains/train.gd" id="3_train"]
+[ext_resource type="Script" path="res://scripts/debug/camera_rig.gd" id="4_camera"]
+[ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="5_panel"]
+[ext_resource type="Script" path="res://scripts/rails/turnout.gd" id="6_turnout"]
+[ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="7_tpanel"]
+[ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="8_overlay"]
+[ext_resource type="Script" path="res://scripts/rails/rail_signal.gd" id="9_signal"]
+[ext_resource type="Script" path="res://scripts/debug/signal_debug_panel.gd" id="10_spanel"]
+[ext_resource type="Script" path="res://scripts/rails/compound_turnout.gd" id="11_compound"]
+[ext_resource type="Script" path="res://scripts/rails/crossing.gd" id="12_crossing"]
+[ext_resource type="Image" path="res://scenes/levels/desert_heights.res" id="13_heights"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_top_color = Color(0.36, 0.52, 0.78, 1)
+sky_horizon_color = Color(0.86, 0.78, 0.66, 1)
+ground_bottom_color = Color(0.42, 0.33, 0.24, 1)
+ground_horizon_color = Color(0.86, 0.78, 0.66, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+tonemap_mode = 2
+ssao_enabled = true
+fog_enabled = true
+fog_light_color = Color(0.82, 0.7, 0.55, 1)
+fog_density = 0.00022
+fog_sky_affect = 0.3
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_lake"]
+top_radius = 1.0
+bottom_radius = 1.0
+height = 0.02
+radial_segments = 64
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lake"]
+albedo_color = Color(0.22, 0.42, 0.5, 1)
+metallic = 0.2
+roughness = 0.08
+
+[sub_resource type="Curve3D" id="Curve3D_bottom"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 7.8125, 0.0023, 0, -408.75, -0.4791, 167.75, -7.8125, -0.0101, 0, 7.8125, 0.0101, 0, -385.3125, -0.4569, 167.75, -7.8125, -0.0152, 0, 7.8125, 0.0152, 0, -361.875, -0.4189, 167.75, -7.8125, -0.0197, 0, 7.8125, 0.0197, 0, -338.4375, -0.3665, 167.75, -7.8125, -0.0235, 0, 5.625, 0.0169, 0, -315, -0.3016, 167.75, -5.625, -0.0185, 0, 5.625, 0.0185, 0, -298.125, -0.2484, 167.75, -5.625, -0.0198, 0, 5.625, 0.0198, 0, -281.25, -0.1908, 167.75, -5.625, -0.0208, 0, 5.625, 0.0208, 0, -264.375, -0.1298, 167.75, -5.625, -0.0214, 0, 6.25, 0.0238, 0, -247.5, -0.0664, 167.75, -6.25, -0.0241, 0, 6.25, 0.0241, 0, -228.75, 0.0057, 167.75, -6.25, -0.0239, 0, 4.5, 0.0172, 0, -210, 0.0779, 167.75, -4.5, -0.0169, 0, 4.5, 0.0169, 0, -196.5, 0.1292, 167.75, -4.5, -0.0164, 0, 5.875, 0.0214, 0, -183, 0.1792, 167.75, -5.875, -0.0202, 0, 5.875, 0.0202, 0, -165.375, 0.2417, 167.75, -5.875, -0.0185, 0, 5.875, 0.0185, 0, -147.75, 0.2998, 167.75, -5.875, -0.0165, 0, 5.875, 0.0165, 0, -130.125, 0.3524, 167.75, -5.875, -0.014, 0, 6.75, 0.0161, 0, -112.5, 0.3982, 167.75, -6.75, -0.0125, 0, 6.75, 0.0125, 0, -92.25, 0.4413, 167.75, -6.75, -0.0084, 0, 6.75, 0.0084, 0, -72, 0.4728, 167.75, -6.75, -0.004, 0, 6.75, 0.004, 0, -51.75, 0.4915, 167.75, -6.75, 0.0006, 0, 5.0625, -0.0005, 0, -31.5, 0.4966, 167.75, -5.0625, 0.0031, 0, 5.0625, -0.0031, 0, -16.3125, 0.4912, 167.75, -5.0625, 0.0058, 0, 5.0625, -0.0058, 0, -1.125, 0.4779, 167.75, -5.0625, 0.0084, 0, 5.0625, -0.0084, 0, 14.0625, 0.4566, 167.75, -5.0625, 0.0109, 0, 5.0625, -0.0109, 0, 29.25, 0.4277, 167.75, -5.0625, 0.0133, 0, 5.0625, -0.0133, 0, 44.4375, 0.3914, 167.75, -5.0625, 0.0154, 0, 5.0625, -0.0154, 0, 59.625, 0.3484, 167.75, -5.0625, 0.0174, 0, 5.0625, -0.0174, 0, 74.8125, 0.2991, 167.75, -5.0625, 0.0191, 0, 5.625, -0.0212, 0, 90, 0.2443, 167.75, -5.625, 0.0228, 0, 5.625, -0.0228, 0, 106.875, 0.1782, 167.75, -5.625, 0.024, 0, 5.625, -0.024, 0, 123.75, 0.1078, 167.75, -5.625, 0.0247, 0, 5.625, -0.0247, 0, 140.625, 0.0345, 167.75, -5.625, 0.0249, 0, 5.625, -0.0249, 0, 157.5, -0.04, 167.75, -5.625, 0.0245, 0, 5.625, -0.0245, 0, 174.375, -0.1142, 167.75, -5.625, 0.0235, 0, 5.625, -0.0235, 0, 191.25, -0.1863, 167.75, -5.625, 0.0221, 0, 5.625, -0.0221, 0, 208.125, -0.2548, 167.75, -5.625, 0.0201, 0, 7.0313, -0.0251, 0, 225, -0.3181, 167.75, -7.0312, 0.0212, 0, 7.0313, -0.0212, 0, 246.0938, -0.3878, 167.75, -7.0312, 0.0166, 0, 7.0313, -0.0166, 0, 267.1875, -0.4447, 167.75, -7.0312, 0.0114, 0, 7.0313, -0.0114, 0, 288.2813, -0.4869, 167.75, -7.0312, 0.0058, 0, 7.0313, -0.0058, 0, 309.375, -0.5127, 167.75, -7.0312, 0, 0, 7.0313, 0, 0, 330.4688, -0.5215, 167.75, -7.0312, -0.0057, 0, 7.0313, 0.0057, 0, 351.5625, -0.513, 167.75, -7.0312, -0.0112, 0, 7.0313, 0.0112, 0, 372.6563, -0.4876, 167.75, -7.0312, -0.0081, 0, 0, 0, 0, 393.75, -0.4465, 167.75),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 45
+
+[sub_resource type="Curve3D" id="Curve3D_north"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, -7.1875, 0.0415, 0, 386.25, 0.1026, -168.2, 7.1875, -0.0737, 0, -7.1875, 0.0737, 0, 364.6875, 0.339, -168.2, 7.1875, -0.0595, 0, -7.1875, 0.0595, 0, 343.125, 0.5399, -168.2, 7.1875, -0.0416, 0, -7.1875, 0.0416, 0, 321.5625, 0.6922, -168.2, 7.1875, -0.0216, 0, -8, 0.0241, 0, 300, 0.7873, -168.2, 8, 0.001, 0, -8, -0.001, 0, 276, 0.8217, -168.2, 8, 0.0239, 0, -8, -0.0239, 0, 252, 0.7835, -168.2, 8, 0.0424, 0, -8, -0.0424, 0, 228, 0.6827, -168.2, 8, 0.0548, 0, -5.375, -0.0368, 0, 204, 0.5352, -168.2, 5.375, 0.0398, 0, -5.375, -0.0398, 0, 187.875, 0.4198, -168.2, 5.375, 0.0405, 0, -5.375, -0.0405, 0, 171.75, 0.2988, -168.2, 5.375, 0.039, 0, -5.375, -0.039, 0, 155.625, 0.1791, -168.2, 5.375, 0.0356, 0, -5.375, -0.0356, 0, 139.5, 0.0666, -168.2, 5.375, 0.0305, 0, -5.375, -0.0305, 0, 123.375, -0.0329, -168.2, 5.375, 0.024, 0, -5.375, -0.024, 0, 107.25, -0.1149, -168.2, 5.375, 0.0166, 0, -5.375, -0.0166, 0, 91.125, -0.1759, -168.2, 5.375, -0.1016, 0, -5, 0.0945, 0, 75, -0.0576, -168.2, 5, -0.1862, 0, -5, 0.1862, 0, 60, 0.37, -168.2, 5, -0.2451, 0, -5, 0.2451, 0, 45, 1.0266, -168.2, 5, -0.2618, 0, -5, 0.2618, 0, 30, 1.7981, -168.2, 5, -0.2341, 0, -5, 0.2341, 0, 15, 2.5527, -168.2, 5, -0.1674, 0, -5, 0.1674, 0, 0, 3.1635, -168.2, 5, -0.0736, 0, -5, 0.0736, 0, -15, 3.5299, -168.2, 5, -0.0217, 0, -5, 0.0217, 0, -30, 3.6341, -168.2, 5, 0.2019, 0, -5.2813, -0.2132, 0, -45, 3.2092, -168.2, 5.2813, 0.2417, 0, -5.2813, -0.2417, 0, -60.8437, 2.5224, -168.2, 5.2813, 0.2559, 0, -5.2813, -0.2559, 0, -76.6875, 1.775, -168.2, 5.2813, 0.2007, 0, -5.2813, -0.2007, 0, -92.5312, 1.1004, -168.2, 5.2813, 0.1371, 0, -5.2813, -0.1371, 0, -108.375, 0.5887, -168.2, 5.2813, 0.0596, 0, -5.2813, -0.0596, 0, -124.2187, 0.2909, -168.2, 5.2813, 0.0134, 0, -5.2813, -0.0134, 0, -140.0625, 0.2144, -168.2, 5.2813, 0.021, 0, -5.2813, -0.021, 0, -155.9062, 0.1627, -168.2, 5.2813, 0.0277, 0, 0, 0, 0, -171.75, 0.0894, -168.2),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 33
+
+[sub_resource type="Curve3D" id="Curve3D_loop"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 6.9034, -0.0006, 0, -31.5, 0.4966, 167.75, -6.8609, -0.0003, 1.25, 6.8609, 0.0003, -1.25, -10.875, 0.4942, 165.25, -6.9034, 0.006, 0, 5.2034, -0.0045, 0, 9.75, 0.4908, 162.75, -5.1643, -0.002, 0.905, 5.1643, 0.002, -0.905, 25.3604, 0.4854, 161.385, -4.8895, -0.0133, 1.78, 4.8996, 0.0133, -1.7837, 40.5, 0.5077, 157.35, -4.5437, -0.0262, 2.6368, 4.5437, 0.0262, -2.6368, 54.7117, 0.5673, 150.6828, -4.0006, -0.036, 3.3441, 3.9874, 0.0358, -3.333, 67.575, 0.6617, 141.675, -3.3973, -0.0428, 3.9853, 3.3973, 0.0428, -3.9853, 78.7041, 0.7809, 130.6632, -2.5985, -0.0454, 4.5006, 2.081, 0.0363, -3.6044, 87.75, 0.914, 117.9, -1.9908, -0.0321, 3.6554, 1.9908, 0.0321, -3.6554, 93.844, 1.0173, 107.0021, -1.9557, -0.0261, 3.674, 2.1804, 0.0291, -4.096, 99.75, 1.1051, 96, -2.2164, -0.0199, 4.0845, 2.2164, 0.0199, -4.0845, 106.4823, 1.1775, 83.79, -1.704, -0.0163, 4.3159, 1.6709, 0.016, -4.2322, 112.5, 1.2301, 71.25, -1.2413, -0.0123, 4.3877, 1.2413, 0.0123, -4.3877, 116.855, 1.2727, 58.3013, -0.8641, -0.0082, 4.4672, 0.9728, 0.0092, -5.0288, 120, 1.3035, 45, -0.4693, -0.0048, 5.1123, 0.4693, 0.0048, -5.1123, 122.1546, 1.3247, 29.7699, 0, 0, 5.1221, 0, 0, -7.8026, 122.85, 1.3321, 14.4, 0.9523, 0.0133, 7.7442, -0.8738, -0.0122, -7.1053, 122.25, 1.3045, -9, 2.6279, -0.0434, 6.6591, -2.8016, 0.0463, -7.0993, 117.75, 1.2871, -30, 5.1984, -0.2141, 5.5881, -4.8701, 0.2006, -5.2351, 105.75, 1.6883, -49.5, 6.2999, -0.3012, 3.3817, -6.5491, 0.3131, -3.5154, 88.5, 2.4607, -62.25, 7.1389, -0.3472, 2.0705, -3.9325, 0.1912, -1.1405, 67.5, 3.4809, -69.75, 4.0384, -0.1832, 0.7266, -4.0384, 0.1832, -0.7266, 55.486, 4.048, -72.328, 3.9138, -0.1534, 1.2032, -7.1888, 0.2817, -2.2099, 43.5, 4.5572, -75, 6.5307, -0.1411, 3.73, -4.8201, 0.1041, -2.7529, 22.5, 5.2079, -83.25, 3.8824, -0.013, 3.9674, -3.6385, 0.0122, -3.7181, 9, 5.3856, -93, 2.295, 0.043, 4.6685, -2.1975, -0.0411, -4.4703, 0, 5.3113, -105.75, 1.7568, 0.0411, 4.6611, -2.1308, -0.0499, -5.6533, -4.5, 5.1995, -120, 3.3702, 0.1518, 5.0142, -3.9445, -0.1777, -5.8687, -12, 4.8899, -136.5, 5.7237, 0.2787, 4.152, -3.3583, -0.1635, -2.4362, -27, 4.1916, -151.5, 3.7819, 0.1877, 1.7912, -3.7819, -0.1877, -1.7912, -37.7582, 3.6618, -157.8653, 4.0141, 0.1992, 1.049, -4.7196, -0.2342, -1.2335, -49.5, 3.0783, -162.15, 4.913, 0.2408, -0.0611, -4.913, -0.2408, 0.0611, -64.0061, 2.365, -163.7334, 4.8781, 0.2223, 0, -8, -0.3646, 0, -78.75, 1.6605, -163.2, 8, 0.2478, 0, -8, -0.2478, 0, -102.75, 0.7224, -163.2, 8, 0.0712, 0, -7.526, -0.067, 0, -126.75, 0.2341, -163.2, 7.487, 0.017, 1.25, -7.487, -0.017, -1.25, -149.25, 0.1707, -165.7, 7.526, 0.0396, 0, -4.125, -0.0217, 0, -171.75, 0.0894, -168.2, 4.125, 0.0253, 0, -4.125, -0.0253, 0, -184.125, 0.0187, -168.2, 4.125, 0.0282, 0, -4.25, -0.0291, 0, -196.5, -0.0619, -168.2, 4.2568, 0.031, 0.1207, -4.2568, -0.031, -0.1207, -209.2706, -0.1511, -168.562, 4.2225, 0.0345, -0.4826, -7.6297, -0.0623, 0.872, -222, -0.2494, -168.2, 7.0484, 0.0541, -3.0483, -7.2562, -0.0556, 3.1381, -244.5, -0.4312, -162, 5.5902, 0.0186, -5.5902, -4.4194, -0.0147, 4.4194, -264, -0.548, -148.5, 2.68, -0.0121, -5.6462, -2.6521, 0.012, 5.5872, -275.25, -0.5524, -133.5, 0.5459, -0.025, -6.1605, -0.5754, 0.0263, 6.4937, -279.75, -0.4911, -115.5, -1.0777, -0.0215, -6.4295, 1.2434, 0.0248, 7.4173, -278.25, -0.4166, -96, -2.7062, -0.0049, -7.0171, 2.6149, 0.0047, 6.7804, -272.25, -0.3689, -74.25, -3.3473, 0.0165, -6.4504, 3.4004, -0.0167, 6.5527, -262.5, -0.3929, -54.75, -2.7561, 0.0221, -6.8486, 2.8078, -0.0225, 6.977, -252, -0.4656, -35.25, -0.7602, 0.0026, -7.4823, 0.7598, -0.0026, 7.4782, -246, -0.5134, -13.5, 1.4688, -0.0285, -7.3718, -0.8577, 0.0166, 4.3046, -247.5, -0.4702, 9, 1.6213, -0.0272, -4.0952, -1.6213, 0.0272, 4.0952, -251.4006, -0.4021, 21.5551, 1.6569, -0.0274, -4.0646, -1.605, 0.0265, 3.9373, -256.5, -0.3177, 33.75, 1.8229, -0.0274, -3.8437, -1.8229, 0.0274, 3.8437, -261.7512, -0.2352, 45.3745, 1.6034, -0.0218, -3.9379, -3.0125, 0.041, 7.3984, -267, -0.1599, 57, 1.8912, -0.0147, -7.7611, -1.7913, 0.0139, 7.3513, -275.25, -0.0672, 79.5, -0.2994, 0.0118, -7.5604, 0.2619, -0.0104, 6.6139, -278.25, -0.0623, 102, -2.454, 0.0164, -6.1474, 2.4169, -0.0162, 6.0546, -274.5, -0.1065, 121.5, -4.2265, 0.0031, -4.9636, 4.1322, -0.003, 4.8528, -264, -0.14, 138, -5.1904, -0.0161, -3.6993, 5.1314, 0.0159, 3.6572, -249.75, -0.1205, 150.75, -5.9612, -0.0282, -2.0423, 4.578, 0.0216, 1.5684, -233.25, -0.0491, 159.975, -4.8392, -0.016, 0, 3, 0.0099, 0, -219, 0.0133, 162.75, -3, -0.0099, 0, 4.5, 0.0149, 0, -210, 0.0431, 162.75, -4.5, -0.015, 0, 4.5, 0.015, 0, -196.5, 0.0879, 162.75, -4.5, -0.0149, 0, 7.25, 0.024, 0, -183, 0.1328, 162.75, -7.25, -0.0233, 0, 6.5586, 0.0211, 0, -161.25, 0.2041, 162.75, -6.2649, 0.0077, 1.9407, 6.1409, -0.0076, -1.9022, -141.75, 0.2288, 160.125, -5.0672, 0.0353, 3.9562, 5.1725, -0.036, -4.0383, -124.5, 0.1657, 151.5, -3.4743, 0.0509, 5.567, 3.7367, -0.0548, -5.9875, -111.75, 0.0251, 136.5, -2.1053, 0.0569, 6.7365, 2.2815, -0.0617, -7.3004, -103.5, -0.1499, 117, -1.0023, 0.0574, 7.5826, 1.0177, -0.0583, -7.6991, -99, -0.3327, 94.5, -0.3693, 0.0484, 7.7573, 0.2081, -0.0273, -4.3718, -97.5, -0.4989, 71.25, -0.1027, 0.0228, 4.3758, 0.1027, -0.0228, -4.3758, -97.0673, -0.5744, 58.1273, -0.1311, 0.0166, 4.3748, 0.1198, -0.0152, -4.0001, -96.75, -0.6339, 45, -0.0862, 0.0105, 4.002, 0.0862, -0.0105, -4.002, -96.4992, -0.6732, 32.9937, -0.2855, 0.0029, 3.9917, 0.5023, -0.0051, -7.0221, -96, -0.6941, 21, -1.4023, -0.0215, 6.8989, 1.245, 0.0191, -6.1247, -93.75, -0.6767, 0, -2.1663, -0.0397, 5.8626, 1.4921, 0.0274, -4.0379, -88.5, -0.5856, -18, -1.8889, 0.0218, 3.8783, 1.8889, -0.0218, -3.8783, -83.4075, -0.5668, -29.8792, -2.2021, 0.0745, 3.6989, 2.2895, -0.0775, -3.8457, -77.25, -0.7134, -41.25, -2.6344, 0.1211, 3.6287, 2.6344, -0.1211, -3.6287, -69.8501, -1.0154, -52.4673, -2.923, 0.1447, 3.3893, 5.0798, -0.2515, -5.8903, -61.5, -1.4197, -63, -5.9023, 0.2263, 5.0659, 4.9855, -0.1911, -4.279, -45, -2.168, -79.5, -5.3245, 0.1013, 3.8491, 4.282, -0.0815, -3.0955, -29.25, -2.6181, -91.35, -4.444, -0.0001, 2.8658, 4.444, 0.0001, -2.8658, -16.0574, -2.7422, -100.1468, -4.1919, 0.0021, 3.2164, 4.3092, -0.0021, -3.3064, -3, -2.7251, -109.125, -3.9988, 0.0197, 3.6861, 3.9988, -0.0197, -3.6861, 9.3103, -2.7601, -119.7991, -4.2955, -0.0716, 3.3242, 3.9926, 0.0666, -3.0898, 21.6, -2.6847, -130.5, -4.1141, -0.1321, 2.9443, 4.1141, 0.1321, -2.9443, 33.7063, -2.3824, -139.6551, -4.4508, -0.1768, 2.383, 4.502, 0.1789, -2.4104, 46.5, -1.9133, -147.75, -4.7647, -0.1925, 1.8856, 4.7647, 0.1925, -1.8856, 60.4222, -1.3472, -154.2098, -4.9391, -0.1709, 1.2973, 4.8832, 0.1689, -1.2826, 75, -0.7937, -159, -5.0171, -0.1191, 0.7294, 5.0171, 0.1191, -0.7294, 89.8758, -0.3551, -162.062, -5.0488, -0.0499, 0, 4.375, 0.0432, 0, 105, -0.0986, -163.2, -4.375, -0.0218, 0, 4.375, 0.0218, 0, 118.125, -0.0246, -163.2, -4.375, -0.0252, 0, 4.375, 0.0252, 0, 131.25, 0.046, -163.2, -4.375, -0.0278, 0, 4.375, 0.0278, 0, 144.375, 0.1258, -163.2, -4.375, -0.0296, 0, 7.7752, 0.0525, 0, 157.5, 0.2122, -163.2, -7.7374, -0.0544, 1.25, 7.7374, 0.0544, -1.25, 180.75, 0.3696, -165.7, -7.7752, -0.0533, 0, 0, 0, 0, 204, 0.5352, -168.2),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 101
+
+[sub_resource type="Curve3D" id="Curve3D_east"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 2.65, 122.85, 1.3321, 14.4, 0, 0.0027, -2.65, 0, -0.0043, 4.2056, 122.85, 1.3281, 22.35, -1.1057, 0.0232, -4.1318, 1.1057, -0.0232, 4.1318, 124.5359, 1.2869, 34.9598, -2.1021, 0.0397, -3.6424, 2.103, -0.0397, 3.6439, 129.375, 1.1914, 46.725, -3.0257, 0.0558, -3.0257, 3.0257, -0.0558, 3.0257, 137.1442, 1.0466, 56.8057, -3.6439, 0.064, -2.103, 3.6424, -0.064, 2.1021, 147.225, 0.8647, 64.575, -4.1318, 0.0716, -1.1057, 4.1318, -0.0716, 1.1057, 158.9902, 0.6592, 69.4141, -4.2056, 0.0707, 0, 7.025, -0.1182, 0, 171.6, 0.4441, 71.1, -7.025, 0.1248, 0, 7.025, -0.1248, 0, 192.675, 0.0765, 71.1, -7.025, 0.1217, 0, 7.1875, -0.1245, 0, 213.75, -0.2955, 71.1, -7.1875, 0.1117, 0, 7.1875, -0.1117, 0, 235.3125, -0.6521, 71.1, -7.1875, 0.0905, 0, 7.1875, -0.0905, 0, 256.875, -0.9574, 71.1, -7.1875, 0.0627, 0, 7.1875, -0.0627, 0, 278.4375, -1.1885, 71.1, -7.1875, 0.0305, 0, 7.8125, -0.0332, 0, 300, -1.329, 71.1, -7.8125, -0.0066, 0, 7.8125, 0.0066, 0, 323.4375, -1.3689, 71.1, -7.8125, -0.0445, 0, 7.8125, 0.0445, 0, 346.875, -1.2912, 71.1, -7.8125, -0.0768, 0, 7.8125, 0.0768, 0, 370.3125, -1.1074, 71.1, -7.8125, -0.0502, 0, 0, 0, 0, 393.75, -0.8389, 71.1),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 18
+
+[sub_resource type="Curve3D" id="Curve3D_chord"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, -7.5374, 0.1305, 0, 213.75, -0.2955, 71.1, 7.4813, -0.1286, -1.125, -7.4813, 0.1286, 1.125, 191.25, 0.0954, 73.35, 7.5374, -0.123, 0, -5.0421, 0.0823, 0, 168.75, 0.4712, 75.6, 5.0271, -0.071, -0.6299, -5.0271, 0.071, 0.6299, 153.6056, 0.7033, 76.5147, 4.8494, -0.0518, -1.3804, -7.5464, 0.0807, 2.1481, 138.75, 0.8893, 79.5, 6.7502, -0.0238, -3.9998, -5.9464, 0.0209, 3.5235, 117, 1.0522, 88.5, 4.9619, 0.0249, -4.9727, -4.9619, -0.0249, 4.9727, 100.5072, 1.0452, 101.3532, 3.4561, 0.0603, -5.9859, 0, 0, 0, 87.75, 0.914, 117.9),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 8
+
+[sub_resource type="Curve3D" id="Curve3D_link_down"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 4.5432, 0.015, 0, -210, 0.0431, 162.75, -4.4784, -0.0263, -1.25, 4.4784, 0.0263, 1.25, -196.5, 0.1086, 165.25, -4.5432, -0.0166, 0, 0, 0, 0, -183, 0.1792, 167.75),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[sub_resource type="Curve3D" id="Curve3D_link_up"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 4.5432, 0.0174, 0, -210, 0.0779, 167.75, -4.4784, -0.0056, 1.25, 4.4784, 0.0056, -1.25, -196.5, 0.1086, 165.25, -4.5432, -0.0151, 0, 0, 0, 0, -183, 0.1328, 162.75),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[node name="DesertLevel" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.6452, -0.628, 0.4352, 0, 0.5696, 0.822, -0.764, -0.5303, 0.3675, 0, 60, 0)
+light_color = Color(1, 0.95, 0.87, 1)
+light_energy = 1.3
+shadow_enabled = true
+directional_shadow_max_distance = 675.0
+
+[node name="Ground" type="MeshInstance3D" parent="." groups=["snap_surface"]]
+script = ExtResource("1_ground")
+size = Vector2(900, 516)
+heightmap = ExtResource("13_heights")
+low_color = Color(0.79, 0.6, 0.37, 1)
+high_color = Color(0.64, 0.42, 0.27, 1)
+steep_color = Color(0.56, 0.32, 0.2, 1)
+steep_amount = 0.9
+
+[node name="Lake" type="MeshInstance3D" parent="."]
+transform = Transform3D(47.762, 0, -20.0243, 0, 1, 0, 15.5188, 0, 61.6285, -189.75, -1.1388, 69.75)
+mesh = SubResource("CylinderMesh_lake")
+material_override = SubResource("StandardMaterial3D_lake")
+
+[node name="Rails" type="Node3D" parent="."]
+
+[node name="BottomLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_bottom")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="NorthLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_north")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="LoopLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_loop")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="EastLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_east")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="WyeChord" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_chord")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="ScissorsDown" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_link_down")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="ScissorsUp" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_link_up")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="Turnouts" type="Node3D" parent="."]
+
+[node name="TunnelJunction" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../Rails/NorthLine")
+main_distance = 182.2532
+diverge_towards = 1
+branch_rail = NodePath("../../Rails/LoopLine")
+branch_end = 1
+
+[node name="BridgeJunction" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../Rails/LoopLine")
+main_distance = 640.5706
+diverge_towards = 0
+branch_rail = NodePath("../../Rails/NorthLine")
+branch_end = 1
+
+[node name="SouthJunction" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../Rails/BottomLine")
+main_distance = 377.2478
+diverge_towards = 1
+branch_rail = NodePath("../../Rails/LoopLine")
+branch_end = 0
+
+[node name="WyeNorth" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../Rails/LoopLine")
+main_distance = 246.7261
+diverge_towards = 0
+branch_rail = NodePath("../../Rails/EastLine")
+branch_end = 0
+
+[node name="WyeEast" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../Rails/EastLine")
+main_distance = 126.6689
+diverge_towards = 0
+branch_rail = NodePath("../../Rails/WyeChord")
+branch_end = 0
+
+[node name="WyeSouth" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../Rails/LoopLine")
+main_distance = 135.7722
+diverge_towards = 1
+branch_rail = NodePath("../../Rails/WyeChord")
+branch_end = 1
+
+[node name="Compounds" type="Node3D" parent="."]
+
+[node name="LakeScissors" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("11_compound")
+kind = 2
+members = [NodePath("NorthWest"), NodePath("SouthEast"), NodePath("SouthWest"), NodePath("NorthEast")]
+
+[node name="NorthWest" type="Node3D" parent="Compounds/LakeScissors" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../../Rails/LoopLine")
+main_distance = 1107.0708
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/ScissorsDown")
+branch_end = 0
+
+[node name="SouthEast" type="Node3D" parent="Compounds/LakeScissors" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../../Rails/BottomLine")
+main_distance = 225.7503
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/ScissorsDown")
+branch_end = 1
+
+[node name="SouthWest" type="Node3D" parent="Compounds/LakeScissors" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../../Rails/BottomLine")
+main_distance = 198.7506
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/ScissorsUp")
+branch_end = 0
+
+[node name="NorthEast" type="Node3D" parent="Compounds/LakeScissors" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("6_turnout")
+main_rail = NodePath("../../../Rails/LoopLine")
+main_distance = 1134.0707
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/ScissorsUp")
+branch_end = 1
+
+[node name="Crossings" type="Node3D" parent="."]
+
+[node name="LakeScissorsMiddle" type="Node3D" parent="Crossings" groups=["crossings"] node_paths=PackedStringArray("rail_a", "rail_b")]
+script = ExtResource("12_crossing")
+rail_a = NodePath("../../Rails/ScissorsDown")
+distance_a = 13.8292
+rail_b = NodePath("../../Rails/ScissorsUp")
+distance_b = 13.8291
+
+[node name="Signals" type="Node3D" parent="."]
+
+[node name="NorthEntry" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/NorthLine")
+distance = 129.7533
+governs = 0
+
+[node name="TopLineEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/NorthLine")
+distance = 238.5016
+governs = 1
+
+[node name="TopLineWest" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/NorthLine")
+distance = 501.8932
+governs = 0
+
+[node name="RidgeWest" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/LoopLine")
+distance = 584.1749
+governs = 0
+
+[node name="BridgeEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/LoopLine")
+distance = 704.4448
+governs = 1
+
+[node name="LakeWest" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/LoopLine")
+distance = 1073.3207
+governs = 0
+
+[node name="LakeEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/LoopLine")
+distance = 1167.8199
+governs = 1
+
+[node name="WestEntry" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/BottomLine")
+distance = 161.2505
+governs = 0
+
+[node name="ScissorsEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/BottomLine")
+distance = 259.4993
+governs = 1
+
+[node name="SouthJunctionWest" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/BottomLine")
+distance = 343.4984
+governs = 0
+
+[node name="SouthJunctionEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/BottomLine")
+distance = 433.4984
+governs = 1
+
+[node name="SouthJunctionNorth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/LoopLine")
+distance = 52.6578
+governs = 1
+
+[node name="WyeSouthEntry" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/LoopLine")
+distance = 105.7716
+governs = 0
+
+[node name="WyeNorthEntry" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/LoopLine")
+distance = 291.7263
+governs = 1
+
+[node name="EastEntry" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/EastLine")
+distance = 171.6712
+governs = 1
+
+[node name="TunnelEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/LoopLine")
+distance = 1666.9847
+governs = 0
+
+[node name="Trains" type="Node3D" parent="."]
+
+[node name="WestArrival" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("3_train")
+rail = NodePath("../../Rails/BottomLine")
+distance = 13.5
+facing = 1
+speed = 14
+body_length = 14
+
+[node name="NorthArrival" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("3_train")
+rail = NodePath("../../Rails/NorthLine")
+distance = 9.0002
+facing = 1
+speed = 10
+body_length = 22
+body_width = 3.1
+body_height = 3.9
+
+[node name="EastArrival" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("3_train")
+rail = NodePath("../../Rails/EastLine")
+distance = 294.6786
+facing = -1
+speed = 12
+body_length = 16
+
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 15)
+script = ExtResource("4_camera")
+camera = NodePath("Camera3D")
+yaw_degrees = -20.0
+pitch_degrees = -48.0
+zoom = 420.0
+max_zoom = 825.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+far = 4000.0
+
+[node name="DebugUi" type="CanvasLayer" parent="."]
+
+[node name="Panels" type="VBoxContainer" parent="DebugUi"]
+offset_left = 12.0
+offset_top = 12.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi/Panels"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("5_panel")
+
+[node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("7_tpanel")
+overlay = NodePath("../../MarkerOverlay")
+
+[node name="SignalDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("10_spanel")
+overlay = NodePath("../../MarkerOverlay")
+
+[node name="MarkerOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("8_overlay")
+camera = NodePath("../../CameraRig/Camera3D")

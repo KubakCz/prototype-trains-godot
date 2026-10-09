@@ -1,8 +1,8 @@
 # Tests
 
 The regression suite for the prototype. It drives the real scenes — `scenes/main.tscn`,
-`scenes/demos/turnouts.tscn`, `scenes/demos/signals.tscn` and
-`scenes/demos/compound_turnouts.tscn` — so these are integration tests
+`scenes/demos/turnouts.tscn`, `scenes/demos/signals.tscn`,
+`scenes/demos/compound_turnouts.tscn` and `scenes/levels/desert.tscn` — so these are integration tests
 more than unit tests: they instantiate a level, run the physics, and assert on what the trains,
 turnouts and signals did.
 
@@ -182,6 +182,8 @@ walk from a named rail and to print a walk or a train in one line.
 | `turnout_passage_test.gd` | the passage table straight through `Turnout.traverse`, every leg in both positions |
 | `turnout_driving_test.gd` | a train driving all of it: diverging, being held and released, the dead-end siding, a body spanning two rails, points thrown underneath |
 | `main_scene_test.gd` | `scenes/main.tscn`: turnouts still welded after surface snapping (the crossover's members too), the freight train held at the junction, bodies at the arc position their distance says, the west crossover joining the two tracks |
+| `desert_level_test.gd` | `scenes/levels/desert.tscn`: every branch welded, no configuration warnings, the carved ground never rising into a passing train outside a tunnel mouth, the one bridge, the ridge line crossing 8 m over the tunnel line, each arrival held at its entry signal, the balloon loop turning a train round, the wye joining each leg to both others, the lake scissors crossing both ways |
+| `ground_test.gd` | `Ground.surface_height_at` agreeing with a ray cast onto the mesh, on analytic hills and on a baked heightmap |
 | `turnout_click_test.gd` | throwing points by clicking the 3D marker and the floating widget, and the marker reporting the pointer over it, through the real input path (needs `-Windowed`) |
 | `signal_passage_test.gd` | the stopping rule through `TrackWalker`: which direction a signal governs, the walks that ignore signals, a signal the nose has passed, one standing on a turnout, which side the mast lands on, configuration warnings |
 | `signal_driving_test.gd` | trains at signals: held at danger and away when it clears, untouched by the signal facing the other way, not stranded when one goes back to danger underneath them, held past the points and on the branch |

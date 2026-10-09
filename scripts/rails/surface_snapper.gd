@@ -7,15 +7,27 @@ extends RefCounted
 ## server, so a [PhysicsDirectSpaceState3D] raycast finds nothing there. This
 ## intersects the surface's mesh triangles directly instead, which behaves
 ## identically in the editor and at runtime.
+##
+## A [Ground] is the exception: it knows its own grid, and answers for exactly
+## the same triangles without their being walked. On a baked terrain that is the
+## difference between a lookup and a hundred thousand ray tests per query.
 
 ## One surface mesh, with its triangles already baked into global space and an
 ## XZ bounding rect used to skip meshes the ray misses entirely.
 class Surface:
 	var triangles: PackedVector3Array
 	var bounds: Rect2
+	## A ground that answers for itself, asked instead of walking
+	## [member triangles] (which are then left empty).
+	var ground: Ground
 
-	func _init(global_triangles: PackedVector3Array) -> void:
+	func _init(global_triangles: PackedVector3Array, answering: Ground = null) -> void:
 		triangles = global_triangles
+		ground = answering
+		if ground != null:
+			var box := ground.global_transform * ground.get_aabb()
+			bounds = Rect2(box.position.x, box.position.z, box.size.x, box.size.z)
+			return
 		if triangles.is_empty():
 			bounds = Rect2()
 			return
@@ -33,6 +45,10 @@ static func collect(roots: Array[Node]) -> Array[Surface]:
 		if root == null:
 			continue
 		for node in _mesh_instances(root):
+			var ground := node as Ground
+			if ground != null and ground.answers_heights():
+				surfaces.append(Surface.new(PackedVector3Array(), ground))
+				continue
 			var mesh := node.mesh
 			if mesh == null:
 				continue
@@ -59,6 +75,12 @@ static func height_at(surfaces: Array[Surface], x: float, z: float) -> Variant:
 	var highest := 0.0
 	for surface in surfaces:
 		if not surface.bounds.has_point(column):
+			continue
+		if surface.ground != null:
+			var answer = surface.ground.surface_height_at(x, z)
+			if answer != null and (not found or float(answer) > highest):
+				highest = float(answer)
+				found = true
 			continue
 		var triangles := surface.triangles
 		var i := 0

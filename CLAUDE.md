@@ -64,7 +64,7 @@ scripts/rails/rail_signal.gd      RailSignal  : Node3D   — a one-directional s
 scripts/rails/track_walker.gd     TrackWalker : RefCounted — arc length across the network
 scripts/rails/surface_snapper.gd  SurfaceSnapper        — ground raycasts
 scripts/trains/train.gd           Train       : Node3D   — a box that drives the network
-scripts/world/ground.gd           Ground      : MeshInstance3D — procedural terrain
+scripts/world/ground.gd           Ground      : MeshInstance3D — procedural or baked-heightmap terrain
 scripts/ui/ui_scale.gd            UiScale     : Node (autoload) — picks the interface scale
 scripts/ui/marker_overlay.gd      MarkerOverlay      : Control — lays out every floating marker
 scripts/ui/track_marker_widget.gd TrackMarkerWidget  : Control — base: follow, collapse, click
@@ -91,8 +91,11 @@ stub — every turnout case in one place), `scenes/demos/signals.tscn` (a straig
 with a siding: a back-to-back signal pair, a cluster of three that forces the widgets apart, a
 signal past the points, and one on the branch) and `scenes/demos/compound_turnouts.tscn` (flat
 ground, one of each: a three-way, a crossover, a double crossover with its middle crossing, a
-plain diamond crossing and a double slip, each with trains). All four are driven by the tests under `tests/`; keep
-them working.
+plain diamond crossing and a double slip, each with trains) and `scenes/levels/desert.tscn` (a whole
+level rebuilt from a reference - a balloon loop round a lake with a scissors crossover, a wye, a
+tunnel under a ridge and a bridge over a gully, sixteen signals - on a baked terrain carved to fit
+the track; see [docs/level_authoring.md](docs/level_authoring.md)). All five are driven by the tests
+under `tests/`; keep them working.
 
 The overlay is `scripts/ui/`, not `scripts/debug/`: clicking a signal or a turnout is the
 player's actual interface, so it is gameplay UI that happens to still carry step 2's debug
@@ -203,6 +206,21 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
   walks every triangle below `surface_root`, and everything standing beside the track asks;
   in the editor the terrain is still being edited, so a cache there would answer for a surface
   that has since moved.
+- **A `Ground` answers heights for itself; any other mesh is walked.** `SurfaceSnapper` asks
+  `Ground.surface_height_at()`, which reads its grid and the diagonal each quad is split along,
+  instead of ray-testing every triangle - on the desert level's 100 000 triangles that is the
+  difference between a lookup and seconds of load time. It is the *more* exact of the two: the
+  snapper's ray starts 10 km up, where a float resolves to about a millimetre. `ground_test.gd`
+  holds them together.
+- **`Ground` never saves its mesh, and only rebuilds inside the tree.** `_validate_property`
+  strips `mesh`'s storage, or an editor save would write every vertex of a baked terrain into the
+  scene. And loading a scene assigns every export in turn, so a setter that rebuilt outside the
+  tree built the terrain once per property before `_ready` built it again.
+- **A heightfield cannot hold a wall between two tracks.** Two parallel tracks 5 m apart at
+  different heights share grid cells, and the terrain between them interpolates straight into the
+  lower one's loading gauge: the desert level's north line was buried 0.7 m beside the ridge line
+  climbing next to it. Where one line climbs beside another, both climb;
+  `desert_level_test.gd` checks the ground never rises into a passing train.
 - **Editor physics is not stepped**, so `PhysicsDirectSpaceState3D.intersect_ray` finds nothing
   from a `@tool` script. `SurfaceSnapper` intersects mesh triangles
   (`Geometry3D.ray_intersects_triangle`) instead, which behaves identically in editor and game.
