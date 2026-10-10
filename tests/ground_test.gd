@@ -4,8 +4,8 @@ extends TestCase
 ## SurfaceSnapper asks a Ground for its height instead of walking its mesh, which
 ## on the desert level's baked terrain is the difference between one lookup and
 ## some hundred thousand ray tests per question. That is only allowed because the
-## two answers are the same; this is where that is checked, on the analytic hills
-## of main.tscn and on the baked heightmap of the desert level.
+## two answers are the same; this is where that is checked, on analytic hills built
+## here and on the baked heightmaps of the playground and the desert level.
 
 const SCENES := ["res://scenes/main.tscn", "res://scenes/levels/desert.tscn"]
 ## Points per scene. Few, because the reference answer walks every triangle.
@@ -16,9 +16,15 @@ const TOLERANCE := 0.005
 
 
 func test_the_ground_answers_exactly_what_a_ray_cast_onto_its_mesh_finds() -> void:
+	var hills := Ground.new()
+	hills.hill_height = 2.2
+	tree.root.add_child(own(hills))
+	var grounds: Dictionary[String, Ground] = {"analytic hills": hills}
 	for path: String in SCENES:
 		var scene := await load_scene(path)
-		var ground: Ground = scene.get_node("Ground")
+		grounds[path] = scene.get_node("Ground")
+	for path: String in grounds:
+		var ground := grounds[path]
 		if not assert_true(ground.answers_heights(), "%s: the ground answers for itself" % path):
 			continue
 		var faces := ground.mesh.get_faces()

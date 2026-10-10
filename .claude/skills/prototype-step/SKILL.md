@@ -77,9 +77,11 @@ Every step ends with something a human can launch and drive that demonstrates **
 functionality — including the failure cases the plan calls out (a train refused by a turnout set
 against it, a signal at danger). Add the debug UI needed to see what the system is doing.
 
-Extend `scenes/main.tscn` when the new feature belongs in the running prototype; add a focused
-scene under `scenes/demos/` when the step needs a layout of its own (a yard, a crossover, a
-double slip switch). Keep older demo scenes working — the suite under `tests/` drives them.
+Extend the playground, `scenes/main.tscn`, when the new feature belongs in the running prototype.
+It is generated: change `tools/build_playground.gd` and re-run it rather than editing the scene,
+or the next run throws the edit away (docs/level_authoring.md). Add a focused scene under
+`scenes/demos/` when the step needs a layout of its own. Keep older demo scenes working — the
+suite under `tests/` drives them.
 
 ## Verify it, don't assume it
 

@@ -49,7 +49,7 @@ func test_a_number_key_opens_only_its_own_section() -> void:
 		var wanted := panel == _panels[1]
 		assert_eq(panel.expanded, wanted,
 				"%s is %s after [2]" % [panel.name, "open" if wanted else "still folded"])
-	assert_true(_panels[1].readout_text().contains("MainJunction"),
+	assert_true(_panels[1].readout_text().contains("YardEntry"),
 			"the open section shows its readout")
 	await _press(KEY_2)
 	assert_false(_panels[1].expanded, "[2] folds it again")
@@ -115,6 +115,13 @@ func test_the_readout_marks_what_the_mouse_is_on() -> void:
 	await frames(4)
 
 	var rail_signal: RailSignal = tree.get_nodes_in_group("signals")[0]
+	# Close in on it, the way the click tests do: from the playground's overview other
+	# widgets share its patch of screen, and the pointer lands on whichever is on top.
+	var rig: CameraRig = _scene.get_node("CameraRig")
+	rig.position = rail_signal.signal_position()
+	rig.zoom = 30.0
+	rig._apply()
+	await frames(4)
 	var widget := _overlay.widget_for(rail_signal)
 	if not assert_not_null(widget, "%s has a widget on screen" % rail_signal.name):
 		return

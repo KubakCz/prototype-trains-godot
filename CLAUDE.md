@@ -46,12 +46,18 @@ tests/run.ps1 -Window visible    # ... or on your own desktop, to watch a click 
 
 # Open a scene in the editor without a human, to exercise @tool paths.
 Godot_v4.7.2-stable_win64_console.exe --headless --path . --editor res://scenes/main.tscn --quit-after 90
+
+# Regenerate the playground - scenes/main.tscn and its heightmap - from tools/build_playground.gd.
+# Overwrites both; see docs/level_authoring.md.
+Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tools/build_playground.gd
 ```
 
 To eyeball a change without a human at the keyboard: run a throwaway `Node` scene
 that instantiates `main.tscn`, `await RenderingServer.frame_post_draw` ~30 times, then
 `get_viewport().get_texture().get_image().save_png("user://shot.png")`. Output lands in
 `%APPDATA%\Godot\app_userdata\Train game prototype\`. Needs a real window — omit `--headless`.
+The throwaway script need not live in the project: `--script C:/absolute/path/shot.gd` runs an
+`extends SceneTree` script from anywhere, and `res://` paths inside it still resolve.
 
 ## Architecture
 
@@ -83,10 +89,15 @@ tests/support/turnout_demo_case.gd TurnoutDemoCase — fixture for the turnout d
 tests/support/signal_demo_case.gd  SignalDemoCase  — fixture for the signal demo layout
 tests/support/compound_demo_case.gd CompoundDemoCase — fixture for the compound turnout demo
 tests/*_test.gd                                  — the suites themselves
+
+tools/build_playground.gd                        : SceneTree — writes scenes/main.tscn + its heightmap
 ```
 
-Scenes: `scenes/main.tscn` (the running prototype, with one crossover onto a parallel track on
-its western stretch), `scenes/demos/turnouts.tscn` (flat ground, a passing loop and a dead-end
+Scenes: `scenes/main.tscn` (the playground: one of every junction kind on a compact double-track
+oval with a balloon loop, a wye, a yard and a freight line crossing it on the level, 46 signals
+covering every way into every junction, four trains waiting at red, and one carved corner with a
+bridge and a tunnel - **generated**: edit `tools/build_playground.gd` and re-run it, never the
+`.tscn`), `scenes/demos/turnouts.tscn` (flat ground, a passing loop and a dead-end
 stub — every turnout case in one place), `scenes/demos/signals.tscn` (a straight 280 m main line
 with a siding: a back-to-back signal pair, a cluster of three that forces the widgets apart, a
 signal past the points, and one on the branch) and `scenes/demos/compound_turnouts.tscn` (flat
@@ -118,8 +129,9 @@ forward, whichever way the underlying curve was drawn. Never collapse these into
 speed — reversing a train and turning it around are different operations.
 
 The body is placed from the rail positions under its two **ends**, not its centre, so a long
-box sits along a curve as a chord. Its centre therefore sits inside the arc — measured at
-**1.39 m for the 14 m PassengerTrain** on `main.tscn`'s tighter bends, not the ~0.3 m an
+box sits along a curve as a chord. Its centre therefore sits inside the arc by `L² / 8R` —
+measured at **1.39 m for a 14 m body** on the old hilly main scene's tighter bends, and 1.9 m
+for the 22 m freight round the playground's 32 m balloon — not the ~0.3 m an
 earlier note claimed. That is correct, not drift: the invariant worth asserting is the *arc*
 position (project the origin back onto the curve and you get the train's `distance` to within
 0.2 m), because the chord midpoint is symmetric about it whatever the curvature.
@@ -251,6 +263,14 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
   turnout has to sample a few metres down the leg instead — that is what `Turnout.leg_position`,
   `leg_heading` and `branch_side` are for. Bit twice: `branch_side` returned "right" for every
   turnout, and the marker's banner never appeared to move when the points were thrown.
+- **Two rails only ever meet at a turnout, so every closed loop of track has to be cut at one.**
+  A turnout welds one rail's *end* onto a rail running through the points; there is no
+  end-to-end join, and a rail welded to itself works but warns (and the level tests forbid
+  warnings). So a loop is cut where something else leaves it - the loop as the *diverging*
+  route, the main rail carrying on to the other thing - and that takes junctions with somewhere
+  to go and some care over which rail runs through which. The playground's oval only closes
+  through its balloon and its wye; the working is in
+  [docs/level_authoring.md](docs/level_authoring.md).
 - **A schematic of a turnout has to exaggerate the divergence.** A real turnout diverges by
   about 6°; drawn to scale in a 44 px picture that is three collinear lines. `TurnoutWidget`
   amplifies the angle about its true sense (×5, clamped to 52°), so a right-hand turnout still

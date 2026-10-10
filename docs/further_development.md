@@ -40,6 +40,9 @@ no other scene has: a bridge, where the track is in the air over a gully with no
 and tunnel mouths, where the terrain rises from the bed to the roof across one 3 m grid cell.
 Both are found by comparing the railhead with `Rail.ground_height_at()` - `desert_level_test.gd`
 does exactly that - and neither is recorded on the rail; a deck and portals would want them to be.
+The playground (`scenes/main.tscn`) has one of each too, on the wye's tail: a 21 m bridge and a
+44 m tunnel. Its generator classifies every sample of track as on its bed, in a tunnel or on a
+bridge while carving, and throws the answer away; that is where it would get recorded.
 
 ## Step 7 — Trains with wagons and better physics
 
@@ -58,6 +61,13 @@ rails, turnouts and signals it will reach. Every walk now records what it covere
 track a train's body stands on — which is block occupancy's input. `Turnout` already reports
 refusal, which is the "train cannot be let into a block if it will reach an unconnected turnout"
 rule.
+
+**The playground is signalled for it.** Every way into every junction on `scenes/main.tscn` has a
+signal, both directions on every track, and `main_scene_test.gd` checks that walking out from any
+junction along any leg meets that signal before anything else. So the signals already bound the
+blocks, and the junctions between them are what the blocks have to lock. The two diamonds on the
+freight line are 5 m apart and protected as one, which is the "crossings join blocks" rule below
+in miniature.
 
 **Crossings join blocks.** The plan says so explicitly: two trains on the two rails of a
 `Crossing` can meet, so both rails are one block there, even though no train can pass between
