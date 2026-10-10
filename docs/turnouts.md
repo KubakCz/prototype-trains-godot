@@ -38,7 +38,7 @@ them, and a train is refused the moment its **leading end** touches the points r
 its middle does (`_physics_process` walks twice — once past the leading end to find the
 obstruction, once to move the centre as far as that allows).
 
-Step 8's block locking wants the same walk with the length turned up: look ahead and report
+Step 9's block locking wants the same walk with the length turned up: look ahead and report
 what the train will reach.
 
 **Explicit vs. derived level data.** `diverge_towards` and `branch_end` are authored by hand.
@@ -46,7 +46,7 @@ Which *side* the branch leaves on is not: `branch_side()` reads it off the curve
 lets one script be a left-hand turnout, a right-hand one, a turnout on a curve or a symmetric Y.
 
 **Points can be thrown under a train**, deliberately, for now — the body visibly kinks onto the
-other route. Step 8 makes occupancy lock them.
+other route. Step 9 makes occupancy lock them.
 
 `Turnout.throw_points()` is the single entry point for throwing, whoever throws it, and
 `position_changed` fires whenever the points move. A compound assembly — three-way, crossover,

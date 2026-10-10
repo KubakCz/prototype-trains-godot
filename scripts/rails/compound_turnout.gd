@@ -67,7 +67,7 @@ signal position_changed
 @export var members: Array[Turnout] = []: set = _set_members
 ## Which of the kind's positions the members are set to. Setting it throws them.
 @export var compound_position := 0: set = _set_compound_position
-## Whether clicking the assembly in the running game cycles it. Step 8's
+## Whether clicking the assembly in the running game cycles it. Step 9's
 ## interlocking takes this away while a train is on the assembly.
 @export var player_operable := true
 

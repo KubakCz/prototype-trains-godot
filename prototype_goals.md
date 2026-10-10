@@ -62,7 +62,40 @@ Plan of prototype implementation.
     * train is not allowed to switch tracks, there is no user interaction, but we need to track these crossings for logic introduced by later implementation steps
 * Each compound turnout should have only a singular controlling element (be it text or schema). We are still keeping all the variants.
 
-## 5. Simple editor
+## 5. Trains with wagons and better physics
+
+* Train can have multiple wagons connected. The wagons follow it everywhere through turnouts.
+* It takes time for the trains to stop and go. The acceleration/deceleration should be adjustable for different trains and should be also based on the length/content of the train (so full freight trains will take longer to get to speed and break longer). Still we are in a game, so the values should not be something crazy long.
+* If signal is switched to stop in front of the train, the train passes it with breaks to 100% and will stop behind the stop signal as fast as possible. The train can be let go again at any point by player.
+* If switch is turned under the train, the train should derail and stop.
+* If two trains touch (any part of the train with any part of the other train), the trains derail and stop.
+* Derailment is for now unrecoverable.
+* Trains can be selected by clicking on them. This replaces selection by 'Tab'.
+* Selected train has lighter blue color on the main view
+* The "front marker" of the train (currently yellow box) will inform about the train state by changing color:
+  * yellow - train stopped by player
+  * green - train is going
+  * red - train is breaking
+  * blinking red - if train cannot stop in time on stop signal, blinks red until player doesn't let it go
+  * black - train derailed
+
+## 6. Meshes
+
+* Meshes for tracks are generated based on the curves.
+* Generated in reasonable big chunks so it is efficient to render (one bigger mesh better than 1000 small ones, but camera culling also makes a difference)
+* Simple metal material for tracks and simple wood material for cross ties
+* Must be easy to regenerate when modifying the curves manually, but shouldn't slow down the editor
+* Width must match trains - use standard gage (1435mm) and adjust train models accordingly
+* Rail going through the turnout must have correct gaps for train wheel to pass when going through it in any direction, cross ties must be adjusted until the tracks are really split away from each other
+* Tracks might cross each other without a turnout (e.g. crossing in the middle of a double slip switch), again, there must be correct gaps in the rail mesh and reasonable cross ties
+
+## 7. Spawnpoints and stations
+
+TODO
+
+* After this step, the trains will appear on spawnpoints and will have destinations to go to.
+
+## 8. Simple editor
 
 TODO
 
@@ -71,24 +104,12 @@ TODO
   here.
 * Run **Align Branch To Turnout** as part of editing rather than as a manual button press.
 
-## 6. Rail models
 
-* Meshes generated based on the curves
-* Generated in reasonable big chunks so it is efficient to render (one bigger mesh better than 1000 small ones, but camera culling also makes a difference)
-* Simple metal material for tracks and simple wood material for cross ties
-* Must be easy to regenerate when modifying the curves manually, but shouldn't slow down the editor
-* Width must match trains - use standard gage (1435mm) and adjust train models accordingly
-* Rail going through the turnout must have correct gaps for train wheel to pass when going through it in any direction, cross ties must be adjusted until the tracks are really split away from each other
-* Tracks might cross each other without a turnout (e.g. crossing in the middle of a double slip switch), again, there must be correct gaps in the rail mesh and reasonable cross ties
-
-## 7. Trains with wagons and better physics
-
-TODO
-
-
-## 8. Block locking
+## 9. Block locking
 
 WIP
+
+THIS NEEDS UPDATING, MAY CONTAIN SECTIONS THAT CONTRADICT WITH PREVIOUS STEPS
 
 * Connection of trains and signals together
 * A block is a collection of one or more track segments directly connected to each other. Block is surrounded by signals from each reachable direction.
@@ -101,7 +122,3 @@ WIP
   * At any point, there can be only one green signal into the block
 * Train cannot be let into a block if it will reach an unconnected turnout (reaching turnout from a direction that doesn't connect to another rail)
 * Player interaction with this automatic locking is yet to be decided
-
-## 9. Nicer editor
-
-TODO

@@ -168,7 +168,7 @@ looks like it works:
   stop both directions, and the side the mast stands on is derived from `governs`, not authored.
 - **`TrackWalker.walk()` replaces arithmetic on `Train.distance`**, for driving *and* for body
   placement, because plain addition stops at a rail's own ends — exactly what turnouts exist to
-  get past. Step 8's block locking is the same walk with the length turned up.
+  get past. Step 9's block locking is the same walk with the length turned up.
 - **Left click is the only way to throw a turnout or change a signal** — the 3D model or the
   floating widget. There is no keyboard path and there should not be one.
 

@@ -9,22 +9,16 @@ This is the implementers' side of the plan. **The plan itself is
 edit it.** When a step is finished, its notes for the future go here instead, under the heading
 of the step they are aimed at.
 
-## Step 5 — Simple editor
+## Step 5 — Trains with wagons and better physics
 
-Placement is numeric on purpose: step 2 left gizmo-drag placement here, along with running
-**Align Branch To Turnout** as part of editing rather than as a manual button press. What the
-button does, and how to weld a branch without an editor at all, is in
-[level_authoring.md](level_authoring.md).
+This is where a signal stops being a wall. A train currently stops dead on the signal; with
+braking it needs to know the distance to it in advance, which is `TrackWalker.Step.travelled` on
+a walk that ends at one — no new machinery, just a longer walk and a deceleration curve.
 
-Step 4 added more hand work in the same spirit: a compound assembly's members and connecting
-rails are all placed one by one, and a `Crossing` has its own **Locate Crossing** button. An
-editor that places a crossover as one thing — two turnouts, the link and both welds — would save
-most of it. The assembly's configuration warnings already say what a correct one looks like; see
-[compound_turnouts.md](compound_turnouts.md). `TrackWalker` needs two turnouts on one rail to be
-more than `EPSILON` apart, so a three-way is staggered by a few metres, and an editor placing one
-should keep it that way.
+The `signals_from` rule is written from the nose, so it survives a train whose length changes
+when wagons are added. See [signals.md](signals.md).
 
-## Step 6 — Rail models
+## Step 6 — Meshes
 
 Where the running rails need gaps is all recorded already: at every turnout (the points), and at
 every `Crossing` — `rail_a`/`distance_a` and `rail_b`/`distance_b` are the two rails and where
@@ -44,16 +38,22 @@ The playground (`scenes/main.tscn`) has one of each too, on the wye's tail: a 21
 44 m tunnel. Its generator classifies every sample of track as on its bed, in a tunnel or on a
 bridge while carving, and throws the answer away; that is where it would get recorded.
 
-## Step 7 — Trains with wagons and better physics
+## Step 8 — Simple editor
 
-This is where a signal stops being a wall. A train currently stops dead on the signal; with
-braking it needs to know the distance to it in advance, which is `TrackWalker.Step.travelled` on
-a walk that ends at one — no new machinery, just a longer walk and a deceleration curve.
+Placement is numeric on purpose: step 2 left gizmo-drag placement here, along with running
+**Align Branch To Turnout** as part of editing rather than as a manual button press. What the
+button does, and how to weld a branch without an editor at all, is in
+[level_authoring.md](level_authoring.md).
 
-The `signals_from` rule is written from the nose, so it survives a train whose length changes
-when wagons are added. See [signals.md](signals.md).
+Step 4 added more hand work in the same spirit: a compound assembly's members and connecting
+rails are all placed one by one, and a `Crossing` has its own **Locate Crossing** button. An
+editor that places a crossover as one thing — two turnouts, the link and both welds — would save
+most of it. The assembly's configuration warnings already say what a correct one looks like; see
+[compound_turnouts.md](compound_turnouts.md). `TrackWalker` needs two turnouts on one rail to be
+more than `EPSILON` apart, so a three-way is staggered by a few metres, and an editor placing one
+should keep it that way.
 
-## Step 8 — Block locking
+## Step 9 — Block locking
 
 Mostly `TrackWalker.walk()` with the length turned up: walk ahead from a train and collect the
 rails, turnouts and signals it will reach. Every walk now records what it covered in

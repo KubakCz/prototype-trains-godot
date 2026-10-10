@@ -124,7 +124,7 @@ func test_the_body_spans_two_rails_while_it_crosses_the_points() -> void:
 			"the body is drawn as a full-length chord across two rails")
 
 
-## Throwing points under a train is allowed for now - step 8 is what locks them.
+## Throwing points under a train is allowed for now - step 9 is what locks them.
 ## The body visibly kinks onto the other route, which is expected; what must not
 ## happen is a stuck or teleported train.
 func test_points_thrown_under_a_train_leave_it_running() -> void:

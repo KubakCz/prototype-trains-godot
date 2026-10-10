@@ -8,7 +8,7 @@ extends Node3D
 ## [TrackWalker] never stops at a crossing (it only ever casts a rail's
 ## attachments to [Turnout] and [RailSignal]). What a crossing is for is being
 ## [i]known about[/i]. Two trains on the two rails can still meet in the middle,
-## so step 8's blocks treat a crossing as joining both tracks into one block, and
+## so step 9's blocks treat a crossing as joining both tracks into one block, and
 ## step 6's rail meshes need to cut the running rails where they cross. Both
 ## start from here: the two rails, the distance along each at which they meet,
 ## and which trains are standing over it right now.

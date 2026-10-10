@@ -24,9 +24,9 @@ extends Node3D
 ## danger under a moving train lets that train out rather than stranding it
 ## half-way past.
 ##
-## Seams for later steps. Step 7's braking wants to know how far ahead the signal
+## Seams for later steps. Step 5's braking wants to know how far ahead the signal
 ## is, which is [member TrackWalker.Step.travelled] on a walk that ends here.
-## Step 8 drives signals rather than the player: [member aspect]'s setter is the
+## Step 9 drives signals rather than the player: [member aspect]'s setter is the
 ## single entry point whoever is changing it, [signal aspect_changed] reports
 ## every change, and [member player_operable] is how an interlocking takes a
 ## signal off the player.
@@ -91,7 +91,7 @@ signal aspect_changed
 @export_group("Aspect")
 @export var aspect := Aspect.DANGER: set = _set_aspect
 ## Whether clicking the signal in the running game changes it. Turned off for a
-## signal that step 8's interlocking drives on the player's behalf.
+## signal that step 9's interlocking drives on the player's behalf.
 @export var player_operable := true
 
 @export_group("Debug Draw")
@@ -268,7 +268,7 @@ func _update_mast_frame() -> void:
 
 #region Player operation
 ## The single entry point for changing what a signal shows, whoever changes it.
-## Step 8's interlocking drives signals through this same setter.
+## Step 9's interlocking drives signals through this same setter.
 func _set_aspect(value: Aspect) -> void:
 	var changed := aspect != value
 	aspect = value

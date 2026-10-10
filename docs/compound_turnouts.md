@@ -66,9 +66,9 @@ a real double slip with a lever at each end behaves; pairs won and the other was
 knowing if it ever comes back: worked that way, a train on a closed entry is held *inside* the
 slip rather than at its edge. Every entry is a facing move at the first set of points, and a
 facing move is never refused, so the train rolls in and waits at the far points over part of the
-diamond, until step 8's signals keep it out.
+diamond, until step 9's signals keep it out.
 
-**Someone else may throw a member.** A test, a level script, step 8's interlocking. The assembly
+**Someone else may throw a member.** A test, a level script, step 9's interlocking. The assembly
 does not fight it: it listens to its members' `position_changed`, looks the combination up in its
 positions, and reads `MIXED` (-1) when none matches. The next click goes to the first position.
 `position_changed` on the assembly fires once per change of the assembly, however many members
@@ -84,7 +84,7 @@ The plan asks for a single control per assembly. How the player reaches it:
   there, and a click on any of them cycles the whole assembly. `Turnout` emits `clicked` on a
   click whether or not it throws itself; the assembly listens, and its members being
   non-operable is what stops the click also throwing the one member directly.
-  `CompoundTurnout.player_operable` is the assembly's own switch, for step 8.
+  `CompoundTurnout.player_operable` is the assembly's own switch, for step 9.
 
 The widget is a **schematic**, shown or hidden by the same overlay mode as a single turnout's:
 the assembly's whole track, dead pieces red and the set routes green, drawn in the assembly's own

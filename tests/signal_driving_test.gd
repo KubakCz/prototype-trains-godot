@@ -54,7 +54,7 @@ func test_the_signal_for_the_other_direction_does_not_apply() -> void:
 			"and it stops with its nose on HomeBack")
 
 
-## Putting a signal back to danger under a moving train is allowed - step 8 is
+## Putting a signal back to danger under a moving train is allowed - step 9 is
 ## what will stop it happening by accident. What must not happen is the train
 ## being stranded across the signal: the rule is written from the nose, so a
 ## signal the nose is already past no longer applies to that train.

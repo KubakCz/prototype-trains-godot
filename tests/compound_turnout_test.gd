@@ -69,7 +69,7 @@ func test_one_change_raises_one_position_changed() -> void:
 	assert_eq(raised[0], 1, "throwing four members is still one change of the assembly")
 
 
-## Something other than the player may throw a member directly - step 8's
+## Something other than the player may throw a member directly - step 9's
 ## interlocking, a test, a level script. The assembly does not fight it; it
 ## reports a combination it has no name for, and the next click starts over.
 func test_a_member_thrown_behind_its_back_leaves_the_assembly_mixed() -> void:

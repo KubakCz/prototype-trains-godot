@@ -24,7 +24,7 @@ extends RefCounted
 ## ordinary turnouts, walked through one after another.
 ##
 ## Every walk records the stretches of rail it covered in [member Step.spans].
-## Step 8's block locking wants exactly this walk with the length turned up: look
+## Step 9's block locking wants exactly this walk with the length turned up: look
 ## ahead from a train and report what it will reach.
 
 ## Distances closer together than this count as the same point on a rail. Also

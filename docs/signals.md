@@ -2,7 +2,7 @@
 
 What a signal is, which trains it applies to, and the stopping rule — which is written from the
 nose, and that is the whole subtlety. The floating widget styles that present a signal are in
-[ui.md](ui.md); step 8 will change several of the rules below, and what it inherits is recorded
+[ui.md](ui.md); step 9 will change several of the rules below, and what it inherits is recorded
 in [further_development.md](further_development.md).
 
 
@@ -17,7 +17,7 @@ which *side* of the track the mast stands on is derived rather than authored —
 the right of the trains it governs, so `governs` alone places it.
 
 **A cleared signal stays clear.** No automatic replacement after a train passes: the player is
-the only thing that moves a signal until step 8's interlocking arrives.
+the only thing that moves a signal until step 9's interlocking arrives.
 
 **Held, not stopped.** A train meeting a red stops with its nose on the signal and keeps its
 throttle open, exactly as at points set against it, and rolls on the instant it clears.

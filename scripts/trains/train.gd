@@ -153,7 +153,7 @@ func blocked_description() -> String:
 ## Every stretch of rail the body is standing on, nose half and tail half. A
 ## train crossing points stands on two rails at once, so this is the question to
 ## ask rather than comparing [member distance] - it is how a [Crossing] knows who
-## is on it, and the start of what step 8's block occupancy needs.
+## is on it, and the start of what step 9's block occupancy needs.
 func occupied_spans() -> Array[TrackWalker.Span]:
 	var spans: Array[TrackWalker.Span] = []
 	if rail == null or rail.rail_length() <= 0.0:

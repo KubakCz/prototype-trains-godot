@@ -23,7 +23,7 @@ three-point branch first drawn for `tests/trackside_posts_test.gd` floated 2 m o
 
 1. Draw the branch rail so its start or end lands roughly on the main rail.
 2. Add a `Turnout`, point it at both rails, and set `main_distance`, `diverge_towards` and
-   `branch_end`. Placement is numeric — gizmo-drag placement belongs to step 5's editor.
+   `branch_end`. Placement is numeric — gizmo-drag placement belongs to step 8's editor.
 3. Press **Align Branch To Turnout**. It welds the branch's attached end onto the points and
    turns its handle so the branch leaves **tangent to the main rail**. Tangency is what makes
    the handover smooth: a train crossing the points must not change direction abruptly, so the
