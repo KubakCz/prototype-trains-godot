@@ -94,8 +94,16 @@ indented under it, then each crossing with the trains standing over it.
 **The turnout and signal sections own no keys at all.** They used to: `[T]`/`[G]` selected a
 turnout and threw it, `[N]`/`[C]` did the same for a signal. Clicking one is the player's actual
 interface, so the keyboard path was a second way in that had to keep working and that nobody
-used. What is left in those two sections is a readout and its cycle rows. The train section
-keeps `[Tab] [Space] [R] [F] [E]`, because driving a train has no click path yet.
+used. What is left in those two sections is a readout and its cycle rows.
+
+**The train section's keys act on the selected train** — the one last clicked, lighter blue on
+the track ([trains.md](trains.md)); clicking replaced `[Tab]` in step 5. `[Space]` stops it,
+starts it, or lets a tripped one go; `[R]` reverses, `[F]` turns it round (standing only),
+`[E]` cycles the dead-end behaviour, `[+]`/`[-]` couple and uncouple a wagon, `[L]` loads or
+unloads it, and `[Backspace]` restarts the scene, because a wreck is permanent. With nothing
+selected only `[Backspace]` does anything. Driving a train by hand stays debug: in the game the
+player only ever drives trains through signals and points. Its two rows toggle the selected
+train's stopping strip and every car's collision box.
 
 **No readout prints the mouse or the camera controls.** Left click, right-drag to orbit,
 middle-drag or `WASD` to pan and the wheel to zoom are standard enough not to need saying, and
@@ -104,7 +112,8 @@ still worth printing are the train section's, which are neither standard nor gue
 
 Two consequences worth knowing:
 
-- **The switches for the open presentation questions are rows, not keys.** `_panel_controls()`
+- **The switches for the open presentation questions are rows, not keys** (and so are the train
+  section's two debug drawings). `_panel_controls()`
   returns one label per row and the base builds a `Button` for each, styled as a button (fill,
   rim, rounded corners, hover and pressed looks) so it doesn't read as more readout; a press calls
   `_panel_control_pressed(index)`. A `Button` consumes its click, which is what keeps a press on
@@ -112,7 +121,7 @@ Two consequences worth knowing:
   fold with it and only exist once a section has been opened.
 - **The `>` in the turnout and signal readouts marks whatever the mouse is on**, not a
   selection — with no select key there is nothing else it could mean. (The train readout's `>`
-  is still a selection, because `[Tab]` still moves it.) Two things can be pointed at and either
+  is a selection: the train last clicked.) Two things can be pointed at and either
   counts: the floating widget (`MarkerOverlay.hovered_subject()`, which reads
   `TrackMarkerWidget.is_pointer_over()`) and the 3D model under it (`Turnout.is_pointer_over()`,
   `RailSignal.is_pointer_over()`, both off the picker's `mouse_entered` / `mouse_exited`). The
@@ -125,8 +134,9 @@ assembly re-walked its routes and rebuilt its mesh each frame, which more than d
 
 Two things the base has to get right, both of them bitten-once:
 
-- **The header `Button` is `FOCUS_NONE`.** Otherwise it joins the GUI focus chain and `Tab` —
-  the train panel's select key — moves focus between headers instead of selecting a train.
+- **The header `Button` is `FOCUS_NONE`.** Otherwise it joins the GUI focus chain: `Tab` moves
+  focus between headers, and `Space` — the train panel's stop key — presses whichever header has
+  it.
 - **The panel stays `mouse_filter = IGNORE`; only its buttons stop clicks.** That keeps the
   "a `Control` eats clicks on the 3D world behind it" gotcha (in [CLAUDE.md](../CLAUDE.md))
   confined to the header strip and the cycle rows, which are the places a click is meant to be a

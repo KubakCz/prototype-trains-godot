@@ -23,9 +23,11 @@ extends RefCounted
 ## attachments. Nor does a [CompoundTurnout] exist here - its members are
 ## ordinary turnouts, walked through one after another.
 ##
-## Every walk records the stretches of rail it covered in [member Step.spans].
-## Step 9's block locking wants exactly this walk with the length turned up: look
-## ahead from a train and report what it will reach.
+## Every walk records the stretches of rail it covered in [member Step.spans],
+## and [method Step.locate] turns an arc length along the walk back into a place
+## on a rail - which is how every car of a [Train] finds the track under its two
+## ends. Step 9's block locking wants exactly this walk with the length turned
+## up: look ahead from a train and report what it will reach.
 
 ## Distances closer together than this count as the same point on a rail. Also
 ## what stops a turnout the walk has just crossed from being found again
@@ -75,6 +77,20 @@ class Span:
 				and at <= maxf(from, to) + EPSILON)
 
 
+## A place on the network: a rail and a distance along it.
+class Location:
+	var rail: Rail
+	var distance: float
+
+	func _init(p_rail: Rail, p_distance: float) -> void:
+		rail = p_rail
+		distance = p_distance
+
+
+	func position() -> Vector3:
+		return rail.sample_position(distance)
+
+
 ## Where a walk ended up, and why it stopped there.
 class Step:
 	var rail: Rail
@@ -105,6 +121,23 @@ class Step:
 				return true
 		return false
 
+
+	## The place [param along] metres into the walk, following it across every
+	## rail it changed to. Clamped to the walk's own two ends, so asking past
+	## where a walk stopped answers with where it stopped.
+	##
+	## The spans join up exactly - a span ends at the points and the next starts
+	## at the same spot on the other rail - so this is continuous along the walk,
+	## and a car whose two ends are located this way is the chord between them.
+	func locate(along: float) -> Location:
+		var left := maxf(along, 0.0)
+		for span in spans:
+			var run := absf(span.to - span.from)
+			if left <= run:
+				return Location.new(span.rail, span.from + signf(span.to - span.from) * left)
+			left -= run
+		return Location.new(rail, distance)
+
 	func is_blocked() -> bool:
 		return blocking_turnout != null or blocking_signal != null or at_dead_end
 
@@ -122,13 +155,17 @@ class Step:
 ## turnouts that admit the move.
 ##
 ## [param signals_from] is how far into the walk signals start to count, and
-## defaults to [constant IGNORE_SIGNALS] - never. A train passes its own body
+## defaults to [constant IGNORE_SIGNALS] - never. A train passes half its own
 ## length: a signal it has already drawn level with is one its nose has passed,
 ## and a signal only ever stops a train that has not reached it yet. The walks
 ## that place a train's body pass nothing at all, because where the body reaches
 ## is a question about track, not about permission.
+##
+## [param excused] are signals that do not stop this walk whatever they show: the
+## ones a train found at danger too late to stop for, and is running past with its
+## brakes full on. See [member Train.tripped].
 static func walk(rail: Rail, distance: float, direction: int, length: float,
-		signals_from := IGNORE_SIGNALS) -> Step:
+		signals_from := IGNORE_SIGNALS, excused: Array[RailSignal] = []) -> Step:
 	var step := Step.new()
 	step.rail = rail
 	step.direction = 1 if direction >= 0 else -1
@@ -142,7 +179,7 @@ static func walk(rail: Rail, distance: float, direction: int, length: float,
 	for _hop in MAX_HOPS:
 		if remaining <= EPSILON:
 			return step
-		var ahead := _next_stop(step, signals_from)
+		var ahead := _next_stop(step, signals_from, excused)
 		var turnout := ahead.turnout
 		var gap := absf(ahead.distance - step.distance)
 		# `gap - EPSILON`, not `gap`: travel that would leave the walk resting a
@@ -198,7 +235,7 @@ class _Stop:
 ## at a set of points wins the tie. Stopping short of points a train was going to
 ## be allowed through is harmless; being let through points a signal was holding
 ## it at is not.
-static func _next_stop(step: Step, signals_from: float) -> _Stop:
+static func _next_stop(step: Step, signals_from: float, excused: Array[RailSignal]) -> _Stop:
 	var stop := _Stop.new()
 	stop.distance = step.rail.rail_length() if step.direction > 0 else 0.0
 	for node in step.rail.attachments():
@@ -215,6 +252,8 @@ static func _next_stop(step: Step, signals_from: float) -> _Stop:
 	for node in step.rail.attachments():
 		var rail_signal := node as RailSignal
 		if rail_signal == null or not rail_signal.blocks(step.rail, step.direction):
+			continue
+		if excused.has(rail_signal):
 			continue
 		for at in rail_signal.distances_on(step.rail):
 			if not _is_ahead(step, at, stop.distance):

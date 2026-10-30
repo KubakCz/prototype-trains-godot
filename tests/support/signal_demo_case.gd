@@ -78,12 +78,15 @@ func set_all(aspect: RailSignal.Aspect) -> void:
 		rail_signal.aspect = aspect
 
 
-## Puts a train on a rail with its throttle open.
-func place(train: Train, rail: Rail, at: float, facing: int) -> void:
+## Puts a train on a rail with its throttle open, running at [param speed] - its
+## top speed unless told otherwise, so a test is about the signal rather than about
+## the time it takes to get going.
+func place(train: Train, rail: Rail, at: float, facing: int, speed := INF) -> void:
 	train.rail = rail
 	train.distance = at
 	train.facing = facing
 	train.throttle = 1
+	train.roll(speed)
 
 
 ## Runs the simulation for [param count] physics frames. The Local runs at
@@ -105,4 +108,4 @@ func state(train: Train) -> String:
 ## it is measuring the train, not asking permission.
 func nose_of(train: Train) -> TrackWalker.Step:
 	return TrackWalker.walk(train.rail, train.distance, train.facing,
-			train.body_length * 0.5)
+			train.half_length())

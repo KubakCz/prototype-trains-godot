@@ -1,0 +1,244 @@
+[gd_scene load_steps=25 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
+[ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
+[ext_resource type="Script" path="res://scripts/rails/turnout.gd" id="3_turnout"]
+[ext_resource type="Script" path="res://scripts/rails/compound_turnout.gd" id="4_compound"]
+[ext_resource type="Script" path="res://scripts/rails/rail_signal.gd" id="5_signal"]
+[ext_resource type="Script" path="res://scripts/trains/train.gd" id="6_train"]
+[ext_resource type="Script" path="res://scripts/debug/camera_rig.gd" id="7_camera"]
+[ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="8_trains"]
+[ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="9_turnouts"]
+[ext_resource type="Script" path="res://scripts/debug/signal_debug_panel.gd" id="10_signals"]
+[ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="11_overlay"]
+[ext_resource type="Script" path="res://scripts/trains/wagon_type.gd" id="12_wagon_type"]
+[ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="13_passenger"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_locomotive.tres" id="14_freight"]
+[ext_resource type="Resource" path="res://rolling_stock/shunting_locomotive.tres" id="15_shunting"]
+[ext_resource type="Resource" path="res://rolling_stock/coach.tres" id="16_coach"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_wagon.tres" id="17_freight_wagon"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
+ground_bottom_color = Color(0.22, 0.24, 0.24, 1)
+ground_horizon_color = Color(0.66, 0.7, 0.74, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+tonemap_mode = 2
+ssao_enabled = true
+
+[sub_resource type="Curve3D" id="Curve3D_NorthLine"]
+_data = {
+"points": PackedVector3Array(-33, 0, 0, 33, 0, 0, -250, 0, -5, -33, 0, 0, 33, 0, 0, -150, 0, -5, -33, 0, 0, 33, 0, 0, -50, 0, -5, -33, 0, 0, 33, 0, 0, 50, 0, -5, -33, 0, 0, 33, 0, 0, 150, 0, -5, -33, 0, 0, 33, 0, 0, 250, 0, -5),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0)
+}
+point_count = 6
+
+[sub_resource type="Curve3D" id="Curve3D_MiddleLine"]
+_data = {
+"points": PackedVector3Array(-33, 0, 0, 33, 0, 0, -250, 0, 0, -33, 0, 0, 33, 0, 0, -150, 0, 0, -33, 0, 0, 33, 0, 0, -50, 0, 0, -33, 0, 0, 33, 0, 0, 50, 0, 0, -33, 0, 0, 33, 0, 0, 150, 0, 0, -33, 0, 0, 33, 0, 0, 250, 0, 0),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0)
+}
+point_count = 6
+
+[sub_resource type="Curve3D" id="Curve3D_SouthLine"]
+_data = {
+"points": PackedVector3Array(-33, 0, 0, 33, 0, 0, -250, 0, 5, -33, 0, 0, 33, 0, 0, -150, 0, 5, -33, 0, 0, 33, 0, 0, -50, 0, 5, -33, 0, 0, 33, 0, 0, 50, 0, 5, -33, 0, 0, 33, 0, 0, 150, 0, 5, -33, 0, 0, 33, 0, 0, 250, 0, 5),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0)
+}
+point_count = 6
+
+[sub_resource type="Curve3D" id="Curve3D_Link"]
+_data = {
+"points": PackedVector3Array(-12, 0, 0, 12, 0, 0, 40, 0, -5, -12, 0, 0, 12, 0, 0, 76, 0, 0),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[node name="TrainDemo" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.6452, -0.628, 0.4352, 0, 0.5696, 0.822, -0.764, -0.5303, 0.3675, 0, 60, 0)
+light_energy = 1.3
+shadow_enabled = true
+directional_shadow_max_distance = 600.0
+
+[node name="Ground" type="MeshInstance3D" parent="." groups=["snap_surface"]]
+script = ExtResource("1_ground")
+size = Vector2(560, 120)
+subdivisions = 70
+hill_height = 0.0
+
+[node name="Rails" type="Node3D" parent="."]
+
+[node name="NorthLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_NorthLine")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="MiddleLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_MiddleLine")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="SouthLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_SouthLine")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="CrossoverLink" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_Link")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+
+[node name="Compounds" type="Node3D" parent="."]
+
+[node name="Crossover" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("4_compound")
+kind = 1
+members = [NodePath("NorthPoints"), NodePath("MiddlePoints")]
+
+[node name="NorthPoints" type="Node3D" parent="Compounds/Crossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/NorthLine")
+main_distance = 290
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/CrossoverLink")
+branch_end = 0
+
+[node name="MiddlePoints" type="Node3D" parent="Compounds/Crossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("3_turnout")
+main_rail = NodePath("../../../Rails/MiddleLine")
+main_distance = 326
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/CrossoverLink")
+branch_end = 1
+
+[node name="Signals" type="Node3D" parent="."]
+
+[node name="NorthOverrun" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("5_signal")
+rail = NodePath("../../Rails/NorthLine")
+distance = 230
+governs = 0
+aspect = 1
+
+[node name="NorthStop" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("5_signal")
+rail = NodePath("../../Rails/NorthLine")
+distance = 420
+governs = 0
+
+[node name="MiddleStop" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("5_signal")
+rail = NodePath("../../Rails/MiddleLine")
+distance = 420
+governs = 0
+
+[node name="SouthStop" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("5_signal")
+rail = NodePath("../../Rails/SouthLine")
+distance = 420
+governs = 0
+
+[node name="Trains" type="Node3D" parent="."]
+
+[node name="Express" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/NorthLine")
+distance = 26
+facing = 1
+max_speed = 18
+end_behavior = 0
+locomotive = ExtResource("13_passenger")
+wagons = Array[ExtResource("12_wagon_type")]([ExtResource("16_coach"), ExtResource("16_coach")])
+
+[node name="LoadedFreight" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/MiddleLine")
+distance = 37
+facing = 1
+max_speed = 12
+end_behavior = 0
+locomotive = ExtResource("14_freight")
+wagons = Array[ExtResource("12_wagon_type")]([ExtResource("17_freight_wagon"), ExtResource("17_freight_wagon"), ExtResource("17_freight_wagon"), ExtResource("17_freight_wagon")])
+load_factor = 1
+
+[node name="EmptyFreight" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/SouthLine")
+distance = 37
+facing = 1
+max_speed = 12
+end_behavior = 0
+locomotive = ExtResource("14_freight")
+wagons = Array[ExtResource("12_wagon_type")]([ExtResource("17_freight_wagon"), ExtResource("17_freight_wagon"), ExtResource("17_freight_wagon"), ExtResource("17_freight_wagon")])
+
+[node name="Stalled" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("6_train")
+rail = NodePath("../../Rails/SouthLine")
+distance = 465
+facing = -1
+throttle = 0
+max_speed = 6
+end_behavior = 0
+locomotive = ExtResource("15_shunting")
+wagons = Array[ExtResource("12_wagon_type")]([ExtResource("17_freight_wagon"), ExtResource("17_freight_wagon")])
+
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 2, 0)
+script = ExtResource("7_camera")
+yaw_degrees = -8.0
+pitch_degrees = -38.0
+camera = NodePath("Camera3D")
+zoom = 230.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+far = 2000.0
+
+[node name="DebugUi" type="CanvasLayer" parent="."]
+
+[node name="Panels" type="VBoxContainer" parent="DebugUi"]
+offset_left = 12.0
+offset_top = 12.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi/Panels"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("8_trains")
+
+[node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("9_turnouts")
+overlay = NodePath("../../MarkerOverlay")
+
+[node name="SignalDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("10_signals")
+overlay = NodePath("../../MarkerOverlay")
+
+[node name="MarkerOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("11_overlay")
+camera = NodePath("../../CameraRig/Camera3D")

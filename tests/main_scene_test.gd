@@ -79,6 +79,7 @@ func test_the_level_has_no_configuration_warnings() -> void:
 	nodes.append_array(_compounds)
 	nodes.append_array(_crossings)
 	nodes.append_array(_signals)
+	nodes.append_array(_trains)
 	for node: Node in nodes:
 		var warnings: PackedStringArray = node._get_configuration_warnings()
 		if not warnings.is_empty():
@@ -133,21 +134,31 @@ func test_every_signal_starts_at_danger() -> void:
 		assert_eq(rail_signal.aspect, RailSignal.Aspect.DANGER, "%s is at danger" % rail_signal.name)
 
 
-## A train's body is a chord, so its origin sits inside the arc on a bend. What must
-## hold whatever the curvature is the arc position: the chord midpoint is symmetric
-## about the train's own distance, so projecting the origin back onto the curve has
-## to return that distance.
-func test_every_train_sits_at_the_arc_position_its_distance_says() -> void:
+## A train stands at its own distance: its origin is the arc point there. Each car
+## is the chord between the rail positions under its own two ends, so on a bend its
+## middle sits inside the curve by length² / 8R - a metre for a 16 m car round the
+## 32 m balloon - and no more.
+func test_every_train_and_every_car_sits_on_the_track() -> void:
 	for train: Train in _trains:
-		var projected := train.rail.curve.get_closest_offset(
-				train.rail.to_local(train.global_position))
 		var inset := train.global_position.distance_to(
 				train.rail.sample_position(train.rail.clamp_distance(train.distance)))
-		note("%-9s on %-11s distance %6.1f m, projects back to %6.1f m, chord inset %.2f m"
-				% [train.name, train.rail.name, train.distance, projected, inset])
-		assert_near(projected, train.distance, 0.6,
-				"%s sits at the arc position its distance says" % train.name)
-		assert_less(inset, 2.5, "%s is not flung off %s" % [train.name, train.rail.name])
+		var worst := 0.0
+		for car in train.cars():
+			worst = maxf(worst, _off_track(car.global_position))
+		note("%-9s on %-11s distance %6.1f m, %d cars, origin %.3f m off its distance, "
+				% [train.name, train.rail.name, train.distance, train.cars().size(), inset]
+				+ "furthest car %.2f m off the track" % worst)
+		assert_less(inset, 0.01, "%s sits at the arc position its distance says" % train.name)
+		assert_less(worst, 1.2, "every car of %s is on the track" % train.name)
+		assert_false(train.derailed, "%s is on the rails" % train.name)
+
+
+func _off_track(at: Vector3) -> float:
+	var nearest := INF
+	for rail in _rails:
+		nearest = minf(nearest, rail.to_global(rail.curve.get_closest_point(rail.to_local(at)))
+				.distance_to(at))
+	return nearest
 #endregion
 
 

@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
 [ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
@@ -8,6 +8,8 @@
 [ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="6_trains"]
 [ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="7_turnouts"]
 [ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="8_overlay"]
+[ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="loco_passenger"]
+[ext_resource type="Resource" path="res://rolling_stock/shunting_locomotive.tres" id="loco_shunting"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
@@ -113,9 +115,9 @@ script = ExtResource("4_train")
 rail = NodePath("../../Rails/MainLine")
 distance = 20.0
 facing = 1
-speed = 16.0
+max_speed = 16.0
 end_behavior = 2
-body_length = 16.0
+locomotive = ExtResource("loco_passenger")
 
 [node name="LoopShunter" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("4_train")
@@ -123,11 +125,9 @@ rail = NodePath("../../Rails/LoopLine")
 distance = 70.0
 facing = -1
 throttle = 0
-speed = 9.0
+max_speed = 9.0
 end_behavior = 0
-body_length = 11.0
-body_width = 3.1
-body_height = 3.8
+locomotive = ExtResource("loco_shunting")
 
 [node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)

@@ -1,4 +1,4 @@
-[gd_scene load_steps=33 format=3]
+[gd_scene load_steps=39 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
 [ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
@@ -13,6 +13,12 @@
 [ext_resource type="Script" path="res://scripts/rails/compound_turnout.gd" id="11_compound"]
 [ext_resource type="Script" path="res://scripts/rails/crossing.gd" id="12_crossing"]
 [ext_resource type="Image" path="res://scenes/main_heights.res" id="13_heights"]
+[ext_resource type="Script" path="res://scripts/trains/wagon_type.gd" id="17_wagon_type"]
+[ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="14_passenger"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_locomotive.tres" id="15_freight"]
+[ext_resource type="Resource" path="res://rolling_stock/shunting_locomotive.tres" id="16_shunting"]
+[ext_resource type="Resource" path="res://rolling_stock/coach.tres" id="18_coach"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_wagon.tres" id="19_freight_wagon"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
@@ -754,46 +760,43 @@ governs = 1
 [node name="Express" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("3_train")
 rail = NodePath("../../Rails/NorthLine")
-distance = 188.7564
+distance = 203.7564
 facing = 1
-speed = 18.0
+max_speed = 18.0
 end_behavior = 2
-body_length = 14.0
-body_width = 2.9
-body_height = 3.4
+locomotive = ExtResource("14_passenger")
+wagons = Array[ExtResource("17_wagon_type")]([ExtResource("18_coach")])
 
 [node name="Freight" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("3_train")
 rail = NodePath("../../Rails/HillLine")
-distance = 20.0
+distance = 86.0321
 facing = 1
-speed = 9.0
+max_speed = 9.0
 end_behavior = 2
-body_length = 22.0
-body_width = 3.1
-body_height = 3.9
+locomotive = ExtResource("15_freight")
+wagons = Array[ExtResource("17_wagon_type")]([ExtResource("19_freight_wagon"), ExtResource("19_freight_wagon"), ExtResource("19_freight_wagon")])
+load_factor = 1.0
 
 [node name="Regional" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("3_train")
 rail = NodePath("../../Rails/FreightLine")
-distance = 30.0
+distance = 32.0
 facing = 1
-speed = 12.0
+max_speed = 12.0
 end_behavior = 2
-body_length = 16.0
-body_width = 2.9
-body_height = 3.4
+locomotive = ExtResource("14_passenger")
+wagons = Array[ExtResource("17_wagon_type")]([ExtResource("18_coach")])
 
 [node name="Shunter" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("3_train")
 rail = NodePath("../../Rails/YardRight")
-distance = 50.0
+distance = 58.0
 facing = -1
-speed = 6.0
+max_speed = 6.0
 end_behavior = 1
-body_length = 8.0
-body_width = 2.8
-body_height = 3.2
+locomotive = ExtResource("16_shunting")
+wagons = Array[ExtResource("17_wagon_type")]([ExtResource("19_freight_wagon"), ExtResource("19_freight_wagon")])
 
 [node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 2, 0)

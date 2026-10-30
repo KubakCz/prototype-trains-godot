@@ -62,7 +62,7 @@ Plan of prototype implementation.
     * train is not allowed to switch tracks, there is no user interaction, but we need to track these crossings for logic introduced by later implementation steps
 * Each compound turnout should have only a singular controlling element (be it text or schema). We are still keeping all the variants.
 
-## 5. Trains with wagons and better physics
+## 5. Trains with wagons and better physics *(done)*
 
 * Train can have multiple wagons connected. The wagons follow it everywhere through turnouts.
 * It takes time for the trains to stop and go. The acceleration/deceleration should be adjustable for different trains and should be also based on the length/content of the train (so full freight trains will take longer to get to speed and break longer). Still we are in a game, so the values should not be something crazy long.

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="WagonType" format=3]
+
+[ext_resource type="Script" path="res://scripts/trains/wagon_type.gd" id="1_type"]
+
+[resource]
+script = ExtResource("1_type")
+display_name = "coach"
+length = 15.0
+width = 2.9
+height = 3.3
+mass = 40.0
+brake_rate = 6.0
+capacity = 0.0

@@ -100,10 +100,11 @@ func test_a_train_drives_over_the_crossover_and_on_along_the_other_track() -> vo
 func test_a_train_held_by_the_crossover_goes_when_it_is_set_back() -> void:
 	var local := train("CrossoverLocal")
 	crossover.cycle()
-	place(local, "CrossoverSouth", 100.0, Train.ALONG_RAIL)
-	# 10 m/s from 100 m: the nose (6 m ahead) reaches SouthPoints at 140 m after
-	# 34 m, well inside 300 frames.
-	await physics_frames(300)
+	# Points set against a train are run into, not stopped for: only one that starts
+	# with its nose on them, and so can only creep up to them, is held there.
+	place(local, "CrossoverSouth", 140.0 - local.half_length(), Train.ALONG_RAIL)
+	local.roll(0.0)
+	await physics_frames(60)
 	note("held:     %s" % state(local))
 	assert_eq(local.blocking_turnout, member(crossover, "SouthPoints"), "held by SouthPoints")
 	assert_true(local.blocked_description().contains("Crossover/SouthPoints"),
@@ -111,7 +112,7 @@ func test_a_train_held_by_the_crossover_goes_when_it_is_set_back() -> void:
 	assert_eq(local.throttle, 1, "held with the throttle open")
 
 	crossover.cycle()
-	await physics_frames(120)
+	await physics_frames(180)
 	note("released: %s" % state(local))
 	assert_null(local.blocking_turnout, "nothing holds it once the crossover is parallel")
 	assert_greater(local.distance, 140.0, "it carried on past the points")

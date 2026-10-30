@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="LocomotiveType" format=3]
+
+[ext_resource type="Script" path="res://scripts/trains/locomotive_type.gd" id="1_type"]
+
+[resource]
+script = ExtResource("1_type")
+display_name = "passenger locomotive"
+length = 16.0
+width = 2.9
+height = 3.6
+mass = 80.0
+brake_rate = 6.0
+traction = 360.0

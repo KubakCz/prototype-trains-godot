@@ -9,15 +9,6 @@ This is the implementers' side of the plan. **The plan itself is
 edit it.** When a step is finished, its notes for the future go here instead, under the heading
 of the step they are aimed at.
 
-## Step 5 — Trains with wagons and better physics
-
-This is where a signal stops being a wall. A train currently stops dead on the signal; with
-braking it needs to know the distance to it in advance, which is `TrackWalker.Step.travelled` on
-a walk that ends at one — no new machinery, just a longer walk and a deceleration curve.
-
-The `signals_from` rule is written from the nose, so it survives a train whose length changes
-when wagons are added. See [signals.md](signals.md).
-
 ## Step 6 — Meshes
 
 Where the running rails need gaps is all recorded already: at every turnout (the points), and at
@@ -37,6 +28,26 @@ does exactly that - and neither is recorded on the rail; a deck and portals woul
 The playground (`scenes/main.tscn`) has one of each too, on the wye's tail: a 21 m bridge and a
 44 m tunnel. Its generator classifies every sample of track as on its bed, in a tunnel or on a
 bridge while carving, and throws the answer away; that is where it would get recorded.
+
+**Train models.** A car is a `TrainCar`: boxes sized from its `CarType`, with the origin on the
+railhead between its two ends and -Z towards the nose. Real models replace the boxes; they should
+keep the click collider and the collision box (`TrainCar.half_extents()`, which is what touching
+means), and match the gauge - the types' widths, 2.8-3.1 m, are already a plausible loading
+gauge for 1435 mm. A wreck is drawn by turning each car a few degrees off its rail pose
+(`Train._wreck_pose`); models want the same, or something better.
+
+## Step 7 — Spawnpoints and stations
+
+**Trains are made from types**: `locomotive`, `wagons` and `load_factor` are everything a
+spawnpoint needs to make one, and the shared types under `rolling_stock/` are what it picks from.
+Loading and unloading at a station is `load_factor` - deliberately on the train rather than a
+"loaded" wagon type, so it can change in place. A train arriving from off the level wants
+`Train.roll(speed)`: a rolling start, so it comes in at line speed instead of starting from rest
+in a tunnel mouth.
+
+**A spawned train can collide on its first frame.** Anything placed over another train touches
+it and both derail, so a spawnpoint has to check that its stretch of track is clear first -
+`Train.occupies()` and `occupied_spans()` answer that.
 
 ## Step 8 — Simple editor
 
@@ -85,15 +96,39 @@ signal to danger while its block is occupied, and locking points under an occupy
 The seams are in place — `RailSignal.aspect`'s setter is the single entry point whoever is
 changing it, `aspect_changed` reports every change, and `player_operable = false` takes a signal
 off the player without the player noticing a different code path. Putting a signal back to danger
-under a moving train is *deliberately* allowed and deliberately harmless: the train it is
-standing over keeps going, the next one up is held.
+under a moving train is *deliberately* allowed and harmless: the train whose nose is past it
+keeps going, the next one up is held.
+
+**Since step 5, putting a signal back in front of a train is not harmless.** A train brakes for a
+red from its own stopping distance out ([trains.md](trains.md)): put back inside that distance it
+brakes harder, and put back too late even for full brakes it overruns the signal and waits,
+tripped, for the player. So automatic replacement must only ever put a signal back *behind* a
+train - once its nose is past, which is the moment the nose rule stops it applying - and
+clearing a route should leave a signal clear while anything is inside its stopping distance.
+`Train.stopping_distance()` and `obstruction_gap` are the numbers; a tripped train
+(`Train.tripped`) is one that is somewhere it was not let into.
+
+**Points thrown under a train derail it**, so locking points under an occupying train is not a
+nicety: it is what stops the player wrecking one. A train also derails running into points set
+against it - it never brakes for them, only for signals - which is the same lock seen from in
+front: points on an approaching train's route want locking until a red protects them.
+
+**Collisions now happen.** Any part of one train touching any part of another derails both, and
+trains do not see each other: nothing brakes for a train ahead. Keeping two trains out of one
+block is the only thing that prevents it - the README's "prevents two trains entering the same
+block". `Train.derailment(reason)` fires for every derailment, which is the hook for a level's
+"train collision" fail condition.
 
 ## Not tied to a step
 
-- **`Train.end_behavior` is a placeholder.** It now fires only at a genuine dead end, but real
-  levels will want buffer stops and off-level connections there instead. The desert level's four
-  exits are rails running into tunnels in the mountains and stopping there, which is where an
-  off-level connection would go: a train sent into one turns round in the dark and comes back.
+- **`Train.end_behavior` is a placeholder.** It now fires only at a genuine dead end, once the
+  train has braked to a stand there, but real levels will want buffer stops and off-level
+  connections instead. The desert level's four exits are rails running into tunnels in the
+  mountains and stopping there, which is where an off-level connection would go: a train sent
+  into one turns round in the dark and comes back. With wagons, `TURN_AROUND` puts the
+  locomotive at the other end in one frame.
+- **No gradients and no speed limits.** A train starts and stops the same uphill as down, and
+  takes a turnout at line speed. Either would go in `Train._drive`, where the rates are chosen.
 - **Two presentation questions are still open** — the turnout modes and the schematic's caption,
   the signal widget styles and the collapse rules are all switchable rather than decided. A
   compound assembly's widget follows the turnout mode and caption, so settling those settles both. Whoever settles them should delete the

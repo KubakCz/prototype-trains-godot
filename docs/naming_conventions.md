@@ -66,6 +66,29 @@ Two tracks crossing each other with no way between them (US **diamond**).
 * **Clear** → proceed (green)
 * **Danger** → stop (red)
 
+## Trains
+
+* **Train** — a locomotive and the wagons behind it, run as one. **Code:** `Train`.
+* **Consist** — what a train is made of, in order. **Code:** `Train.locomotive` + `Train.wagons`.
+* **Car** — any one vehicle of a train, locomotive or wagon. **Code:** `TrainCar` (the drawn
+  one), `CarType` (what it is).
+* **Locomotive** — the car that pulls, always at the nose. **Code:** `LocomotiveType`.
+* **Wagon** — a car that is pulled: a **coach** carries passengers, a **freight wagon** goods.
+  **Code:** `WagonType`.
+* **Rolling stock** — the shared car types trains are made from. **Code:** `rolling_stock/*.tres`.
+* **Load** — how full a train's freight wagons are. **Code:** `Train.load_factor`.
+
+### Stopping
+
+* **Service braking** — a normal stop, at part of the brakes' strength.
+* **Full brake** (emergency braking) — 100%, the hardest a train can stop.
+* **Held** — standing short of a red signal, ready to go once it clears.
+* **Overrun** (UK **SPAD**, signal passed at danger) — a train that found a signal at danger too
+  late to stop for, and ran past it. **Code:** `Train.tripped`, until the player **lets it go**
+  (`Train.release()`).
+* **Derailment** — a train off the rails, for good. **Code:** `Train.derailed`.
+* **Fouling** — standing close enough to another track that a train on it would touch you.
+
 ## Blocks
 
 A track section that can only contain one train at a time.

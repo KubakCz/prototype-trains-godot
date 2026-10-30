@@ -19,9 +19,14 @@ the right of the trains it governs, so `governs` alone places it.
 **A cleared signal stays clear.** No automatic replacement after a train passes: the player is
 the only thing that moves a signal until step 9's interlocking arrives.
 
-**Held, not stopped.** A train meeting a red stops with its nose on the signal and keeps its
-throttle open, exactly as at points set against it, and rolls on the instant it clears.
-`Train.blocking_signal` says which one, for the readouts.
+**Held, not stopped.** A train meeting a red brakes to a stand `Train.STOP_SHORT` (3 m) short of
+the signal and keeps its throttle open, and goes the instant it clears. A red is the only thing a
+train stops for: points set against it are run into.
+`Train.blocking_signal` says which one, for the readouts. It starts braking its own stopping
+distance short; a signal put back inside that distance is stopped for harder, and one put back
+too late even for full brakes is **overrun** — the train is excused it, stands beyond it and
+waits for the player to let it go. All of that is the train's business: see
+[trains.md](trains.md).
 
 **The rule is written from the nose, and that is the whole subtlety.** `TrackWalker.walk()`
 takes a `signals_from` argument — how far into the walk signals begin to count:
@@ -29,9 +34,9 @@ takes a `signals_from` argument — how far into the walk signals begin to count
 - `IGNORE_SIGNALS` (the default) — the walks that place a train's body. Where the body reaches
   is a question about *track*; a signal must never shorten it, or a train standing at a red
   would be drawn half-length.
-- `body_length / 2` — what `Train._physics_process` passes for its probe. A signal nearer than
-  that is one the nose is already past, so putting a signal back to danger under a moving train
-  lets that train out instead of stranding it across the signal.
+- half the train's length — what `Train` passes for its look-ahead. A signal nearer than that
+  is one the nose is already past, so putting a signal back to danger under a moving train lets
+  that train out instead of stranding it across the signal.
 - `OBEY_ALL_SIGNALS` — everything, including one at the walk's own starting point. Tests use it.
 
 A signal is never *crossed* by the walk: it either blocks (and the walk ends there) or it is
