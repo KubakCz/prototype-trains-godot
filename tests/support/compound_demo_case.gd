@@ -88,12 +88,13 @@ func describe(step: TrackWalker.Step) -> String:
 			step.describe()]
 
 
-## Puts a train somewhere with its throttle open.
+## Puts a train somewhere with its throttle open, already running at its top speed.
 func place(which: Train, on: String, at: float, facing: int) -> void:
 	which.rail = rail(on)
 	which.distance = at
 	which.facing = facing
 	which.throttle = 1
+	which.roll(which.max_speed)
 
 
 func state(which: Train) -> String:

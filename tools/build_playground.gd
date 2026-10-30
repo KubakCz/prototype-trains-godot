@@ -574,22 +574,49 @@ func _add_signal(name: String, rail: String, distance: float, governs: int) -> v
 
 
 #region Trains
-## Four trains, each a few seconds short of a signal at danger, so the level opens with
-## every one of them waiting for the dispatcher.
+## Rolling stock the playground's trains are made of, and the ids the scene knows them by.
+const _STOCK := {
+	"passenger": ["res://rolling_stock/passenger_locomotive.tres", "14_passenger"],
+	"freight": ["res://rolling_stock/freight_locomotive.tres", "15_freight"],
+	"shunting": ["res://rolling_stock/shunting_locomotive.tres", "16_shunting"],
+	"coach": ["res://rolling_stock/coach.tres", "18_coach"],
+	"freight_wagon": ["res://rolling_stock/freight_wagon.tres", "19_freight_wagon"],
+}
+
+## Four trains, each a little way short of a signal at danger, so the level opens with
+## every one of them running up to it and waiting for the dispatcher. Placed by the
+## nose: [param gap] is how far it stands short of the signal, and the rest of the train
+## goes behind, however long its consist is.
 func _place_trains() -> void:
-	_trains.append({"name": "Express", "rail": "NorthLine",
-			"distance": _distance("NorthLine", Vector2(75.0, -OUTER)), "facing": 1,
-			"speed": 18.0, "end": Train.EndBehavior.TURN_AROUND, "length": 14.0,
-			"width": 2.9, "height": 3.4})
-	_trains.append({"name": "Freight", "rail": "HillLine", "distance": 20.0, "facing": 1,
-			"speed": 9.0, "end": Train.EndBehavior.TURN_AROUND, "length": 22.0,
-			"width": 3.1, "height": 3.9})
-	_trains.append({"name": "Regional", "rail": "FreightLine", "distance": 30.0, "facing": 1,
-			"speed": 12.0, "end": Train.EndBehavior.TURN_AROUND, "length": 16.0,
-			"width": 2.9, "height": 3.4})
-	_trains.append({"name": "Shunter", "rail": "YardRight", "distance": 50.0, "facing": -1,
-			"speed": 6.0, "end": Train.EndBehavior.REVERSE, "length": 8.0,
-			"width": 2.8, "height": 3.2})
+	_add_train("Express", "NorthCrossoverOuterFromEast", 14.0, 18.0,
+			Train.EndBehavior.TURN_AROUND, "passenger", ["coach"])
+	_add_train("Freight", "WyeEastFromTail", 30.0, 9.0, Train.EndBehavior.TURN_AROUND,
+			"freight", ["freight_wagon", "freight_wagon", "freight_wagon"], 1.0)
+	_add_train("Regional", "DiamondFromSouth", 12.0, 12.0, Train.EndBehavior.TURN_AROUND,
+			"passenger", ["coach"])
+	_add_train("Shunter", "YardThreeWayFromRight", 10.0, 6.0, Train.EndBehavior.REVERSE,
+			"shunting", ["freight_wagon", "freight_wagon"])
+
+
+func _add_train(name: String, signal_name: String, gap: float, speed: float, end: int,
+		locomotive: String, wagons: Array[String], load_factor := 0.0) -> void:
+	var held_at: Dictionary = {}
+	for rail_signal in _signals:
+		if rail_signal["name"] == signal_name:
+			held_at = rail_signal
+	assert(not held_at.is_empty(), "no signal %s" % signal_name)
+	var length := (load(_STOCK[locomotive][0]) as CarType).length
+	for wagon in wagons:
+		length += Train.COUPLING_GAP + (load(_STOCK[wagon][0]) as CarType).length
+	# The train runs the way the signal governs, nose towards it.
+	var facing := 1 if held_at["governs"] == RailSignal.Governs.TOWARDS_RAIL_END else -1
+	var centre: float = held_at["distance"] - float(facing) * (gap + length * 0.5)
+	var rail: String = held_at["rail"]
+	assert(centre - length * 0.5 > 0.0 and centre + length * 0.5 < _length(rail),
+			"%s does not fit on %s" % [name, rail])
+	_trains.append({"name": name, "rail": rail, "distance": centre, "facing": facing,
+			"speed": speed, "end": end, "locomotive": locomotive, "wagons": wagons,
+			"load": load_factor})
 #endregion
 
 
@@ -793,7 +820,7 @@ func _is_flat_around(point: Vector2) -> bool:
 #region Scene text
 func _scene_text() -> String:
 	var lines := PackedStringArray()
-	var resources := 13 + 6 + _rail_order.size()
+	var resources := 13 + _STOCK.size() + 1 + 6 + _rail_order.size()
 	lines.append("[gd_scene load_steps=%d format=3]" % (resources + 1))
 	lines.append("")
 	for entry: Array in [
@@ -810,8 +837,11 @@ func _scene_text() -> String:
 		["Script", "res://scripts/rails/compound_turnout.gd", "11_compound"],
 		["Script", "res://scripts/rails/crossing.gd", "12_crossing"],
 		["Image", HEIGHTS_PATH, "13_heights"],
+		["Script", "res://scripts/trains/wagon_type.gd", "17_wagon_type"],
 	]:
 		lines.append('[ext_resource type="%s" path="%s" id="%s"]' % entry)
+	for stock: String in _STOCK:
+		lines.append('[ext_resource type="Resource" path="%s" id="%s"]' % _STOCK[stock])
 	lines.append("")
 	lines.append_array(_environment_text())
 	for rail in _rail_order:
@@ -916,11 +946,16 @@ func _scene_text() -> String:
 		lines.append('rail = NodePath("../../Rails/%s")' % train["rail"])
 		lines.append("distance = %s" % _num(train["distance"]))
 		lines.append("facing = %d" % train["facing"])
-		lines.append("speed = %s" % _num(train["speed"]))
+		lines.append("max_speed = %s" % _num(train["speed"]))
 		lines.append("end_behavior = %d" % train["end"])
-		lines.append("body_length = %s" % _num(train["length"]))
-		lines.append("body_width = %s" % _num(train["width"]))
-		lines.append("body_height = %s" % _num(train["height"]))
+		lines.append('locomotive = ExtResource("%s")' % _STOCK[train["locomotive"]][1])
+		var wagons: Array[String] = []
+		for wagon: String in train["wagons"]:
+			wagons.append('ExtResource("%s")' % _STOCK[wagon][1])
+		if not wagons.is_empty():
+			lines.append('wagons = Array[ExtResource("17_wagon_type")]([%s])' % ", ".join(wagons))
+		if train["load"] > 0.0:
+			lines.append("load_factor = %s" % _num(train["load"]))
 		lines.append("")
 
 	lines.append_array(_camera_and_ui_text())

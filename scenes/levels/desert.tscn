@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=3]
+[gd_scene load_steps=31 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
 [ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
@@ -13,6 +13,11 @@
 [ext_resource type="Script" path="res://scripts/rails/compound_turnout.gd" id="11_compound"]
 [ext_resource type="Script" path="res://scripts/rails/crossing.gd" id="12_crossing"]
 [ext_resource type="Image" path="res://scenes/levels/desert_heights.res" id="13_heights"]
+[ext_resource type="Resource" path="res://rolling_stock/coach.tres" id="wagon_coach"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_locomotive.tres" id="loco_freight"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_wagon.tres" id="wagon_freight"]
+[ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="loco_passenger"]
+[ext_resource type="Script" path="res://scripts/trains/wagon_type.gd" id="wagon_type_script"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.36, 0.52, 0.78, 1)
@@ -372,28 +377,30 @@ governs = 0
 [node name="WestArrival" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("3_train")
 rail = NodePath("../../Rails/BottomLine")
-distance = 13.5
+distance = 26.0
 facing = 1
-speed = 14
-body_length = 14
+max_speed = 14
+locomotive = ExtResource("loco_passenger")
+wagons = Array[ExtResource("wagon_type_script")]([ExtResource("wagon_coach"), ExtResource("wagon_coach")])
 
 [node name="NorthArrival" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("3_train")
 rail = NodePath("../../Rails/NorthLine")
-distance = 9.0002
+distance = 30.0
 facing = 1
-speed = 10
-body_length = 22
-body_width = 3.1
-body_height = 3.9
+max_speed = 10
+locomotive = ExtResource("loco_freight")
+wagons = Array[ExtResource("wagon_type_script")]([ExtResource("wagon_freight"), ExtResource("wagon_freight"), ExtResource("wagon_freight")])
+load_factor = 1.0
 
 [node name="EastArrival" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("3_train")
 rail = NodePath("../../Rails/EastLine")
-distance = 294.6786
+distance = 286.0
 facing = -1
-speed = 12
-body_length = 16
+max_speed = 12
+locomotive = ExtResource("loco_passenger")
+wagons = Array[ExtResource("wagon_type_script")]([ExtResource("wagon_coach")])
 
 [node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 15)

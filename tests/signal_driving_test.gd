@@ -5,8 +5,9 @@ extends SignalDemoCase
 ## nose or from the centre - not stranded when a signal goes back to danger while
 ## the train is passing it.
 ##
-## Distances are in metres and time is in physics frames; the Local runs at
-## 16 m/s, so 60 frames is 16 m of track. Each test gets its own copy of the demo
+## Distances are in metres and time is in physics frames; the Local is placed
+## running at 16 m/s, so 60 frames is 16 m of track, and it takes another 4.4 s to
+## brake to a stand at the service rate. Each test gets its own copy of the demo
 ## scene with every train stopped.
 
 
@@ -16,8 +17,8 @@ func test_it_is_held_at_danger_and_goes_the_moment_the_signal_clears() -> void:
 	note("at the signal:  %s" % state(local))
 
 	assert_eq(local.blocking_signal, home, "it is held at Home, which is at danger")
-	assert_near(local.distance, 60.0 - local.body_length * 0.5, 0.2,
-			"it waits with its nose on the signal, not past it")
+	assert_near(local.distance, 60.0 - local.half_length() - Train.STOP_SHORT, 0.2,
+			"it waits a few metres short of the signal, not past it")
 	# Held, not stopped: the throttle stays open so it goes by itself.
 	assert_eq(local.throttle, 1, "its throttle is still open while held")
 
@@ -26,10 +27,10 @@ func test_it_is_held_at_danger_and_goes_the_moment_the_signal_clears() -> void:
 	assert_near(local.distance, held_at, 1e-3, "it stays put while the signal is at danger")
 
 	home.aspect = RailSignal.Aspect.CLEAR
-	await drive(120)
+	await drive(220)
 	note("after clearing: %s" % state(local))
 	assert_null(local.blocking_signal, "nothing is holding it any more")
-	assert_greater(local.distance, 70.0, "it rolled on past the signal by itself")
+	assert_greater(local.distance, 70.0, "it got going again past the signal by itself")
 
 
 ## The one-directional rule, driven rather than walked: the signal that stops a
@@ -47,11 +48,11 @@ func test_the_signal_for_the_other_direction_does_not_apply() -> void:
 	# Same train, same track, the other signal of the pair.
 	place(local, main_line, 100.0, Train.AGAINST_RAIL)
 	home_back.aspect = RailSignal.Aspect.DANGER
-	await drive(250)
+	await drive(320)
 	note("held by its own:      %s" % state(local))
 	assert_eq(local.blocking_signal, home_back, "HomeBack is the one that governs it")
-	assert_near(local.distance, 56.0 + local.body_length * 0.5, 0.2,
-			"and it stops with its nose on HomeBack")
+	assert_near(local.distance, 56.0 + local.half_length() + Train.STOP_SHORT, 0.2,
+			"and it stops a few metres short of HomeBack")
 
 
 ## Putting a signal back to danger under a moving train is allowed - step 9 is
@@ -75,9 +76,10 @@ func test_a_signal_put_back_to_danger_under_a_train_lets_it_out() -> void:
 	assert_greater(local.distance - was, 5.0, "it carried on out rather than sticking")
 
 	# And the next train up to it is still held, so the signal is genuinely at
-	# danger rather than quietly disabled.
-	place(goods, main_line, 30.0, Train.ALONG_RAIL)
-	await drive(180)
+	# danger rather than quietly disabled. From a standing start: a loaded goods
+	# train running at 12 m/s could not stop in the 14 m it has before Home.
+	place(goods, main_line, 30.0, Train.ALONG_RAIL, 0.0)
+	await drive(600)
 	note("the next train up: %s" % state(goods))
 	assert_eq(goods.blocking_signal, home, "the signal still holds a train that has yet to reach it")
 
@@ -85,7 +87,7 @@ func test_a_signal_put_back_to_danger_under_a_train_lets_it_out() -> void:
 func test_a_train_crosses_the_points_and_is_held_at_the_signal_beyond_them() -> void:
 	points.turnout_position = Turnout.Position.NORMAL
 	place(local, main_line, 150.0, Train.ALONG_RAIL)
-	await drive(400)
+	await drive(480)
 	note("through the points: %s" % state(local))
 	assert_eq(local.rail, main_line, "the normal route keeps it on the main line")
 	assert_eq(local.blocking_signal, section, "and it is held at Section, past the turnout")
@@ -105,8 +107,8 @@ func test_a_signal_on_the_branch_holds_a_train_leaving_the_siding() -> void:
 	await drive(400)
 	note("in the siding:   %s" % state(shunter))
 	assert_eq(shunter.blocking_signal, siding_exit, "SidingExit holds it inside the siding")
-	assert_near(shunter.distance, 12.0 + shunter.body_length * 0.5, 0.2,
-			"with its nose on the signal")
+	assert_near(shunter.distance, 12.0 + shunter.half_length() + Train.STOP_SHORT, 0.2,
+			"a few metres short of the signal")
 
 	siding_exit.aspect = RailSignal.Aspect.CLEAR
 	await drive(300)

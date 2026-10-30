@@ -65,8 +65,8 @@ func test_the_cycle_rows_belong_to_the_body() -> void:
 	for panel in _panels:
 		panel.expanded = true
 	await frames(2)
-	assert_eq(_panels[0].control_buttons().size(), 0,
-			"the train section has nothing to cycle")
+	assert_eq(_panels[0].control_buttons().size(), 2,
+			"the train section toggles the stopping strip and the collision boxes")
 	assert_eq(_panels[1].control_buttons().size(), 2,
 			"the turnout section cycles the overlay mode and the schematic text")
 	assert_eq(_panels[2].control_buttons().size(), 2,

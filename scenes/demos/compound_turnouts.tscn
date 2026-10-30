@@ -1,4 +1,4 @@
-[gd_scene load_steps=30 format=3]
+[gd_scene load_steps=32 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
 [ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
@@ -10,6 +10,8 @@
 [ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="8_trains"]
 [ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="9_turnouts"]
 [ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="10_overlay"]
+[ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="loco_passenger"]
+[ext_resource type="Resource" path="res://rolling_stock/shunting_locomotive.tres" id="loco_shunting"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
@@ -400,9 +402,9 @@ rail = NodePath("../../Rails/ThreeWayMain")
 distance = 40
 facing = 1
 throttle = 1
-speed = 14
+max_speed = 14
 end_behavior = 2
-body_length = 16
+locomotive = ExtResource("loco_passenger")
 
 [node name="CrossoverShuttle" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("6_train")
@@ -410,9 +412,9 @@ rail = NodePath("../../Rails/CrossoverNorth")
 distance = 30
 facing = 1
 throttle = 1
-speed = 14
+max_speed = 14
 end_behavior = 2
-body_length = 16
+locomotive = ExtResource("loco_passenger")
 
 [node name="CrossoverLocal" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("6_train")
@@ -420,9 +422,9 @@ rail = NodePath("../../Rails/CrossoverSouth")
 distance = 60
 facing = 1
 throttle = 1
-speed = 10
+max_speed = 10
 end_behavior = 2
-body_length = 12
+locomotive = ExtResource("loco_shunting")
 
 [node name="ScissorsEastbound" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("6_train")
@@ -430,9 +432,9 @@ rail = NodePath("../../Rails/ScissorsNorth")
 distance = 30
 facing = 1
 throttle = 1
-speed = 14
+max_speed = 14
 end_behavior = 2
-body_length = 16
+locomotive = ExtResource("loco_passenger")
 
 [node name="ScissorsWestbound" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("6_train")
@@ -440,9 +442,9 @@ rail = NodePath("../../Rails/ScissorsSouth")
 distance = 210
 facing = -1
 throttle = 1
-speed = 12
+max_speed = 12
 end_behavior = 2
-body_length = 14
+locomotive = ExtResource("loco_passenger")
 
 [node name="DiamondStraightTrain" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("6_train")
@@ -450,19 +452,19 @@ rail = NodePath("../../Rails/DiamondStraight")
 distance = 60
 facing = 1
 throttle = 1
-speed = 12
+max_speed = 12
 end_behavior = 2
-body_length = 14
+locomotive = ExtResource("loco_passenger")
 
 [node name="DiamondDiagonalTrain" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("6_train")
 rail = NodePath("../../Rails/DiamondDiagonal")
 distance = 20
 facing = 1
-throttle = 1
-speed = 9
+throttle = 0
+max_speed = 9
 end_behavior = 2
-body_length = 12
+locomotive = ExtResource("loco_shunting")
 
 [node name="SlipEastbound" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("6_train")
@@ -470,19 +472,19 @@ rail = NodePath("../../Rails/SlipLineOne")
 distance = 40
 facing = 1
 throttle = 1
-speed = 12
+max_speed = 12
 end_behavior = 2
-body_length = 14
+locomotive = ExtResource("loco_passenger")
 
 [node name="SlipWestbound" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("6_train")
 rail = NodePath("../../Rails/SlipLineTwo")
 distance = 201.322
 facing = -1
-throttle = 1
-speed = 10
+throttle = 0
+max_speed = 10
 end_behavior = 2
-body_length = 12
+locomotive = ExtResource("loco_shunting")
 
 [node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 2, -10)

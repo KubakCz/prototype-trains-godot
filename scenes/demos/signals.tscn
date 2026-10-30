@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
 [ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
@@ -10,6 +10,11 @@
 [ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="8_turnouts"]
 [ext_resource type="Script" path="res://scripts/debug/signal_debug_panel.gd" id="9_signals"]
 [ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="10_overlay"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_locomotive.tres" id="loco_freight"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_wagon.tres" id="wagon_freight"]
+[ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="loco_passenger"]
+[ext_resource type="Resource" path="res://rolling_stock/shunting_locomotive.tres" id="loco_shunting"]
+[ext_resource type="Script" path="res://scripts/trains/wagon_type.gd" id="wagon_type_script"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
@@ -130,20 +135,20 @@ script = ExtResource("5_train")
 rail = NodePath("../../Rails/MainLine")
 distance = 20.0
 facing = 1
-speed = 16.0
+max_speed = 16.0
 end_behavior = 0
-body_length = 16.0
+locomotive = ExtResource("loco_passenger")
 
 [node name="Goods" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("5_train")
 rail = NodePath("../../Rails/MainLine")
-distance = 255.0
+distance = 262.0
 facing = -1
-speed = 12.0
+max_speed = 12.0
 end_behavior = 0
-body_length = 20.0
-body_width = 3.1
-body_height = 3.9
+locomotive = ExtResource("loco_freight")
+wagons = Array[ExtResource("wagon_type_script")]([ExtResource("wagon_freight")])
+load_factor = 1.0
 
 [node name="Shunter" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
 script = ExtResource("5_train")
@@ -151,11 +156,9 @@ rail = NodePath("../../Rails/SidingLine")
 distance = 45.0
 facing = -1
 throttle = 0
-speed = 9.0
+max_speed = 9.0
 end_behavior = 0
-body_length = 11.0
-body_width = 3.1
-body_height = 3.6
+locomotive = ExtResource("loco_shunting")
 
 [node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 2, -20)

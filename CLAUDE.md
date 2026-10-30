@@ -86,7 +86,12 @@ scripts/rails/crossing.gd         Crossing    : Node3D   — two rails crossing,
 scripts/rails/rail_signal.gd      RailSignal  : Node3D   — a one-directional stop signal
 scripts/rails/track_walker.gd     TrackWalker : RefCounted — arc length across the network
 scripts/rails/surface_snapper.gd  SurfaceSnapper        — ground raycasts
-scripts/trains/train.gd           Train       : Node3D   — a box that drives the network
+scripts/trains/train.gd           Train       : Node3D   — a locomotive and wagons driving the network
+scripts/trains/train_car.gd       TrainCar    : Node3D   — one car: its boxes, click target, collision box
+scripts/trains/car_type.gd        CarType     : Resource — a vehicle's size, mass and brakes
+scripts/trains/locomotive_type.gd LocomotiveType : CarType — adds traction
+scripts/trains/wagon_type.gd      WagonType   : CarType  — adds capacity
+rolling_stock/*.tres                                     — the shared locomotive and wagon types
 scripts/world/ground.gd           Ground      : MeshInstance3D — procedural or baked-heightmap terrain
 scripts/ui/ui_scale.gd            UiScale     : Node (autoload) — picks the interface scale
 scripts/ui/marker_overlay.gd      MarkerOverlay      : Control — lays out every floating marker
@@ -105,6 +110,7 @@ tests/framework/test_runner.gd                   : SceneTree — discovery, repo
 tests/support/turnout_demo_case.gd TurnoutDemoCase — fixture for the turnout demo layout
 tests/support/signal_demo_case.gd  SignalDemoCase  — fixture for the signal demo layout
 tests/support/compound_demo_case.gd CompoundDemoCase — fixture for the compound turnout demo
+tests/support/train_demo_case.gd  TrainDemoCase   — fixture for the trains demo
 tests/*_test.gd                                  — the suites themselves
 
 tools/build_playground.gd                        : SceneTree — writes scenes/main.tscn + its heightmap
@@ -119,10 +125,13 @@ stub — every turnout case in one place), `scenes/demos/signals.tscn` (a straig
 with a siding: a back-to-back signal pair, a cluster of three that forces the widgets apart, a
 signal past the points, and one on the branch) and `scenes/demos/compound_turnouts.tscn` (flat
 ground, one of each: a three-way, a crossover, a double crossover with its middle crossing, a
-plain diamond crossing and a double slip, each with trains) and `scenes/levels/desert.tscn` (a whole
+plain diamond crossing and a double slip, each with trains), `scenes/demos/trains.tscn` (three
+straight lines abreast: an express, a loaded and an empty freight to compare, a signal to put back
+in front of a train, a crossover to throw under one and a stalled train to run into) and
+`scenes/levels/desert.tscn` (a whole
 level rebuilt from a reference - a balloon loop round a lake with a scissors crossover, a wye, a
 tunnel under a ridge and a bridge over a gully, sixteen signals - on a baked terrain carved to fit
-the track; see [docs/level_authoring.md](docs/level_authoring.md)). All five are driven by the tests
+the track; see [docs/level_authoring.md](docs/level_authoring.md)). All six are driven by the tests
 under `tests/`; keep them working.
 
 The overlay is `scripts/ui/`, not `scripts/debug/`: clicking a signal or a turnout is the
@@ -141,20 +150,24 @@ refuse entry from an unconnected direction — neither fits `PathFollow3D`'s mod
 - `facing` (`ALONG_RAIL` / `AGAINST_RAIL`) — which way the nose points along the rail.
 - `throttle` (`-1` / `0` / `1`) — drive nose-first, stand, or back up.
 
-`distance += throttle * facing * speed * delta`. Driving forward always moves the nose
+Since step 5 a third value, `current_speed` (never negative), is how fast it is going; the
+throttle only asks for it to change. The train moves along the rail in the direction
+`motion * facing`, where `motion` follows the throttle's sign but **only changes at a
+standstill** — a train reversed at speed brakes first. Driving forward always moves the nose
 forward, whichever way the underlying curve was drawn. Never collapse these into a signed
 speed — reversing a train and turning it around are different operations.
 
-The body is placed from the rail positions under its two **ends**, not its centre, so a long
-box sits along a curve as a chord. Its centre therefore sits inside the arc by `L² / 8R` —
-measured at **1.39 m for a 14 m body** on the old hilly main scene's tighter bends, and 1.9 m
-for the 22 m freight round the playground's 32 m balloon — not the ~0.3 m an
-earlier note claimed. That is correct, not drift: the invariant worth asserting is the *arc*
-position (project the origin back onto the curve and you get the train's `distance` to within
-0.2 m), because the chord midpoint is symmetric about it whatever the curvature.
+A train is a **consist** — a `LocomotiveType` and a list of `WagonType`s, shared resources under
+`rolling_stock/` — and how fast it starts and stops comes from it: traction over mass, brakes
+sized for the empty cars. `distance` is the middle of the whole train, and the `Train` node sits
+exactly on the arc there. Each car is placed from the rail positions under its own two **ends**,
+so it sits along a curve as a chord, its middle inside the arc by `L² / 8R` — a metre for a 16 m
+car round the playground's 32 m balloon. That is correct, not drift. All of it, with the braking
+rules, is in [docs/trains.md](docs/trains.md).
 
 `end_behavior` (`STOP` / `REVERSE` / `TURN_AROUND`) now fires **only at a genuine dead end** —
-a rail end with no turnout attached. A rail end that connects onward hands the train over. It
+a rail end with no turnout attached, once the train has braked to a stand against it. A rail end
+that connects onward hands the train over. It
 stays a placeholder — real levels will want buffer stops and off-level connections there — but a
 much smaller one than it was.
 
@@ -167,6 +180,7 @@ the design record for its step, including the cases that look like bugs and are 
 | --- | --- |
 | [docs/turnouts.md](docs/turnouts.md) | the three legs, the passage table, refusal, what is authored vs. derived, the presentation modes and the schematic caption |
 | [docs/compound_turnouts.md](docs/compound_turnouts.md) | assemblies of turnouts worked as one, their positions and single control, routes found by walking, crossings and their occupants |
+| [docs/trains.md](docs/trains.md) | consists and rolling-stock types, acceleration and braking, what a train stops for, overrunning, derailment and collisions, the front marker, selection |
 | [docs/signals.md](docs/signals.md) | which direction a signal governs, the stopping rule written from the nose, `signals_from`, the three widget styles |
 | [docs/ui.md](docs/ui.md) | interface scale, the floating marker layer and its de-cluttering, the debug HUD's panels and keys |
 | [docs/level_authoring.md](docs/level_authoring.md) | snapping rails to the terrain, and welding a branch onto a turnout (with and without the editor) |
@@ -177,9 +191,11 @@ the design record for its step, including the cases that look like bugs and are 
 Four rules from those files are worth having in front of you anyway, because breaking them
 looks like it works:
 
-- **A turnout refuses a trailing move against the points; it does not stop the train.** The
-  train holds with its throttle still open and rolls on the instant the points are thrown.
-  Same for a train at a red signal. `Train.blocking_turnout` / `blocking_signal` say which.
+- **Only a red signal (or the end of the line) stops a train; points set against it do not.**
+  A turnout refuses a trailing move against the points, and the train runs into them and derails.
+  At a red it brakes to stand `Train.STOP_SHORT` (3 m) short, holds with its throttle still open
+  and goes the instant it clears (`Train.blocking_signal`). Found too late to stop for, a red is
+  overrun; points thrown *under* a train derail it too — see [docs/trains.md](docs/trains.md).
 - **A signal is a property of a direction of travel, not of a place.** `governs` says which way
   the trains it applies to are going; a train going the other way never sees it. Two signals to
   stop both directions, and the side the mast stands on is derived from `governs`, not authored.
@@ -194,6 +210,11 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
 
 ## Gotchas found the hard way
 
+- **Hand-written `.tscn`: a typed array of a custom resource is typed by its *script*.**
+  `wagons = Array[ExtResource("<wagon_type.gd>")]([ExtResource("<coach.tres>"), ...])` — the
+  first id is the `WagonType` script's ext_resource, not a `.tres`. Learned by letting Godot save
+  one (`PackedScene.pack` + `ResourceSaver.save` from a throwaway script) and reading it back,
+  which is the quickest way to find any serialised form.
 - **Hand-written `.tscn`: exported node references need `node_paths` on the node header**,
   or they silently arrive as `null`:
   ```
@@ -264,14 +285,14 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
   over that rail casts it. `Crossing` attaches in `_enter_tree` and guards its setters;
   `Turnout`'s setters still attach unconditionally, which is harmless only because nothing
   builds a turnout outside a scene yet.
-- **Generated nodes use `INTERNAL_MODE_BACK`** (`Rail`'s debug lines, `Train`'s body boxes) so
+- **Generated nodes use `INTERNAL_MODE_BACK`** (`Rail`'s debug lines, `Train`'s cars) so
   they never get saved into the scene or show up in the scene tree.
 - **A rail distance exactly at a turnout does not say which side of the points you are on.**
   The main rail runs *through* the points, so `main_distance` means both "about to arrive" and
   "just left". `TrackWalker` therefore never comes to rest in that zone: travel that would stop
   within `EPSILON` short of the points crosses them instead, and a crossing always carries the
   walk at least `CLEARANCE` (4 mm) past. Cost a real bug — a train restarting after being held
-  sits exactly `body_length / 2` from the points, and `half / (speed * delta)` lands it in the
+  sits exactly half its length from the points, and `half / (speed * delta)` lands it in the
   1 mm blind spot of a naive "strictly ahead" test, where it saw no turnout, decided it was at a
   dead end and applied `end_behavior`. A few millimetres of over-travel per crossing buys the
   whole class of bug away.
@@ -373,7 +394,7 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
   `time_scale = 8`, `delta` is 0.133 s and a train jumps 2 m per step, which is how you skip
   clean over a turnout). Raise **both** — `ticks = 60 * n`, `time_scale = n` — and the delta
   stays 1/60 s while the simulation runs `n` times faster than real time. That is the whole
-  trick behind `tests/run.ps1` finishing in 14 s instead of 87 s.
+  trick behind `tests/run.ps1` running at 128x real time.
 - **`await physics_frame` is one step; `await process_frame` is however many steps fit.** So with
   the clock sped up, waiting on an idle frame advances the simulation by an unpredictable
   amount. Anything that needs a repeatable starting state waits on physics frames
@@ -393,7 +414,7 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
 - Debug controls use physical keycodes rather than `InputMap` actions, keeping the project's
   action list free for real gameplay. Throwing a turnout is *gameplay*, so it goes through the
   `interact` action (left mouse button) — the first entry in the project's action list, and the
-  one step 3's signals should reuse.
+  one signals and selecting a train reuse.
 - `Rail` stores its attachments as `Array[Node]`, not `Array[Turnout]`. `Turnout` has to name
   `Rail`, and naming it back would make the two scripts mutually dependent. `TrackWalker` casts.
   For the same reason `Turnout.Exit` is an inner class of `Turnout` rather than of the walker,

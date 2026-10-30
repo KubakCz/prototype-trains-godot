@@ -2,7 +2,8 @@
 
 The regression suite for the prototype. It drives the real scenes — `scenes/main.tscn`,
 `scenes/demos/turnouts.tscn`, `scenes/demos/signals.tscn`,
-`scenes/demos/compound_turnouts.tscn` and `scenes/levels/desert.tscn` — so these are integration tests
+`scenes/demos/compound_turnouts.tscn`, `scenes/demos/trains.tscn` and `scenes/levels/desert.tscn`
+— so these are integration tests
 more than unit tests: they instantiate a level, run the physics, and assert on what the trains,
 turnouts and signals did.
 
@@ -172,12 +173,23 @@ Four things that are not like Python or TypeScript:
   a coroutine are written the same way here.
 
 Shared fixtures live in `tests/support/` and are not collected as suites, because they do not
-end in `_test.gd`. There are three: [`TurnoutDemoCase`](support/turnout_demo_case.gd) builds a
-fresh copy of the turnout demo for every test and exposes its rails, turnouts and the shuttle;
+end in `_test.gd`. There are four: [`TurnoutDemoCase`](support/turnout_demo_case.gd) builds a
+fresh copy of the turnout demo for every test and exposes its rails, turnouts and the shuttle
+(and frees the parked `LoopShunter`, which is in the way of everything the shuttle does);
 [`SignalDemoCase`](support/signal_demo_case.gd) does the same for the signal demo and exposes
 its seven signals, its turnout and its three trains; [`CompoundDemoCase`](support/compound_demo_case.gd)
 does it for the compound demo, exposing its four assemblies and three crossings, with helpers to
-walk from a named rail and to print a walk or a train in one line.
+walk from a named rail and to print a walk or a train in one line;
+[`TrainDemoCase`](support/train_demo_case.gd) does it for the trains demo, with every train
+stopped, and helpers to place a train by its nose and to drive until something is true.
+
+**Trains have to get going and stop now** (step 5), so a test that places a train decides how
+fast it is moving. The first three fixtures' `place()` give a **rolling start** at the train's
+top speed (`Train.roll()`), which keeps the passage and signal tests about the points and the
+signals; `TrainDemoCase.place()` starts it from rest unless told a speed. Either way a stop takes
+seconds - 4.4 s from 16 m/s for a lone passenger locomotive - and a test that checks a train is
+*held* has to give it time to come to a stand: `blocking_signal` and friends are only set once
+it has. Anything placed over another train collides with it, so park the others out of the way.
 
 ## What is here
 
@@ -185,8 +197,8 @@ walk from a named rail and to print a walk or a train in one line.
 | --- | --- |
 | `turnout_geometry_test.gd` | branches welded to the points, tangent departure, which hand a turnout is, configuration warnings |
 | `turnout_passage_test.gd` | the passage table straight through `Turnout.traverse`, every leg in both positions |
-| `turnout_driving_test.gd` | a train driving all of it: diverging, being held and released, the dead-end siding, a body spanning two rails, points thrown underneath |
-| `main_scene_test.gd` | `scenes/main.tscn`, the playground: every branch welded, no configuration warnings, one of every junction kind, each train held at its red signal, every way into every junction protected by a signal, the balloon and the wye turning a train round, the crossover, scissors, double slip and three-way routing as set, the freight line crossing the oval, the ground flat under the track but for the tail's one bridge and one tunnel |
+| `turnout_driving_test.gd` | a train driving all of it: diverging, being held and released, the dead-end siding, a body spanning two rails, points thrown underneath derailing it, points thrown at a held train letting it through |
+| `main_scene_test.gd` | `scenes/main.tscn`, the playground: every branch welded, no configuration warnings, one of every junction kind, each train held at its red signal, every car of every train on the track, every way into every junction protected by a signal, the balloon and the wye turning a train round, the crossover, scissors, double slip and three-way routing as set, the freight line crossing the oval, the ground flat under the track but for the tail's one bridge and one tunnel |
 | `trackside_posts_test.gd` | signal masts and turnout posts standing upright and reaching the ground on analytic hills, built in the test because every level now lies on a carved bed |
 | `desert_level_test.gd` | `scenes/levels/desert.tscn`: every branch welded, no configuration warnings, the carved ground never rising into a passing train outside a tunnel mouth, the one bridge, the ridge line crossing 8 m over the tunnel line, each arrival held at its entry signal, the balloon loop turning a train round, the wye joining each leg to both others, the lake scissors crossing both ways |
 | `ground_test.gd` | `Ground.surface_height_at` agreeing with a ray cast onto the mesh, on analytic hills built in the test and on both baked heightmaps |
@@ -200,3 +212,8 @@ walk from a named rail and to print a walk or a train in one line.
 | `crossing_test.gd` | `Crossing`: located where the rails meet, attached to both rails, walked straight through, which trains are over it (on either rail, and a train crossing the scissors), the warnings and Locate Crossing fixing them |
 | `compound_click_test.gd` | an assembly worked through the real input path: a click on one member's marker cycles all of it, a click on the widget cycles it exactly once, hovering a member counts as the assembly (needs `-Windowed`) |
 | `debug_panel_test.gd` | the debug HUD: every section folded on open, the number keys, a click on a header, the cycle rows that carry the open presentation questions, and the `>` that follows the mouse (the last needs `-Windowed`) |
+| `train_consist_test.gd` | a train as its cars end to end, the rates coming from the consist (load slows starting and stopping, length only starting), a wagon coupled on behind, every car following the locomotive across a crossover |
+| `train_braking_test.gd` | getting going at the consist's rate, the service curve into a red signal, a signal put back late stopped for harder, one put back too late overrun and the train let go - standing or still braking, the player's stop, reversing at speed, the front marker's colours |
+| `derailment_test.gd` | points thrown under a train, points set against it and the end of the line found too late, two trains touching head on and where tracks converge, trains abreast on parallel tracks not touching, a wreck staying put |
+| `train_selection_test.gd` | the selected train drawn lighter blue, the train panel's keys acting on it - stop, go, let go, the consist keys, turning round only when standing - and doing nothing to a wreck |
+| `train_click_test.gd` | selecting a train by clicking a car, a click on the ground clearing it, a click on a signal leaving it (needs `-Windowed`) |

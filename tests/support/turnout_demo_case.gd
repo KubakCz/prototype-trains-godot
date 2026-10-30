@@ -40,6 +40,9 @@ func before_each() -> void:
 	shuttle = demo.get_node("Trains/Shuttle")
 	for train: Train in demo.get_node("Trains").get_children():
 		train.throttle = 0
+	# Parked on the loop, it is in the way of every test that sends the shuttle
+	# round it - and since step 5, anything in the way is a collision.
+	demo.get_node("Trains/LoopShunter").queue_free()
 
 
 ## The three turnouts, west to east.
@@ -54,12 +57,15 @@ func set_points(at_west: Turnout.Position, at_stub: Turnout.Position,
 	east.turnout_position = at_east
 
 
-## Puts the shuttle on a rail with its throttle open.
+## Puts the shuttle on a rail with its throttle open, already running at its top
+## speed: a rolling start, so the passage tests below are about the points rather
+## than about the time it takes to get going.
 func place_shuttle(rail: Rail, at: float, facing: int) -> void:
 	shuttle.rail = rail
 	shuttle.distance = at
 	shuttle.facing = facing
 	shuttle.throttle = 1
+	shuttle.roll(shuttle.max_speed)
 
 
 ## Runs the simulation for [param count] physics frames - 16 m/s and 60 frames per
@@ -82,10 +88,10 @@ func shuttle_state() -> String:
 ## [TrackWalker] rather than adding to [member Train.distance].
 func shuttle_nose() -> TrackWalker.Step:
 	return TrackWalker.walk(shuttle.rail, shuttle.distance, shuttle.facing,
-			shuttle.body_length * 0.5)
+			shuttle.half_length())
 
 
 ## Where the shuttle's tail is.
 func shuttle_tail() -> TrackWalker.Step:
 	return TrackWalker.walk(shuttle.rail, shuttle.distance, -shuttle.facing,
-			shuttle.body_length * 0.5)
+			shuttle.half_length())

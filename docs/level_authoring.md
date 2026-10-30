@@ -102,8 +102,10 @@ reference draws it as an X between two tracks a few pixels apart. The ridge line
 tunnel line 8 m above it - the same rail twice, 1050 m apart along it.
 
 Every junction is protected from every way into it, sixteen signals in all, and three trains come
-out of the exit tunnels at the start and wait at the entry signals: `WestArrival` at `WestEntry`,
-`NorthArrival` at `NorthEntry`, `EastArrival` at `EastEntry`. The exits are plain dead ends, so a
+out of the exit tunnels at the start and wait at the entry signals: `WestArrival` (two coaches)
+at `WestEntry`, `NorthArrival` (three full freight wagons) at `NorthEntry`, `EastArrival` (one
+coach) at `EastEntry`. They start from rest a train's length inside each rail's end - a train's
+configuration warnings say when its tail hangs off one. The exits are plain dead ends, so a
 train sent into one turns round in the dark and comes back (`end_behavior`); see
 [further_development.md](further_development.md).
 
@@ -145,9 +147,11 @@ A signal facing the points stands 8 m short of them; one a train meets trailing 
 out, clear of the other leg; one before a crossing, 10 m. The two diamonds are 5 m apart and are
 protected as one, so the freight line's pair serves both. `main_scene_test.gd` walks out from
 every junction along every leg and checks that the first thing on the rail is a signal governing
-the way back in. **Four trains** open the level waiting at red, one in each part of it: `Express`
-on the outer north straight, `Freight` coming out of the tunnel, `Regional` on the freight line
-south of the diamonds, `Shunter` in the yard.
+the way back in. **Four trains** open the level running up to a red, one in each part of it: `Express`
+(a locomotive and a coach) on the outer north straight, `Freight` (three full wagons) off the
+bridge, `Regional` on the freight line south of the diamonds, `Shunter` (two empty wagons) in the
+yard. The generator places each by its nose, a few metres short of its signal, so the rest of
+the consist goes behind it however long it is - and asserts it fits on its rail.
 
 **The carved corner** is a gully the tail crosses on a 21 m bridge, a stream in its bottom, and
 a hill it goes through in a 44 m tunnel. There is also a shallow pond inside the balloon loop,

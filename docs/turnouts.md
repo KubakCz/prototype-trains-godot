@@ -25,18 +25,20 @@ move leads, and so which main-rail leg is the toe. Passage:
 | through (trailing) | on to the toe | **refused** |
 | diverging (trailing) | **refused** | on to the toe |
 
-A refused train **holds with its throttle still open** and rolls on the instant the points are
-thrown — it is waiting, not stopped. `Train.blocking_turnout` says which points, for the
-readouts.
+A refused train **is not braked for the points: it runs into them and derails there**
+([trains.md](trains.md)). Only signals stop trains; protecting points set against a train is what a
+red in front of them is for. The one exception is a train that starts standing with its nose on the
+points: it can only creep up to them, so it holds with its throttle open
+(`Train.blocking_turnout`) and goes the instant they are thrown.
 
 **`TrackWalker` replaces arithmetic on `Train.distance`.** Everything the train does is "move
 this far from here", and plain addition stops at a rail's own ends — exactly what turnouts exist
-to get past. So both driving and body placement go through `TrackWalker.walk()`, which crosses
-every turnout on the way that admits the move. Two consequences fall out for free: a train
-straddling the points has its two ends on two different rails and is drawn as the chord between
-them, and a train is refused the moment its **leading end** touches the points rather than when
-its middle does (`_physics_process` walks twice — once past the leading end to find the
-obstruction, once to move the centre as far as that allows).
+to get past. So both driving and placing every car go through `TrackWalker.walk()`, which
+crosses every turnout on the way that admits the move. Two consequences fall out for free: a
+train straddling the points has cars on both rails, the one across them drawn as the chord
+between its two ends, and a train is refused the moment its **leading end** touches the points
+rather than when its middle does (it looks ahead from its leading end to find the obstruction,
+then moves the centre no further than that allows).
 
 Step 9's block locking wants the same walk with the length turned up: look ahead and report
 what the train will reach.
@@ -45,8 +47,9 @@ what the train will reach.
 Which *side* the branch leaves on is not: `branch_side()` reads it off the curves, which is what
 lets one script be a left-hand turnout, a right-hand one, a turnout on a curve or a symmetric Y.
 
-**Points can be thrown under a train**, deliberately, for now — the body visibly kinks onto the
-other route. Step 9 makes occupancy lock them.
+**Points thrown under a train derail it** (step 5). "Under" means more than 5 cm inside both of
+its ends: a train held at the points stands with its leading end on them, and throwing them is how
+the player lets it through. Step 9 makes occupancy lock them, so the player cannot.
 
 `Turnout.throw_points()` is the single entry point for throwing, whoever throws it, and
 `position_changed` fires whenever the points move. A compound assembly — three-way, crossover,

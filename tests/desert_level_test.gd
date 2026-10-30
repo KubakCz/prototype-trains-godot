@@ -50,7 +50,7 @@ func test_every_turnout_is_welded_to_its_branch() -> void:
 func test_the_level_has_no_configuration_warnings() -> void:
 	var nodes: Array[Node] = []
 	nodes.append_array(_turnouts)
-	for group: StringName in [&"compound_turnouts", &"crossings", &"signals"]:
+	for group: StringName in [&"compound_turnouts", &"crossings", &"signals", &"trains"]:
 		nodes.append_array(tree.get_nodes_in_group(group))
 	for node: Node in nodes:
 		var warnings: PackedStringArray = node._get_configuration_warnings()
