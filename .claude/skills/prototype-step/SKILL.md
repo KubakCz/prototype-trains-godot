@@ -89,7 +89,7 @@ Before reporting done, actually run things (binary paths and flags are in CLAUDE
 
 1. `--headless --path . --import` after adding any `class_name`.
 2. `--check-only --script res://…` on every script you touched or created.
-3. `tests/run.ps1` — the whole suite, not just the part you touched. It drives both scenes, so
+3. `tests/run.sh` (Windows: `run.ps1`) — the whole suite, not just the part you touched. It drives both scenes, so
    it is how you find out you broke an earlier step.
 4. Run the playable scene headlessly with `--quit-after` and read the output — no errors,
    no warnings, and the behaviour you expect actually printed.

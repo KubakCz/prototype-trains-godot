@@ -114,7 +114,8 @@ a layout small enough that a train gets from one to the next in seconds. It is *
 [`tools/build_playground.gd`](../tools/build_playground.gd):
 
 ```bash
-Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tools/build_playground.gd
+godot --headless --path . --script res://tools/build_playground.gd
+# Windows: Godot_v4.7.2-stable_win64_console.exe in place of godot
 ```
 
 The script is the source, not the scene. It draws every rail as a turtle walk of straights and

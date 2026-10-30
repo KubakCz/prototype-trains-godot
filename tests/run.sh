@@ -17,9 +17,14 @@
 # or a missing Godot. Set GODOT to point at another binary.
 set -u
 
-GODOT="${GODOT:-C:/Godot/Godot_v4.7.2-stable_win64_console.exe}"
+case "$(uname -s)" in
+	MINGW* | MSYS* | CYGWIN*) default_godot="C:/Godot/Godot_v4.7.2-stable_win64_console.exe" ;;
+	# tools/setup_godot.sh links the pinned release here.
+	*) default_godot="godot" ;;
+esac
+GODOT="${GODOT:-$default_godot}"
 if [ ! -x "$GODOT" ] && ! command -v "$GODOT" > /dev/null 2>&1; then
-	echo "Godot not found at $GODOT - set GODOT to its path." >&2
+	echo "Godot not found at $GODOT - set GODOT to its path (Linux: tools/setup_godot.sh)." >&2
 	exit 2
 fi
 
@@ -74,8 +79,13 @@ fi
 
 # A windowed run gets a desktop of its own unless it was told otherwise.
 if [ "$windowed" -eq 1 ] && [ -z "$window_where" ]; then
-	window_where=desktop
-	runner_args+=(--window desktop)
+	# The private desktop is Windows-only; elsewhere the window is minimized.
+	if command -v powershell.exe > /dev/null 2>&1 || command -v pwsh.exe > /dev/null 2>&1; then
+		window_where=desktop
+	else
+		window_where=minimized
+	fi
+	runner_args+=(--window "$window_where")
 fi
 
 engine_args=(--path "$root" --script res://tests/framework/test_runner.gd)
@@ -96,8 +106,26 @@ if ! grep -q '"TestCase"' "$root/.godot/global_script_class_cache.cfg" 2> /dev/n
 fi
 
 run_engine() {
-	"$GODOT" "${engine_args[@]}" -- ${runner_args[@]+"${runner_args[@]}"}
+	${engine_prefix[@]+"${engine_prefix[@]}"} "$GODOT" "${engine_args[@]}" -- ${runner_args[@]+"${runner_args[@]}"}
 }
+
+# A windowed run on Linux needs a display, and a sandbox or a CI box has none:
+# xvfb-run supplies a virtual one.
+# The variables alone prove nothing - a sandbox can inherit WAYLAND_DISPLAY with no
+# compositor behind it - so a Wayland display counts only if its socket is there.
+has_display() {
+	[ -n "${DISPLAY:-}" ] && return 0
+	[ -n "${WAYLAND_DISPLAY:-}" ] && [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$WAYLAND_DISPLAY" ]
+}
+engine_prefix=()
+if [ "$windowed" -eq 1 ] && [ "$(uname -s)" = "Linux" ] && ! has_display; then
+	if command -v xvfb-run > /dev/null 2>&1; then
+		engine_prefix=(xvfb-run -a)
+	else
+		echo "no display for a windowed run - install xvfb (xvfb-run) or run on a desktop." >&2
+		exit 2
+	fi
+fi
 
 # The private desktop is a Windows API and PowerShell is what reaches it, so the
 # launch goes through the same helper run.ps1 uses. 200 back from it means this

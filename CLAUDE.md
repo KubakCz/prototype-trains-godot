@@ -9,10 +9,19 @@ Working notes for this repo: the facts, the commands, the architecture map and t
 
 ## Project facts
 
-- **Godot 4.7** (`config/features` in `project.godot` pins `"4.7"`), Forward+, D3D12 on Windows.
-- Editor binary: **`C:\Godot\Godot_v4.7.2-stable_win64.exe`** — not on `PATH`.
-  Use `Godot_v4.7.2-stable_win64_console.exe` when you want stdout.
-  An old 4.4.1-mono under `~/Documents/Godot/` is unrelated; don't open the project with it.
+- **Godot 4.7** (`config/features` in `project.godot` pins `"4.7"`), Forward+ (D3D12 on Windows).
+- **Linux is the primary platform** (the Fedora desktop, and the Ubuntu agent sandbox). Editor
+  binary: **`godot`** on `PATH`, installed by `tools/setup_godot.sh` into
+  `~/.local/opt/godot/<version>/` and linked as `~/.local/bin/godot`. One binary: stdout works
+  as is. A fresh sandbox has no Godot (`$HOME` is not the user's, so a host install is not
+  visible inside it): run the script once, it needs network access to github.com.
+- Windowed runs (the click tests) need a display. The sandbox has none, so `tests/run.sh` goes
+  through `xvfb-run`: `sudo apt-get install xvfb xauth mesa-vulkan-drivers libgl1 libxcursor1
+  libxinerama1 libxi6 libxrandr2` (Ubuntu; software Vulkan is what Forward+ renders with there).
+- **Windows** still works: **`C:\Godot\Godot_v4.7.2-stable_win64.exe`** — not on `PATH`; use
+  `Godot_v4.7.2-stable_win64_console.exe` when you want stdout. `tests/run.ps1` is the
+  Windows runner and `tests/run.sh` also works under Git Bash. An old 4.4.1-mono under
+  `~/Documents/Godot/` is unrelated; don't open the project with it.
 - **GDScript**, no C#. Warnings are errors: untyped/`Variant` inference fails the parse,
   so annotate explicitly (`var x: float = a if c else b`) rather than using `:=` on
   anything the analyser can't type.
@@ -20,42 +29,50 @@ Working notes for this repo: the facts, the commands, the architecture map and t
 
 ## Commands
 
+Written for Linux; on Windows read `godot` as `Godot_v4.7.2-stable_win64_console.exe`.
+
 ```bash
 # Rebuild the import + global class-name cache. Do this after adding a class_name;
 # --check-only cannot resolve cross-script class names until it has run.
-Godot_v4.7.2-stable_win64_console.exe --headless --path . --import
+godot --headless --path . --import
 
 # Parse-check one script.
-Godot_v4.7.2-stable_win64_console.exe --headless --path . --check-only --script res://scripts/rails/rail.gd
+godot --headless --path . --check-only --script res://scripts/rails/rail.gd
 
 # Run a scene headlessly (harness scenes, smoke checks).
-Godot_v4.7.2-stable_win64_console.exe --headless --path . res://some/scene.tscn --quit-after 2000
+godot --headless --path . res://some/scene.tscn --quit-after 2000
 
 # The whole regression suite (tests/README.md). Exits non-zero on failure.
-tests/run.ps1                    # or: bash tests/run.sh
-tests/run.ps1 driving passage    # only matching suites
-tests/run.ps1 -List
-tests/run.ps1 -Color always      # colour survives a pipe; -NoColor turns it off
+tests/run.sh
+tests/run.sh driving passage     # only matching suites
+tests/run.sh --list
+tests/run.sh --color always      # colour survives a pipe; --no-color turns it off
 
 # Same, plus the synthetic-click tests (3D pick and floating widget) - needs a window.
-# That window opens on a private Windows desktop, so nothing of it reaches the screen
-# and nothing takes the keyboard; clicks convert canvas -> window coordinates themselves,
-# so its size and position are its own business.
-tests/run.ps1 -Windowed
-tests/run.ps1 -Window visible    # ... or on your own desktop, to watch a click test fail
+# With no display (the sandbox) it runs under xvfb-run; on a desktop the window is
+# minimized. Clicks convert canvas -> window coordinates themselves, so its size and
+# position are its own business.
+tests/run.sh --windowed
+tests/run.sh --window visible    # ... or leave it where you can watch a click test fail
 
 # Open a scene in the editor without a human, to exercise @tool paths.
-Godot_v4.7.2-stable_win64_console.exe --headless --path . --editor res://scenes/main.tscn --quit-after 90
+godot --headless --path . --editor res://scenes/main.tscn --quit-after 90
 
 # Regenerate the playground - scenes/main.tscn and its heightmap - from tools/build_playground.gd.
 # Overwrites both; see docs/level_authoring.md.
-Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tools/build_playground.gd
+godot --headless --path . --script res://tools/build_playground.gd
 ```
+
+On Windows the suite is `tests/run.ps1` (`-List`, `-Color always`, `-Windowed`, `-Window visible`),
+and a windowed run opens its window on a private Windows desktop, so nothing of it reaches the
+screen and nothing takes the keyboard.
 
 To eyeball a change without a human at the keyboard: run a throwaway `Node` scene
 that instantiates `main.tscn`, `await RenderingServer.frame_post_draw` ~30 times, then
 `get_viewport().get_texture().get_image().save_png("user://shot.png")`. Output lands in
-`%APPDATA%\Godot\app_userdata\Train game prototype\`. Needs a real window — omit `--headless`.
+`~/.local/share/godot/app_userdata/Train game prototype/` (Windows:
+`%APPDATA%\Godot\app_userdata\Train game prototype\`). Needs a real window — omit
+`--headless`; with no display (the sandbox), run it under `xvfb-run -a`.
 The throwaway script need not live in the project: `--script C:/absolute/path/shot.gd` runs an
 `extends SceneTree` script from anywhere, and `res://` paths inside it still resolve.
 

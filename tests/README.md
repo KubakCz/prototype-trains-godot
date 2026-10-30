@@ -14,25 +14,29 @@ the moment to reconsider, not before.
 
 ## Running them
 
-```powershell
-tests\run.ps1                       # everything, headless
-tests\run.ps1 driving               # one suite
-tests\run.ps1 driving passage       # several
-tests\run.ps1 driving::held         # tests whose name contains "held", in that suite
-tests\run.ps1 ::spanning            # by test name, whichever suite it is in
-tests\run.ps1 -List                 # what would run, as suite::test lines
-tests\run.ps1 -Windowed             # keep a window, so the click tests run too
-tests\run.ps1 -Window visible      # ... on your own desktop, where you can watch it
-tests\run.ps1 -Json results.json    # machine-readable report as well
-tests\run.ps1 -Speed 1              # real time instead of the default 128x
-tests\run.ps1 -Color always         # colour even through a pipe (-NoColor for none)
+```bash
+tests/run.sh                       # everything, headless
+tests/run.sh driving               # one suite
+tests/run.sh driving passage       # several
+tests/run.sh driving::held         # tests whose name contains "held", in that suite
+tests/run.sh ::spanning            # by test name, whichever suite it is in
+tests/run.sh --list                # what would run, as suite::test lines
+tests/run.sh --windowed            # keep a window, so the click tests run too
+tests/run.sh --window visible      # ... on your own desktop, where you can watch it
+tests/run.sh --json results.json   # machine-readable report as well
+tests/run.sh --speed 1             # real time instead of the default 128x
+tests/run.sh --color always        # colour even through a pipe (--no-color for none)
 ```
 
-`tests/run.sh` is the same thing for a POSIX shell (`--windowed`, `--window visible`,
-`--json=path`, `--speed=4`).
-Both find Godot at `C:\Godot\Godot_v4.7.2-stable_win64_console.exe` unless `$env:GODOT` /
-`$GODOT` says otherwise, rebuild the script class cache if it has never been built, and exit
-**0** when everything passed or skipped, **1** on a failure, **2** on a bad argument.
+It finds `godot` on `PATH` (`tools/setup_godot.sh` installs it) unless `$GODOT` says otherwise,
+rebuilds the script class cache if it has never been built, and exits **0** when everything
+passed or skipped, **1** on a failure, **2** on a bad argument. A windowed run with no display
+(a sandbox) goes through `xvfb-run`; see CLAUDE.md for the packages.
+
+On Windows, `tests\run.ps1` is the same runner in PowerShell (`-Windowed`, `-Window visible`,
+`-Json`, `-Speed`, `-Color always` / `-NoColor`) and looks for
+`C:\Godot\Godot_v4.7.2-stable_win64_console.exe` unless `$env:GODOT` says otherwise;
+`run.sh` also works under Git Bash there.
 
 Filters match on substrings and `::` splits suite from test, so a filter can be as vague or as
 exact as you like.
@@ -53,7 +57,8 @@ raising it further cannot shrink the floor — and measured, it does not stay fl
 
 ### The window a windowed run opens
 
-The click tests need a real display server, not a window anybody looks at, so `-Windowed`
+The click tests need a real display server, not a window anybody looks at. On Linux that is
+the desktop's own (the window is minimized) or Xvfb. On Windows `-Windowed`
 **opens it on a private Windows desktop**: a session can hold more than one desktop, only one
 is composited, and a window only exists on the desktop its process started on. Nothing of the
 run reaches the screen, nothing takes the keyboard, and the window is free to be its normal
