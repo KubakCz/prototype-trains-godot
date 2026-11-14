@@ -94,11 +94,48 @@ Plan of prototype implementation.
 
 ## 7. Spawnpoints and stations
 
-TODO
+* There are two types of interest points for trains - stations and outside connection points
+* Each interest point has a distinct color and name; they are marked with a floating shape above (square for outside connections, circle for stations). Colors can be adjusted manually, but if you assign them, make them as distinct from each other as possible. If similar colors should be used, put them close to each other (e.g., a map with a south corridor can have entry, station, and exit with different tints of green). Allow toggling on and off the names as a debug option.
+* An interest point can span several tracks (outside connection of two parallel tracks, train station with 4 tracks, train yards...)
+* All interest points can serve as spawn points for trains when a map is loaded
+* When a map is running, only outside connection points serve as spawn points for new trains
+* Trains are spawned at random - each map can configure the maximum number of trains allowed to be present on a map at one time and minimum time between consecutive train spawns
+* Each train has a route - set of interest points it has to go through
+* Routes can contain 0, 1, or multiple train stations and always end on outside connection points
+* Routes are randomly assigned from a predefined list - the list can be configured per train type and entry point (though one entry can be used for different entry points and train types) to make the routes a little bit realistic - i.e. passenger trains go through passenger stations in a reasonable order, freight trains stop at coal mines or factories...
+* When a train passes through an assigned station, it stops automatically (even when the signal is set to clear) and waits a couple of seconds. Loadable carts can load/unload
+* Engines are colored at random - either plain color or a color with a horizontal stripe (the stripe must have high enough contrast). Color options are limited to well-known colors (blue, yellow, green, pink, ...) to make them distinct and memorable. Avoid different shades of the same color.
+* UI representation of the train route is not decided yet - implement two approaches that are switchable
+  *   Colored icons above each train; the frontmost is the next one
+  *   A list with trains and destinations - another panel like our debug menus, contains a list of trains in arrival order (one line = circle with corresponding train color + stripe, list of stations (option for only colored icons or colored icons with names for testing purposes))
+ 
+## 8. Menu and game modes
 
-* After this step, the trains will appear on spawnpoints and will have destinations to go to.
+* Point system - player receives one point per train reaching an interest point from its route list
+* Game mode Endless - already present. Nothing stops you; just play forever
+* Game mode Timed - get as many points in a set time
+* Game mode Target Score - get a set amount of points as fast as possible
+* Both time information and number of collected points are displayed next to each other in the middle-top of the screen.
+* By default, when a map is opened from the editor, it starts in endless mode
+* The game has a simple menu, which allows you to choose any existing map (contains "testing" subfolder) and any game mode - click on map, then select play mode
 
-## 8. Simple editor
+## 9. Block locking
+
+* Connection of trains and signals together
+* A block is a collection of one or more track segments directly connected to each other. The block starts and entds with a track end, unconnected turnout, or a signal.
+* Simply said - if two trains have a way of colliding with each other and there is no signal that would allow to stop them, they are in the same block
+* Switching turnouts can change the blocks - e.g. a double crossover can have two parallel blocks, or it can be switched to one block covering the whole turnout when the paths cross.
+* If there is a train inside a block (any part of the train counts), the block is locked.
+  * All signals into the block are automatically switched to stop
+  * They cannot be switched to go until the block is again unlocked
+  * Turnouts inside a locked block are locked as well
+  * UI for signals and turnouts is overlaid with a lock icon
+* Green signal into the block pre-locks it, so there cannot be two trains coming to the block at the same time
+  * At any point, there can be only one green signal into the block. Clicking on another red signal will turn it green, but will turn the original green to red.
+* A train cannot be let into a block if it will reach an unconnected turnout (reaching a turnout from a direction that doesn't connect to another rail) - the corresponding signal also shows a lock icon
+* Blocks have visual representation - on mouse hover over signal or turnout UI, its block is highlighted - lines following rails drawn in purplish color
+
+## 10. Simple editor
 
 TODO
 
@@ -106,22 +143,3 @@ TODO
   of the curve to set `main_distance` — step 2 deliberately kept placement numeric and left this
   here.
 * Run **Align Branch To Turnout** as part of editing rather than as a manual button press.
-
-
-## 9. Block locking
-
-WIP
-
-THIS NEEDS UPDATING, MAY CONTAIN SECTIONS THAT CONTRADICT WITH PREVIOUS STEPS
-
-* Connection of trains and signals together
-* A block is a collection of one or more track segments directly connected to each other. Block is surrounded by signals from each reachable direction.
-* Simply said - if two trains have a way of colliding with each other and there is no signal that would allow to stop them, they are in the same block. (this means the also crossing connects the tracks to one block even though the train cannot pass between the two tracks)
-* If there is a train inside a block (any part of the train counts), the block is locked.
-  * All signals into the block are automatically switched to stop
-  * They cannot be switched to go until the block is again unlocked
-  * Turnouts inside a locked block are locked as well
-* Green signal into the block pre-locks it, so there cannot be two trains coming to the block at the same time
-  * At any point, there can be only one green signal into the block
-* Train cannot be let into a block if it will reach an unconnected turnout (reaching turnout from a direction that doesn't connect to another rail)
-* Player interaction with this automatic locking is yet to be decided

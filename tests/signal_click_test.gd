@@ -69,7 +69,7 @@ func test_a_click_on_the_floating_widget_changes_the_aspect_once() -> void:
 
 
 ## A signal the level has taken off the player ignores clicks, which is how step
-## 8's interlocking will hold one at danger.
+## 9's interlocking will hold one at danger.
 func test_a_signal_the_player_cannot_operate_ignores_a_click() -> void:
 	section.player_operable = false
 	await _settle()

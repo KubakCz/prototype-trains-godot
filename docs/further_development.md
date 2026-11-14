@@ -28,29 +28,6 @@ demo's dead ends are in the open and have buffer stops.
 it and both derail, so a spawnpoint has to check that its stretch of track is clear first -
 `Train.occupies()` and `occupied_spans()` answer that.
 
-## Step 8 — Simple editor
-
-Placement is numeric on purpose: step 2 left gizmo-drag placement here, along with running
-**Align Branch To Turnout** as part of editing rather than as a manual button press. What the
-button does, and how to weld a branch without an editor at all, is in
-[level_authoring.md](level_authoring.md).
-
-Step 4 added more hand work in the same spirit: a compound assembly's members and connecting
-rails are all placed one by one, and a `Crossing` has its own **Locate Crossing** button. An
-editor that places a crossover as one thing — two turnouts, the link and both welds — would save
-most of it. The assembly's configuration warnings already say what a correct one looks like; see
-[compound_turnouts.md](compound_turnouts.md). `TrackWalker` needs two turnouts on one rail to be
-more than `EPSILON` apart, so a three-way is staggered by a few metres, and an editor placing one
-should keep it that way.
-
-Step 6 left two more things placed by hand: a `Bridge` or `Tunnel` is a rail and two distances,
-and **Find Bridges & Tunnels** on the level's `TrackMesher` proposes them from the terrain. The
-mesher already rebuilds the track by itself when anything it depends on changes
-(`TrackMesher.signature()`), so whatever an editor moves - a point dragged, a turnout slid along
-its rail - the track follows half a second later without being asked. A bridge or tunnel moving
-with the rail under it does not happen yet: they are distances, so a rail that is lengthened at
-its start leaves them where they were along it.
-
 ## Step 9 — Block locking
 
 Mostly `TrackWalker.walk()` with the length turned up: walk ahead from a train and collect the
@@ -67,7 +44,7 @@ blocks, and the junctions between them are what the blocks have to lock. The two
 freight line are 5 m apart and protected as one, which is the "crossings join blocks" rule below
 in miniature.
 
-**Crossings join blocks.** The plan says so explicitly: two trains on the two rails of a
+**Crossings join blocks.** The plan's rule implies it (trains that can collide share a block): two trains on the two rails of a
 `Crossing` can meet, so both rails are one block there, even though no train can pass between
 them. Every crossing is an attachment on both of its rails. It already reports its occupants, but
 only for the crossing *point*: a train whose body ends a metre short is not "on" it, though it is
@@ -146,3 +123,26 @@ block". `Train.derailment(reason)` fires for every derailment, which is the hook
 - **Surface snapping moves only curve points and handles**, so point spacing has to be finer than
   the terrain's features. If real levels get hillier, per-segment subdivision may be worth
   adding — see [level_authoring.md](level_authoring.md).
+
+## Step 10 — Simple editor
+
+Placement is numeric on purpose: step 2 left gizmo-drag placement here, along with running
+**Align Branch To Turnout** as part of editing rather than as a manual button press. What the
+button does, and how to weld a branch without an editor at all, is in
+[level_authoring.md](level_authoring.md).
+
+Step 4 added more hand work in the same spirit: a compound assembly's members and connecting
+rails are all placed one by one, and a `Crossing` has its own **Locate Crossing** button. An
+editor that places a crossover as one thing — two turnouts, the link and both welds — would save
+most of it. The assembly's configuration warnings already say what a correct one looks like; see
+[compound_turnouts.md](compound_turnouts.md). `TrackWalker` needs two turnouts on one rail to be
+more than `EPSILON` apart, so a three-way is staggered by a few metres, and an editor placing one
+should keep it that way.
+
+Step 6 left two more things placed by hand: a `Bridge` or `Tunnel` is a rail and two distances,
+and **Find Bridges & Tunnels** on the level's `TrackMesher` proposes them from the terrain. The
+mesher already rebuilds the track by itself when anything it depends on changes
+(`TrackMesher.signature()`), so whatever an editor moves - a point dragged, a turnout slid along
+its rail - the track follows half a second later without being asked. A bridge or tunnel moving
+with the rail under it does not happen yet: they are distances, so a rail that is lengthened at
+its start leaves them where they were along it.
