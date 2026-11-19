@@ -42,11 +42,29 @@ the `.tscn`.
 
 `Rail`'s debug draw shows both running rails, sleepers, **cyan chevrons for the curve's own
 direction** (trains may run against them), and a green start / red end marker. Rail direction
-is level data, not cosmetic — turnouts are defined relative to it.
+is level data, not cosmetic — turnouts are defined relative to it. Since step 6 the real track
+is a generated mesh and the line drawing is **off by default**: switch it on per rail
+(`debug_draw`), or for every rail at once with the turnout debug panel's **rail lines** row.
 
 
 Snapping only moves curve points and handles, so point spacing has to be finer than the
 terrain's features. If real levels get hillier, per-segment subdivision may be worth adding.
+
+## The track, bridges and tunnels
+
+Every level needs one `TrackMesher` node (`Track` in every scene here) for its rails to be drawn
+at all: it builds the track from the rails, in the editor and as the level loads, and rebuilds
+in the editor a moment after a curve stops moving. Nothing it builds is saved. Bridges and
+tunnels are nodes too - `Bridge` and `Tunnel`, under `Structures` by convention - each a rail and
+a span along it, plus a style for a bridge; the mesher's **Find Bridges & Tunnels** button
+proposes them from the terrain. How all of it works is in [track.md](track.md).
+
+A level carved for its tunnels puts each mouth where the carved ground starts to rise, and the
+`Tunnel` there: the ground cuts itself open behind the portal for the bore's shell and levels
+the apron in front of it. Without a heightmap carved to match, a tunnel's portal stands against
+whatever the terrain happens to be. Wherever the ground is left a little high under ordinary
+track, the track cuts it down itself (see [track.md](track.md)) - but a cutting's sides are the
+carving's business.
 
 ## Levels on a baked terrain
 
@@ -69,7 +87,25 @@ side:
   grown from a rail's end (a way off the level, at most 90 m) or forced (under a hill). The ground
   over it is kept at least 6.5 m above the railhead. A heightfield can only rise from the bed to
   the roof across one grid cell, so every tunnel mouth is a few metres of ground in the loading
-  gauge - the one place that is allowed.
+  gauge - the one place that is allowed. Behind each mouth the ground has to stand clear *above*
+  the bore's shell (whose roof is 6.5 m up, `Tunnel.SHELL_TOP`), or the shell shows as a stone
+  slab sticking out of the hillside: the desert's ground is held 8.5 m over the railhead for the
+  first 18 m in, 6.5 m either side of the centre line (the portal's width), falling 1:1 beyond
+  that and never into a cutting of other track. The original carving ramped up over the first
+  8 m inside the tunnel instead, and every mouth showed its shell; this was added to the baked
+  heightmap afterwards.
+- **Water** is a flat surface at the water level; the ground makes the shoreline. Through the
+  waterline the ground has to be **one straight slope for a couple of grid cells either way**
+  (the desert lake: 0.15, a 4 m deep bowl inside, blending back into the terrain 6-16 m out).
+  A kink near the waterline - a flat beach meeting a steep drop - is interpolated differently
+  by each grid triangle, and the shore comes out as a staircase. Nothing below the water level
+  may open onto the shore either: the dry wash north of the desert lake used to, and showed as
+  a notch. It is now the lake's outflow, `River`: a ribbon of water (`desert_river.res`)
+  falling 1.5 cm a metre from the lake's level, under `GullyBridge` (4 m below its rails) to
+  the north edge of the map, in a channel 16 m wide at the waterline with banks at 0.3 through
+  it. The ribbon is 3 m wider each side than the channel, so its edges are buried in the banks.
+  The lake's bowl and the river's channel were both reshaped in the baked heightmap after the
+  original carving.
 - **A bridge** is left alone: no bank is filled under it, or within 30 m of its ends.
 
 Two tracks side by side at different heights cannot both be carved for: a 4 m grid cell spans
@@ -79,7 +115,7 @@ beside another, both climb.
 ### The desert level
 
 `scenes/levels/desert.tscn` is a whole level rebuilt from a reference layout, track and terrain
-only - no buildings, portals or bridge deck. Its terrain is a baked heightmap on a 3 m grid; the
+only - no buildings. Its terrain is a baked heightmap on a 3 m grid; the
 carver that made it was a one-off and is not in the repo, so moving track means editing the
 heightmap to match. Parallel tracks are 5 m apart, the steepest gradient is 5.2% (the north line
 beside the ridge) and the tightest radius 28 m (on the loop).
@@ -100,6 +136,12 @@ works but draws a configuration warning. Where the loop touches the bottom line 
 lake, `LakeScissors` (a double crossover, `LakeScissorsMiddle` its crossing) joins them; the
 reference draws it as an X between two tracks a few pixels apart. The ridge line crosses the
 tunnel line 8 m above it - the same rail twice, 1050 m apart along it.
+
+Its structures were proposed by **Find Bridges & Tunnels** and written into the scene by hand:
+`GullyBridge`, a steel truss on `LoopLine`; `RidgeTunnel`, the loop's tunnel under the ridge; and
+a tunnel on each of the four exits (`WestExitTunnel`, `EastExitTunnel`, `NorthExitTunnel`,
+`EastLineExitTunnel`), which run off the rails' ends and so have one portal each and swallow the
+dead ends.
 
 Every junction is protected from every way into it, sixteen signals in all, and three trains come
 out of the exit tunnels at the start and wait at the entry signals: `WestArrival` (two coaches)
@@ -154,7 +196,8 @@ yard. The generator places each by its nose, a few metres short of its signal, s
 the consist goes behind it however long it is - and asserts it fits on its rail.
 
 **The carved corner** is a gully the tail crosses on a 21 m bridge, a stream in its bottom, and
-a hill it goes through in a 44 m tunnel. There is also a shallow pond inside the balloon loop,
+a hill it goes through in a 44 m tunnel. The generator records each stretch it carved as a bridge
+or a tunnel and writes a `Bridge` (stone arches) and a `Tunnel` for them, under `Structures`. There is also a shallow pond inside the balloon loop,
 with no track near it. The carving follows the desert's three rules, with one change: each grid
 vertex takes its orders from the *nearest* point of each rail, not from every point in reach.
 Otherwise the 1:1 cutting up to a tunnel mouth eats its slopes several metres into the hill, and

@@ -110,3 +110,65 @@ func _off_track(at: Vector3, rails: Array[Rail]) -> float:
 		var local := rail.curve.get_closest_point(rail.to_local(at))
 		nearest = minf(nearest, rail.to_global(local).distance_to(at))
 	return nearest
+
+
+## The bogies are placed on the rail under them, not carried along with the body:
+## across the crossover's S-bend the body is a chord and swings off the track by
+## up to half a metre, but every bogie stays on it, its wheelsets across it.
+func test_the_bogies_stay_on_the_track_across_the_crossover() -> void:
+	crossover.cycle()
+	place_nose(express, north_line, north_points.points_distance(), 20.0, 10.0)
+	var rails: Array[Rail] = [north_line, link, middle_line]
+	var worst := 0.0
+	var squarest := 0.0
+	for _frame in 480:
+		await drive(1)
+		for car in express.cars():
+			for bogie in car.bogies():
+				var at := bogie.global_position
+				worst = maxf(worst, _off_track(at, rails))
+				var rail := _nearest_rail(at, rails)
+				var along := rail.sample_forward(rail.curve.get_closest_offset(rail.to_local(at)))
+				squarest = maxf(squarest, absf(bogie.global_basis.x.dot(along)))
+	note("furthest any bogie got from the track: %.4f m; wheelsets square to it within %.4f"
+			% [worst, squarest])
+	assert_less(worst, 0.02, "every bogie stayed on the track the whole way across")
+	assert_less(squarest, 0.02, "with its axles square across it")
+
+	var car := express.cars()[0]
+	var wheel_top := 0.9
+	assert_greater(TrainCar.FLOOR_HEIGHT, wheel_top, "the body rides clear of the wheels")
+	var tread := TrainCar.GAUGE * 0.5 + TrackLayout.HEAD_WIDTH * 0.5
+	var bogie := car.bogies()[0]
+	for side: float in [-1.0, 1.0]:
+		var wheel := bogie.global_position + bogie.global_basis.x * tread * side
+		var line := TrackLayout.line_point(TrackLayout.Line.new(express.rail, int(side),
+				side * tread), express.rail.curve.get_closest_offset(express.rail.to_local(wheel)))
+		assert_less(wheel.distance_to(line), 0.02,
+				"the %s wheels run on the %s rail" % ["left" if side < 0.0 else "right",
+				"left" if side < 0.0 else "right"])
+
+
+## A wreck is off the rails, so its bogies stay under its cars rather than on
+## the track they were knocked off.
+func test_a_wreck_keeps_its_bogies_under_it() -> void:
+	place(express, north_line, 100.0)
+	await drive(2)
+	express.derail("test")
+	await drive(2)
+	for car in express.cars():
+		var offset := car.length * 0.5 - car.bogie_inset()
+		var expected := car.global_transform * Vector3(0.0, 0.0, -offset)
+		assert_less(car.bogies()[0].global_position.distance_to(expected), 0.01,
+				"%s's front bogie is under its body" % car.name)
+
+
+func _nearest_rail(at: Vector3, rails: Array[Rail]) -> Rail:
+	var best: Rail = null
+	var nearest := INF
+	for rail in rails:
+		var gap := rail.to_global(rail.curve.get_closest_point(rail.to_local(at))).distance_to(at)
+		if gap < nearest:
+			nearest = gap
+			best = rail
+	return best

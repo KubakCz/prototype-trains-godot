@@ -61,6 +61,9 @@ godot --headless --path . --editor res://scenes/main.tscn --quit-after 90
 # Regenerate the playground - scenes/main.tscn and its heightmap - from tools/build_playground.gd.
 # Overwrites both; see docs/level_authoring.md.
 godot --headless --path . --script res://tools/build_playground.gd
+
+# Same for the bridges-and-tunnels demo, scenes/demos/structures.tscn; see docs/track.md.
+godot --headless --path . --script res://tools/build_structures_demo.gd
 ```
 
 On Windows the suite is `tests/run.ps1` (`-List`, `-Color always`, `-Windowed`, `-Window visible`),
@@ -93,6 +96,14 @@ scripts/trains/locomotive_type.gd LocomotiveType : CarType — adds traction
 scripts/trains/wagon_type.gd      WagonType   : CarType  — adds capacity
 rolling_stock/*.tres                                     — the shared locomotive and wagon types
 scripts/world/ground.gd           Ground      : MeshInstance3D — procedural or baked-heightmap terrain
+scripts/track/track_mesher.gd     TrackMesher : Node3D   — one per level: builds the track meshes, rebuilds in the editor
+scripts/track/track_layout.gd     TrackLayout : RefCounted — running lines and their cuts, blades, check rails, sleepers
+scripts/track/track_mesh_builder.gd TrackMeshBuilder     — layout to chunked meshes, the blades' blend shape
+scripts/track/mesh_surface.gd     MeshSurface : RefCounted — one surface being built: quads, boxes, beams
+scripts/track/track_materials.gd  TrackMaterials        — the shared steel, timber, ballast, stone, bore
+scripts/track/track_structure.gd  TrackStructure : Node3D — a stretch of one rail with something built on it
+scripts/track/bridge.gd           Bridge      : TrackStructure — stone arches, steel truss or timber trestle
+scripts/track/tunnel.gd           Tunnel      : TrackStructure — portals, a dark bore, a hole in the Ground
 scripts/ui/ui_scale.gd            UiScale     : Node (autoload) — picks the interface scale
 scripts/ui/marker_overlay.gd      MarkerOverlay      : Control — lays out every floating marker
 scripts/ui/track_marker_widget.gd TrackMarkerWidget  : Control — base: follow, collapse, click
@@ -114,6 +125,7 @@ tests/support/train_demo_case.gd  TrainDemoCase   — fixture for the trains dem
 tests/*_test.gd                                  — the suites themselves
 
 tools/build_playground.gd                        : SceneTree — writes scenes/main.tscn + its heightmap
+tools/build_structures_demo.gd                   : SceneTree — writes scenes/demos/structures.tscn + its heightmap
 ```
 
 Scenes: `scenes/main.tscn` (the playground: one of every junction kind on a compact double-track
@@ -127,12 +139,16 @@ signal past the points, and one on the branch) and `scenes/demos/compound_turnou
 ground, one of each: a three-way, a crossover, a double crossover with its middle crossing, a
 plain diamond crossing and a double slip, each with trains), `scenes/demos/trains.tscn` (three
 straight lines abreast: an express, a loaded and an empty freight to compare, a signal to put back
-in front of a train, a crossover to throw under one and a stalled train to run into) and
+in front of a train, a crossover to throw under one and a stalled train to run into),
+`scenes/demos/structures.tscn` (**generated** by `tools/build_structures_demo.gd`: three lines, one
+per bridge style, each over a short, a middling and a long gully and through a ridge, a train
+shuttling on each) and
 `scenes/levels/desert.tscn` (a whole
 level rebuilt from a reference - a balloon loop round a lake with a scissors crossover, a wye, a
 tunnel under a ridge and a bridge over a gully, sixteen signals - on a baked terrain carved to fit
-the track; see [docs/level_authoring.md](docs/level_authoring.md)). All six are driven by the tests
-under `tests/`; keep them working.
+the track; see [docs/level_authoring.md](docs/level_authoring.md)). All seven are driven by the tests
+under `tests/`; keep them working. Every one has a `Track` node (`TrackMesher`): without it the
+rails are not drawn at all, since their own line drawing (`Rail.debug_draw`) is off by default.
 
 The overlay is `scripts/ui/`, not `scripts/debug/`: clicking a signal or a turnout is the
 player's actual interface, so it is gameplay UI that happens to still carry step 2's debug
@@ -184,6 +200,7 @@ the design record for its step, including the cases that look like bugs and are 
 | [docs/signals.md](docs/signals.md) | which direction a signal governs, the stopping rule written from the nose, `signals_from`, the three widget styles |
 | [docs/ui.md](docs/ui.md) | interface scale, the floating marker layer and its de-cluttering, the debug HUD's panels and keys |
 | [docs/level_authoring.md](docs/level_authoring.md) | snapping rails to the terrain, and welding a branch onto a turnout (with and without the editor) |
+| [docs/track.md](docs/track.md) | the generated track: where the rails are cut and why, moving blades, check rails, shared timbers, ballast, buffer stops, chunks and editor rebuilds; bridges, tunnels and the holes they cut in the ground |
 | [docs/further_development.md](docs/further_development.md) | what finished steps left for the ones not built yet, per step |
 | [tests/README.md](tests/README.md) | running and writing the suite, how fast to run the clock, the window a windowed run opens |
 | [docs/naming_conventions.md](docs/naming_conventions.md) | what things are called |
@@ -262,6 +279,13 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
   difference between a lookup and seconds of load time. It is the *more* exact of the two: the
   snapper's ray starts 10 km up, where a float resolves to about a millimetre. `ground_test.gd`
   holds them together.
+- **A `Ground` answers two heights.** `surface_height_at()` is the mesh, with the track's bed
+  and the tunnel mouths cut into it; `terrain_height_at()` is the ground as authored. Snapping
+  (and Find) must read the terrain - `SurfaceSnapper.height_at(..., true)` - or every snap
+  follows the last cut down; everything that stands on the ground reads the surface. The ground
+  is shaped before the rails settle and checks again once everything is ready; anything that
+  measures it to stand on it joins `Ground.STANDING_GROUP` to be told. See
+  [docs/track.md](docs/track.md).
 - **`Ground` never saves its mesh, and only rebuilds inside the tree.** `_validate_property`
   strips `mesh`'s storage, or an editor save would write every vertex of a baked terrain into the
   scene. And loading a scene assigns every export in turn, so a setter that rebuilt outside the
@@ -384,6 +408,10 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
   `--color never` when `[Console]::IsOutputRedirected` / `! -t 1` says nobody is watching, and
   the runner also honours `NO_COLOR`. Pad before painting, never after — the escapes count
   towards `%-4s` and friends.
+- **`Vector2.angle_to` is signed** (`Vector3.angle_to` is not). Folding an angle into 0-90° with
+  `minf(a, 180 - a)` then turns every crossing measured clockwise into a negative angle, and a
+  "too shallow to be a crossing" filter dropped exactly half the frogs in every level - silently,
+  since a turnout without its frog gap still draws. Take `absf` first.
 - **GDScript's `%` format has no `%g`.** Use `%f`/`%.Nf`/`%s`; `%g` raises "unsupported format
   character" at runtime, not parse time.
 - **Array literals are `Variant`, so annotate the loop variable**: `for t: Turnout in [a, b]:`.

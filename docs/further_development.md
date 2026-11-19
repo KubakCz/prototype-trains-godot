@@ -9,33 +9,6 @@ This is the implementers' side of the plan. **The plan itself is
 edit it.** When a step is finished, its notes for the future go here instead, under the heading
 of the step they are aimed at.
 
-## Step 6 — Meshes
-
-Where the running rails need gaps is all recorded already: at every turnout (the points), and at
-every `Crossing` — `rail_a`/`distance_a` and `rail_b`/`distance_b` are the two rails and where
-along each they cross, and `crossing_angle_degrees()` is the angle the frog needs. A double
-crossover's middle is an ordinary `Crossing` (`ScissorsMiddle` in the demo), and so is a double
-slip's diamond (`DoubleSlipMiddle`), so neither needs a special case. Crossings are attachments on
-both rails, next to the turnouts and signals. A double slip is where it gets tight: four sets of
-points within 14 m of a 12° diamond, so blades, frogs and check rails all overlap, and the slip
-roads' sleepers have to merge with the diamond's.
-
-The desert level (`scenes/levels/desert.tscn`) adds two things a rail model has to cope with that
-no other scene has: a bridge, where the track is in the air over a gully with nothing under it,
-and tunnel mouths, where the terrain rises from the bed to the roof across one 3 m grid cell.
-Both are found by comparing the railhead with `Rail.ground_height_at()` - `desert_level_test.gd`
-does exactly that - and neither is recorded on the rail; a deck and portals would want them to be.
-The playground (`scenes/main.tscn`) has one of each too, on the wye's tail: a 21 m bridge and a
-44 m tunnel. Its generator classifies every sample of track as on its bed, in a tunnel or on a
-bridge while carving, and throws the answer away; that is where it would get recorded.
-
-**Train models.** A car is a `TrainCar`: boxes sized from its `CarType`, with the origin on the
-railhead between its two ends and -Z towards the nose. Real models replace the boxes; they should
-keep the click collider and the collision box (`TrainCar.half_extents()`, which is what touching
-means), and match the gauge - the types' widths, 2.8-3.1 m, are already a plausible loading
-gauge for 1435 mm. A wreck is drawn by turning each car a few degrees off its rail pose
-(`Train._wreck_pose`); models want the same, or something better.
-
 ## Step 7 — Spawnpoints and stations
 
 **Trains are made from types**: `locomotive`, `wagons` and `load_factor` are everything a
@@ -44,6 +17,12 @@ Loading and unloading at a station is `load_factor` - deliberately on the train 
 "loaded" wagon type, so it can change in place. A train arriving from off the level wants
 `Train.roll(speed)`: a rolling start, so it comes in at line speed instead of starting from rest
 in a tunnel mouth.
+
+**Exits are tunnels.** The desert's four ways off the level are rails running into a `Tunnel`
+and ending inside it, where there is no buffer stop - `TrackStructure.covers()` is the test for
+"this end is a way off the level". A spawnpoint there puts its train in the dark bore or under
+the hillside, out of sight, which is the effect wanted. The playground's and the structures
+demo's dead ends are in the open and have buffer stops.
 
 **A spawned train can collide on its first frame.** Anything placed over another train touches
 it and both derail, so a spawnpoint has to check that its stretch of track is clear first -
@@ -63,6 +42,14 @@ most of it. The assembly's configuration warnings already say what a correct one
 [compound_turnouts.md](compound_turnouts.md). `TrackWalker` needs two turnouts on one rail to be
 more than `EPSILON` apart, so a three-way is staggered by a few metres, and an editor placing one
 should keep it that way.
+
+Step 6 left two more things placed by hand: a `Bridge` or `Tunnel` is a rail and two distances,
+and **Find Bridges & Tunnels** on the level's `TrackMesher` proposes them from the terrain. The
+mesher already rebuilds the track by itself when anything it depends on changes
+(`TrackMesher.signature()`), so whatever an editor moves - a point dragged, a turnout slid along
+its rail - the track follows half a second later without being asked. A bridge or tunnel moving
+with the rail under it does not happen yet: they are distances, so a rail that is lengthened at
+its start leaves them where they were along it.
 
 ## Step 9 — Block locking
 
@@ -120,6 +107,29 @@ block". `Train.derailment(reason)` fires for every derailment, which is the hook
 "train collision" fail condition.
 
 ## Not tied to a step
+
+- **Train models are still boxes**, now on bogies at standard gauge ([trains.md](trains.md)).
+  Real models replace the body; they should keep the click collider and the collision box
+  (`TrainCar.half_extents()`, which is what touching means), leave the bogies to the train, and
+  keep the body clear of the wheels (`TrainCar.FLOOR_HEIGHT`). A wreck is drawn by turning each
+  car a few degrees off its rail pose (`Train._wreck_pose`); models want the same, or better.
+  Turnout markers and signal masts are boxes too.
+- **The track's junctions are correct, not detailed** ([track.md](track.md)): the gaps are
+  where a flange needs them and frogs have a nose and wing rails, but the nose is two rails
+  meeting rather than a cast crossing, obtuse crossings have no point rails reaching in, and the
+  blades are the rail profile planed thin. Each track lays its own ballast, so at a junction two beds overlap;
+  it does not show, but a level with very different ground colours either side might.
+- **Everything is rebuilt at once**, about 200 ms for 3.5 km of track. If levels grow several
+  times bigger, the editor's rebuild wants to be per rail: the layout is already per rail except
+  for the crossing and sleeper passes, which only need neighbours.
+- **A structure covers one rail.** A turnout on a bridge would have its branch hanging in the
+  air, and a tunnel under a junction would cut the ground over one track only. No level has
+  either yet.
+- **Inside a tunnel there is only the 14 m bore at each mouth**; beyond it the train is under
+  the terrain. A camera that goes underground (none does) would see it hanging in the void.
+- **The track's cut in the ground is as wide as the grid is coarse.** It keeps the ground under
+  the bed for 1.8 m plus a cell diagonal either side, so a 3 m grid (the desert) gets a 6 m
+  flat. Finer terrain, or terrain refined near the track, would let it be narrower.
 
 - **`Train.end_behavior` is a placeholder.** It now fires only at a genuine dead end, once the
   train has braked to a stand there, but real levels will want buffer stops and off-level

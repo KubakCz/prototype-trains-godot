@@ -67,8 +67,9 @@ func test_the_cycle_rows_belong_to_the_body() -> void:
 	await frames(2)
 	assert_eq(_panels[0].control_buttons().size(), 2,
 			"the train section toggles the stopping strip and the collision boxes")
-	assert_eq(_panels[1].control_buttons().size(), 2,
-			"the turnout section cycles the overlay mode and the schematic text")
+	assert_eq(_panels[1].control_buttons().size(), 3,
+			"the turnout section cycles the overlay mode and the schematic text, "
+			+ "and switches the rail lines")
 	assert_eq(_panels[2].control_buttons().size(), 2,
 			"the signal section cycles the widget style and the collapse rule")
 
@@ -98,6 +99,30 @@ func test_a_cycle_row_advances_the_overlay() -> void:
 	_panels[2].control_buttons()[1].pressed.emit()
 	assert_ne(_overlay.signal_style, style, "the first signal row cycled the widget style")
 	assert_ne(_overlay.collapse_rule, rule, "the second cycled the collapse rule")
+
+
+## The rails' own line drawing is off now that the track is a real mesh, and the
+## turnout section's third row brings it back for every rail at once - mostly
+## for the chevrons showing which way each curve was drawn.
+func test_the_rail_lines_row_draws_every_rail() -> void:
+	var rails: Array[Rail] = []
+	for node in _scene.find_children("*", "Path3D", true, false):
+		rails.append(node as Rail)
+	assert_false(rails.is_empty(), "the scene has rails")
+	for rail in rails:
+		assert_false(rail.debug_draw, "%s opens without its line drawing" % rail.name)
+	_panels[1].expanded = true
+	await frames(2)
+	var row := _panels[1].control_buttons()[2]
+	assert_true(row.text.contains("off"), "the row says the lines are off")
+	row.pressed.emit()
+	await frames(1)
+	for rail in rails:
+		assert_true(rail.debug_draw, "%s draws its lines once the row is pressed" % rail.name)
+	assert_true(_panels[1].control_buttons()[2].text.contains("on"), "and the row says so")
+	_panels[1].control_buttons()[2].pressed.emit()
+	for rail in rails:
+		assert_false(rail.debug_draw, "%s stops again on the second press" % rail.name)
 
 
 ## The ">" marks whatever the mouse is on. With no select key there is nothing

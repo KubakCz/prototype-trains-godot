@@ -1,0 +1,237 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
+[ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
+[ext_resource type="Script" path="res://scripts/trains/train.gd" id="3_train"]
+[ext_resource type="Script" path="res://scripts/debug/camera_rig.gd" id="4_camera"]
+[ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="5_panel"]
+[ext_resource type="Image" path="res://scenes/demos/structures_heights.res" id="6_heights"]
+[ext_resource type="Script" path="res://scripts/track/track_mesher.gd" id="7_mesher"]
+[ext_resource type="Script" path="res://scripts/track/bridge.gd" id="8_bridge"]
+[ext_resource type="Script" path="res://scripts/track/tunnel.gd" id="9_tunnel"]
+[ext_resource type="Script" path="res://scripts/trains/wagon_type.gd" id="10_wagon_type"]
+[ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="loco_passenger"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_locomotive.tres" id="loco_freight"]
+[ext_resource type="Resource" path="res://rolling_stock/shunting_locomotive.tres" id="loco_shunting"]
+[ext_resource type="Resource" path="res://rolling_stock/coach.tres" id="wagon_coach"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_wagon.tres" id="wagon_freight"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
+ground_bottom_color = Color(0.22, 0.24, 0.24, 1)
+ground_horizon_color = Color(0.66, 0.7, 0.74, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+tonemap_mode = 2
+ssao_enabled = true
+
+[sub_resource type="Curve3D" id="Curve3D_StoneLine"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -250.0, 0.25, -20.0, 0, 0, 0, 0, 0, 0, 250.0, 0.25, -20.0),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_SteelLine"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -250.0, 0.25, 0, 0, 0, 0, 0, 0, 0, 250.0, 0.25, 0),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_TimberLine"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -250.0, 0.25, 20.0, 0, 0, 0, 0, 0, 0, 250.0, 0.25, 20.0),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[node name="StructuresDemo" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.6452, -0.628, 0.4352, 0, 0.5696, 0.822, -0.764, -0.5303, 0.3675, 0, 60, 0)
+light_energy = 1.3
+shadow_enabled = true
+directional_shadow_max_distance = 500.0
+
+[node name="Ground" type="MeshInstance3D" parent="." groups=["snap_surface"]]
+script = ExtResource("1_ground")
+size = Vector2(540.0, 160.0)
+heightmap = ExtResource("6_heights")
+low_color = Color(0.27, 0.4, 0.21, 1)
+high_color = Color(0.4, 0.52, 0.28, 1)
+steep_color = Color(0.46, 0.4, 0.3, 1)
+steep_amount = 0.8
+
+[node name="Rails" type="Node3D" parent="."]
+
+[node name="StoneLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_StoneLine")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+snap_on_ready = false
+
+[node name="SteelLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_SteelLine")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+snap_on_ready = false
+
+[node name="TimberLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_TimberLine")
+script = ExtResource("2_rail")
+surface_root = NodePath("../../Ground")
+snap_on_ready = false
+
+[node name="Structures" type="Node3D" parent="."]
+
+[node name="StoneLineBridge1" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("8_bridge")
+rail = NodePath("../../Rails/StoneLine")
+from_distance = 82.5
+to_distance = 98.0
+style = 0
+
+[node name="StoneLineBridge2" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("8_bridge")
+rail = NodePath("../../Rails/StoneLine")
+from_distance = 161.0
+to_distance = 199.5
+style = 0
+
+[node name="StoneLineBridge3" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("8_bridge")
+rail = NodePath("../../Rails/StoneLine")
+from_distance = 261.0
+to_distance = 349.5
+style = 0
+
+[node name="StoneLineTunnel" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("9_tunnel")
+rail = NodePath("../../Rails/StoneLine")
+from_distance = 404.5
+to_distance = 476.0
+
+[node name="SteelLineBridge1" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("8_bridge")
+rail = NodePath("../../Rails/SteelLine")
+from_distance = 82.5
+to_distance = 98.0
+style = 1
+
+[node name="SteelLineBridge2" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("8_bridge")
+rail = NodePath("../../Rails/SteelLine")
+from_distance = 161.0
+to_distance = 199.5
+style = 1
+
+[node name="SteelLineBridge3" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("8_bridge")
+rail = NodePath("../../Rails/SteelLine")
+from_distance = 261.0
+to_distance = 349.5
+style = 1
+
+[node name="SteelLineTunnel" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("9_tunnel")
+rail = NodePath("../../Rails/SteelLine")
+from_distance = 404.5
+to_distance = 476.0
+
+[node name="TimberLineBridge1" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("8_bridge")
+rail = NodePath("../../Rails/TimberLine")
+from_distance = 82.5
+to_distance = 98.0
+style = 2
+
+[node name="TimberLineBridge2" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("8_bridge")
+rail = NodePath("../../Rails/TimberLine")
+from_distance = 161.0
+to_distance = 199.5
+style = 2
+
+[node name="TimberLineBridge3" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("8_bridge")
+rail = NodePath("../../Rails/TimberLine")
+from_distance = 261.0
+to_distance = 349.5
+style = 2
+
+[node name="TimberLineTunnel" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("9_tunnel")
+rail = NodePath("../../Rails/TimberLine")
+from_distance = 404.5
+to_distance = 476.0
+
+[node name="Trains" type="Node3D" parent="."]
+
+[node name="StoneTrain" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("3_train")
+rail = NodePath("../../Rails/StoneLine")
+distance = 40
+facing = 1
+max_speed = 14
+end_behavior = 1
+locomotive = ExtResource("loco_passenger")
+wagons = Array[ExtResource("10_wagon_type")]([ExtResource("wagon_coach"), ExtResource("wagon_coach")])
+
+[node name="SteelTrain" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("3_train")
+rail = NodePath("../../Rails/SteelLine")
+distance = 40
+facing = 1
+max_speed = 14
+end_behavior = 1
+locomotive = ExtResource("loco_freight")
+wagons = Array[ExtResource("10_wagon_type")]([ExtResource("wagon_freight"), ExtResource("wagon_freight"), ExtResource("wagon_freight")])
+load_factor = 1.0
+
+[node name="TimberTrain" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
+script = ExtResource("3_train")
+rail = NodePath("../../Rails/TimberLine")
+distance = 40
+facing = 1
+max_speed = 14
+end_behavior = 1
+locomotive = ExtResource("loco_shunting")
+wagons = Array[ExtResource("10_wagon_type")]([ExtResource("wagon_coach")])
+
+[node name="Track" type="Node3D" parent="."]
+script = ExtResource("7_mesher")
+
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 2, 0)
+script = ExtResource("4_camera")
+camera = NodePath("Camera3D")
+yaw_degrees = -20.0
+pitch_degrees = -32.0
+zoom = 260.0
+max_zoom = 700.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+far = 3000.0
+
+[node name="DebugUi" type="CanvasLayer" parent="."]
+
+[node name="Panels" type="VBoxContainer" parent="DebugUi"]
+offset_left = 12.0
+offset_top = 12.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi/Panels"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("5_panel")

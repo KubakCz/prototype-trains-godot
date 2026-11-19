@@ -180,10 +180,17 @@ func _ready() -> void:
 
 func _enter_tree() -> void:
 	_attach_to_rails()
+	add_to_group(Ground.STANDING_GROUP)
 
 
 func _exit_tree() -> void:
 	_detach_from_rails()
+	remove_from_group(Ground.STANDING_GROUP)
+
+
+## The ground under the marker has been cut anew (see [constant Ground.STANDING_GROUP]).
+func ground_changed() -> void:
+	_update_marker_frame()
 
 
 #region Topology
@@ -557,7 +564,9 @@ func _get_configuration_warnings() -> PackedStringArray:
 #region Marker meshes
 ## Post plus a banner that swings to point along whichever route is set: the
 ## smallest thing that reads as a turnout from a distance and gives the mouse
-## something to hit. Step 6 generates the real point blades.
+## something to hit. The blades themselves are part of the generated track
+## ([TrackMesher]) and swing across when the points are thrown; this is still
+## what the player clicks.
 ## Everything hangs off [member _marker], which stands on the ground rather than
 ## on the track, so the post is as long as it has to be to get from that ground
 ## up to its nominal height above the railhead.

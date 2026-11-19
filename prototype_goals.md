@@ -79,7 +79,7 @@ Plan of prototype implementation.
   * blinking red - if train cannot stop in time on stop signal, blinks red until player doesn't let it go
   * black - train derailed
 
-## 6. Meshes
+## 6. Meshes *(done)*
 
 * Meshes for tracks are generated based on the curves.
 * Generated in reasonable big chunks so it is efficient to render (one bigger mesh better than 1000 small ones, but camera culling also makes a difference)
@@ -88,6 +88,9 @@ Plan of prototype implementation.
 * Width must match trains - use standard gage (1435mm) and adjust train models accordingly
 * Rail going through the turnout must have correct gaps for train wheel to pass when going through it in any direction, cross ties must be adjusted until the tracks are really split away from each other
 * Tracks might cross each other without a turnout (e.g. crossing in the middle of a double slip switch), again, there must be correct gaps in the rail mesh and reasonable cross ties
+* There is a layer of crushed stones under the rails that has trapezoidal crossection. This will smoothout track against uneaven terrain. The material should blend into the color of surrounding arrea (e.g. like if the stones were overgrowwing with grass).
+* In some places it makes sense to create a bridge. Let's try to have different variants for the bridge - stone arch (arch bellow the bridge) and steel truss that have pillars if the span is too large, and wooden that have timber structure along the whole span of the bridge.
+* Track might go under ground - in that case there is a tunnel opening made out of stones.
 
 ## 7. Spawnpoints and stations
 

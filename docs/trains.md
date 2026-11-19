@@ -43,6 +43,17 @@ centre with `TrackWalker.Step.locate()`. So every wagon follows the one in front
 set of points it took, and a car's middle sits inside a bend by `L² / 8R` - for a 16 m car round
 the playground's 32 m balloon, a metre - and no more. A single long box used to bulge 1.9 m.
 
+**Bogies.** Since step 6 the body rides `TrainCar.FLOOR_HEIGHT` (1.05 m) above the rails on two
+bogies, each with two wheelsets at standard gauge, the treads on the middle of the railheads
+(`TrainCar.GAUGE`, the same 1435 mm the track is built to). The bogies are placed by the train
+**straight onto the rail under them** - their pivots `bogie_inset()` in from each end of the car,
+located on the same two walks as the car's ends - not carried along with the body. So on a curve
+the wheels stay on the track while the body, a chord, swings out over it; across the trains
+demo's crossover no bogie is ever more than a tenth of a millimetre off the rail
+(`train_consist_test.gd`). A wreck keeps its bogies under its cars instead. One bogie mesh is
+shared by every car. The collision box and the click target still run from the railhead to the
+roof: a train touching another at bogie height has touched it.
+
 ## Getting going and stopping
 
 One speed, `current_speed`, never negative. The direction of travel (nose-first or backing) is

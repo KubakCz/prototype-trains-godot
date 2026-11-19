@@ -37,10 +37,17 @@ const _COLOR_END := Color(1.0, 0.25, 0.2)
 @export var snap_on_ready := true
 @export_tool_button("Snap Points To Surface") var _snap_button := snap_points_to_surface
 
-@export_group("Debug Draw")
-@export var debug_draw := true: set = _set_debug_draw
-## Standard gauge, in metres.
+@export_group("Track")
+## Standard gauge, in metres: between the inner faces of the two railheads. The
+## generated track ([TrackMesher]) and the trains' wheelsets are both built to it.
 @export var track_gauge := 1.435
+
+@export_group("Debug Draw")
+## Line drawing of the rail's geometry: both running rails, sleepers, chevrons
+## for the curve's own direction and its start and end. Off by default, now that
+## [TrackMesher] builds the real track; the turnout debug panel switches it on
+## for every rail at once.
+@export var debug_draw := false: set = _set_debug_draw
 @export var sleeper_spacing := 2.0
 ## Distance between the chevrons marking the rail's own direction.
 @export var arrow_spacing := 15.0
@@ -56,7 +63,7 @@ var _attachments: Array[Node] = []
 
 ## The level's ground, baked into global space. Collecting it walks every mesh
 ## below [member surface_root], and everything that stands beside the track asks
-## for a height, so the result is kept - see [method _ground_surfaces].
+## for a height, so the result is kept - see [method ground_surfaces].
 var _ground_cache: Array[SurfaceSnapper.Surface] = []
 var _ground_collected := false
 
@@ -175,7 +182,7 @@ func snap_points_to_surface() -> void:
 	if curve == null or curve.point_count == 0:
 		push_warning("Rail '%s' has no curve points to snap." % name)
 		return
-	var surfaces := _ground_surfaces()
+	var surfaces := ground_surfaces()
 	if surfaces.is_empty():
 		push_warning(("Rail '%s' found no snapping surface. Set 'surface_root', " +
 				"or add the ground to the '%s' group.") % [name, surface_group])
@@ -222,11 +229,13 @@ func _snap_handle(surfaces: Array[SurfaceSnapper.Surface], to_local: Transform3D
 
 
 func _surface_height(surfaces: Array[SurfaceSnapper.Surface], global_point: Vector3) -> Variant:
-	var height = SurfaceSnapper.height_at(surfaces, global_point.x, global_point.z)
+	var height = SurfaceSnapper.height_at(surfaces, global_point.x, global_point.z, true)
 	return null if height == null else height + surface_offset
 
 
-func _surface_nodes() -> Array[Node]:
+## The nodes the ground is made of: [member surface_root], or everything in
+## [member surface_group].
+func surface_nodes() -> Array[Node]:
 	if surface_root != null:
 		return [surface_root]
 	var nodes: Array[Node] = []
@@ -244,7 +253,7 @@ func _surface_nodes() -> Array[Node]:
 ## not added, because what asks is something standing on the ground beside the
 ## track - a signal's mast, a turnout's post - rather than on the sleepers.
 func ground_height_at(global_point: Vector3) -> Variant:
-	return SurfaceSnapper.height_at(_ground_surfaces(), global_point.x, global_point.z)
+	return SurfaceSnapper.height_at(ground_surfaces(), global_point.x, global_point.z)
 
 
 ## Frame for something standing on the ground beside the track: origin on the
@@ -276,12 +285,13 @@ func ground_frame(distance: float, heading: Vector3, side_offset: float) -> Tran
 
 ## Every ground triangle, baked once. Cached for the level's lifetime, but never
 ## in the editor: there the terrain is still being edited, and a stale cache
-## would answer for a surface that has since moved.
-func _ground_surfaces() -> Array[SurfaceSnapper.Surface]:
+## would answer for a surface that has since moved - so anything asking many
+## times over in the editor should ask once and keep the answer itself.
+func ground_surfaces() -> Array[SurfaceSnapper.Surface]:
 	if Engine.is_editor_hint():
-		return SurfaceSnapper.collect(_surface_nodes())
+		return SurfaceSnapper.collect(surface_nodes())
 	if not _ground_collected:
-		_ground_cache = SurfaceSnapper.collect(_surface_nodes())
+		_ground_cache = SurfaceSnapper.collect(surface_nodes())
 		_ground_collected = true
 	return _ground_cache
 #endregion

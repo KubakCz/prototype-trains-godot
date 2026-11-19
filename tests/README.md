@@ -2,7 +2,8 @@
 
 The regression suite for the prototype. It drives the real scenes — `scenes/main.tscn`,
 `scenes/demos/turnouts.tscn`, `scenes/demos/signals.tscn`,
-`scenes/demos/compound_turnouts.tscn`, `scenes/demos/trains.tscn` and `scenes/levels/desert.tscn`
+`scenes/demos/compound_turnouts.tscn`, `scenes/demos/trains.tscn`, `scenes/demos/structures.tscn`
+and `scenes/levels/desert.tscn`
 — so these are integration tests
 more than unit tests: they instantiate a level, run the physics, and assert on what the trains,
 turnouts and signals did.
@@ -167,6 +168,15 @@ Four things that are not like Python or TypeScript:
   128x by stepping physics that much more often while leaving the physics delta at exactly
   1/60 s, so `await physics_frames(60)` is one second of game time at any `--speed` — see
   [How fast to run the clock](#how-fast-to-run-the-clock).
+- **Only physics frames are steady.** Anything animated on the idle frame - a turnout's blades
+  swinging across - gets that frame's delta, which the sped-up clock stretches to 128/60 s: one
+  idle frame and it is over. Step such a thing by hand (the blade test calls
+  `TrackMesher._swing_blades` with the delta it wants).
+- **One scene at a time, if it has a `MarkerOverlay`.** The overlay collects turnouts and signals
+  from the whole tree, not its own scene, so while two scenes are loaded each overlay holds the
+  other's - and when one is freed the survivor's widgets point at freed nodes and every frame
+  errors. A suite that keeps scenes for its whole run (`track_mesh_test.gd` loads four in
+  `before_all`) loads nothing else meanwhile.
 - **`await` works on every hook and test without either of you declaring anything**, because a
   GDScript call that suspends hands back a signal to await and one that does not hands back its
   value. That is what `await case.call(name)` in the runner relies on, and why a plain method and
@@ -211,9 +221,11 @@ it has. Anything placed over another train collides with it, so park the others 
 | `compound_passage_test.gd` | trains through the assemblies: a three-way in all three positions both ways, a crossover crossing one direction and holding the other two, a double crossover crossing all four, a double slip opening both straight routes or both slip roads, trains driving over, taking the slip and being held, the drawn routes matching the walks |
 | `crossing_test.gd` | `Crossing`: located where the rails meet, attached to both rails, walked straight through, which trains are over it (on either rail, and a train crossing the scissors), the warnings and Locate Crossing fixing them |
 | `compound_click_test.gd` | an assembly worked through the real input path: a click on one member's marker cycles all of it, a click on the widget cycles it exactly once, hovering a member counts as the assembly (needs `-Windowed`) |
-| `debug_panel_test.gd` | the debug HUD: every section folded on open, the number keys, a click on a header, the cycle rows that carry the open presentation questions, and the `>` that follows the mouse (the last needs `-Windowed`) |
-| `train_consist_test.gd` | a train as its cars end to end, the rates coming from the consist (load slows starting and stopping, length only starting), a wagon coupled on behind, every car following the locomotive across a crossover |
+| `debug_panel_test.gd` | the debug HUD: every section folded on open, the number keys, a click on a header, the cycle rows that carry the open presentation questions, the rail-lines row, and the `>` that follows the mouse (the last needs `-Windowed`) |
+| `train_consist_test.gd` | a train as its cars end to end, the rates coming from the consist (load slows starting and stopping, length only starting), a wagon coupled on behind, every car following the locomotive across a crossover, the bogies staying on the rails with their wheels on the railheads, and a wreck keeping its bogies under it |
 | `train_braking_test.gd` | getting going at the consist's rate, the service curve into a red signal, a signal put back late stopped for harder, one put back too late overrun and the train let go - standing or still braking, the player's stop, reversing at speed, the front marker's colours |
 | `derailment_test.gd` | points thrown under a train, points set against it and the end of the line found too late, two trains touching head on and where tracks converge, trains abreast on parallel tracks not touching, a wreck staying put |
 | `train_selection_test.gd` | the selected train drawn lighter blue, the train panel's keys acting on it - stop, go, let go, the consist keys, turning round only when standing - and doing nothing to a wreck |
 | `train_click_test.gd` | selecting a train by clicking a car, a click on the ground clearing it, a click on a signal leaving it (needs `-Windowed`) |
+| `track_mesh_test.gd` | the generated track on four levels: built as each loads and in chunks, no two tracks' rails within a flangeway of each other anywhere, two blades and a frog per turnout, a diamond cut at all four corners, the blades swinging with the points, sleepers never crossing and long timbers at every turnout, buffer stops at dead ends but not in tunnels, the ballast reaching the ground, what a rebuild depends on |
+| `structures_test.gd` | `scenes/demos/structures.tscn`: three bridges and a tunnel per line in its own style, long spans split into arches, trusses with piers, a curved truss split until the track stays inside it, the tallest and widest stock fitting through, the ground cut open behind each tunnel mouth, every train running over its bridges and through its tunnel; and the playground's and the desert's structures built and cleanly configured |

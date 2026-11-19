@@ -128,11 +128,18 @@ func _ready() -> void:
 
 func _enter_tree() -> void:
 	_attach_to_rail()
+	add_to_group(Ground.STANDING_GROUP)
 
 
 func _exit_tree() -> void:
 	if rail != null:
 		rail.detach(self)
+	remove_from_group(Ground.STANDING_GROUP)
+
+
+## The ground under the mast has been cut anew (see [constant Ground.STANDING_GROUP]).
+func ground_changed() -> void:
+	_update_mast_frame()
 
 
 #region Topology
@@ -327,7 +334,7 @@ func _get_configuration_warnings() -> PackedStringArray:
 ## Mast, head and two lamps - red over green, the lit one emissive so the aspect
 ## survives being a few pixels on a zoomed-out screen. The head faces back down
 ## the track at the trains the signal governs, which is the side the lamps are
-## on. Step 6 replaces this with a real model.
+## on.
 ## Everything hangs off [member _mast], which stands on the ground rather than on
 ## the track, so the post is as long as it has to be to get from that ground up
 ## to its nominal height above the railhead.

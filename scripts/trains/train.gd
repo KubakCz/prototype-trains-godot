@@ -561,6 +561,7 @@ func derail(reason: String) -> void:
 	# of the wreck on the other route.
 	for i in _cars.size():
 		_cars[i].global_transform = _cars[i].global_transform * _wreck_pose(i)
+		_cars[i].place_bogies_under_body()
 	_refresh_look()
 	_update_state()
 	derailment.emit(reason)
@@ -930,6 +931,18 @@ func _place_on_rail() -> void:
 		var placed := Transform3D(Rail.basis_from_forward_up(forward,
 				middle.rail.sample_up(middle.distance)), (front_end + rear_end) * 0.5)
 		car.global_transform = placed * _wreck_pose(i) if derailed else placed
+		if derailed:
+			car.place_bogies_under_body()
+		else:
+			var inset := car.bogie_inset()
+			car.place_bogies(_track_frame(_locate(front, rear, nose_side - inset)),
+					_track_frame(_locate(front, rear, tail_side + inset)))
+
+
+## The track's own frame at [param location], for a bogie standing on it. Which
+## way along the rail it faces does not matter: a bogie looks the same both ways.
+static func _track_frame(location: TrackWalker.Location) -> Transform3D:
+	return location.rail.sample_transform(location.distance)
 
 
 ## [param along] metres from the centre towards the nose, or behind it when negative.

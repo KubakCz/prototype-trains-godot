@@ -67,7 +67,12 @@ static func collect(roots: Array[Node]) -> Array[Surface]:
 ## Highest surface height at [param x]/[param z], or [code]null[/code] when the
 ## column hits nothing. Returns a [Variant] so that "no surface here" stays
 ## distinguishable from "surface at height zero".
-static func height_at(surfaces: Array[Surface], x: float, z: float) -> Variant:
+##
+## With [param terrain], a [Ground] answers the terrain as authored rather than
+## its mesh, which the track has cut its bed into (see [constant Ground.SHAPER_GROUP]).
+## Whatever puts the track on the ground asks that way, so the track never
+## follows its own cut down.
+static func height_at(surfaces: Array[Surface], x: float, z: float, terrain := false) -> Variant:
 	const RAY_START_HEIGHT := 10_000.0
 	var from := Vector3(x, RAY_START_HEIGHT, z)
 	var column := Vector2(x, z)
@@ -77,7 +82,8 @@ static func height_at(surfaces: Array[Surface], x: float, z: float) -> Variant:
 		if not surface.bounds.has_point(column):
 			continue
 		if surface.ground != null:
-			var answer = surface.ground.surface_height_at(x, z)
+			var answer = surface.ground.terrain_height_at(x, z) if terrain \
+					else surface.ground.surface_height_at(x, z)
 			if answer != null and (not found or float(answer) > highest):
 				highest = float(answer)
 				found = true

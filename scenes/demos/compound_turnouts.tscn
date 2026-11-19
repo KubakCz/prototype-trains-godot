@@ -1,4 +1,4 @@
-[gd_scene load_steps=32 format=3]
+[gd_scene load_steps=33 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
 [ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="10_overlay"]
 [ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="loco_passenger"]
 [ext_resource type="Resource" path="res://rolling_stock/shunting_locomotive.tres" id="loco_shunting"]
+[ext_resource type="Script" path="res://scripts/track/track_mesher.gd" id="track_mesher"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
@@ -485,6 +486,9 @@ throttle = 0
 max_speed = 10
 end_behavior = 2
 locomotive = ExtResource("loco_shunting")
+
+[node name="Track" type="Node3D" parent="."]
+script = ExtResource("track_mesher")
 
 [node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 2, -10)

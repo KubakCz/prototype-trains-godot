@@ -1,6 +1,7 @@
 extends DebugPanel
 ## Live readout for every [Turnout], [CompoundTurnout] and [Crossing] in the
-## level, and the switches for the presentation question step 2 left open.
+## level, the switches for the presentation question step 2 left open, and one
+## for the rails' own line drawing.
 ##
 ## A compound assembly is one line with its members indented under it, since the
 ## assembly is what the player works; a crossing is one line saying which trains
@@ -23,6 +24,7 @@ extends DebugPanel
 var _turnouts: Array[Turnout] = []
 var _compounds: Array[CompoundTurnout] = []
 var _crossings: Array[Crossing] = []
+var _rail_lines := false
 
 
 func _ready() -> void:
@@ -37,22 +39,35 @@ func _panel_title() -> String:
 
 
 func _panel_controls() -> Array[String]:
-	if overlay == null:
-		return []
-	return [
-		"overlay: %s   ▸" % overlay.mode_label(),
-		"schematic text: %s   ▸" % overlay.turnout_caption_label(),
-	]
+	var rows: Array[String] = []
+	if overlay != null:
+		rows.append("overlay: %s   ▸" % overlay.mode_label())
+		rows.append("schematic text: %s   ▸" % overlay.turnout_caption_label())
+	rows.append("rail lines: %s   ▸" % ("on" if _rail_lines else "off"))
+	return rows
 
 
 func _panel_control_pressed(index: int) -> void:
 	if overlay == null:
-		return
+		# Only the rail-lines row is there.
+		index += 2
 	match index:
 		0:
 			overlay.cycle_mode()
 		1:
 			overlay.cycle_turnout_caption()
+		2:
+			_set_rail_lines(not _rail_lines)
+
+
+## Every rail's own line drawing - both running rails, sleepers, the chevrons for
+## the curve's drawn direction and its two ends - on top of the generated track.
+## Off by default; the direction chevrons are what it is mostly wanted for.
+func _set_rail_lines(shown: bool) -> void:
+	_rail_lines = shown
+	for node in get_tree().root.find_children("*", "Path3D", true, false):
+		if node is Rail:
+			(node as Rail).debug_draw = shown
 
 
 func _collect() -> void:

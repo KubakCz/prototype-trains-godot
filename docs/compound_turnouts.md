@@ -139,9 +139,10 @@ the turnout panel with its rails, its angle and who is on it. There is no widget
 it is the player's to change.
 
 **A double crossover's middle is a separate `Crossing`**, authored beside the assembly
-(`ScissorsMiddle` in the demo) rather than owned by it. The assembly does not need it, and the
-steps that do — 6's rail meshes, 8's blocks — want every crossing, not just the ones inside an
-assembly.
+(`ScissorsMiddle` in the demo) rather than owned by it. The assembly does not need it, and block
+locking (step 9), which does, wants every crossing, not just the ones inside an assembly. The
+generated track needs no `Crossing` at all: it finds where rails cross by intersecting them
+([track.md](track.md)).
 
 ## Authoring
 

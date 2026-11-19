@@ -113,7 +113,9 @@ still worth printing are the train section's, which are neither standard nor gue
 Two consequences worth knowing:
 
 - **The switches for the open presentation questions are rows, not keys** (and so are the train
-  section's two debug drawings). `_panel_controls()`
+  section's two debug drawings, and the turnout section's **rail lines** row, which switches
+  every rail's own line drawing - running rails, sleepers, the chevrons for its drawn direction -
+  on over the generated track; it is off by default since step 6). `_panel_controls()`
   returns one label per row and the base builds a `Button` for each, styled as a button (fill,
   rim, rounded corners, hover and pressed looks) so it doesn't read as more readout; a press calls
   `_panel_control_pressed(index)`. A `Button` consumes its click, which is what keeps a press on

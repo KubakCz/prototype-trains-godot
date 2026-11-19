@@ -1,4 +1,4 @@
-[gd_scene load_steps=39 format=3]
+[gd_scene load_steps=42 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
 [ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
@@ -14,6 +14,9 @@
 [ext_resource type="Script" path="res://scripts/rails/crossing.gd" id="12_crossing"]
 [ext_resource type="Image" path="res://scenes/main_heights.res" id="13_heights"]
 [ext_resource type="Script" path="res://scripts/trains/wagon_type.gd" id="17_wagon_type"]
+[ext_resource type="Script" path="res://scripts/track/track_mesher.gd" id="18_mesher"]
+[ext_resource type="Script" path="res://scripts/track/bridge.gd" id="19_bridge"]
+[ext_resource type="Script" path="res://scripts/track/tunnel.gd" id="20_tunnel"]
 [ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="14_passenger"]
 [ext_resource type="Resource" path="res://rolling_stock/freight_locomotive.tres" id="15_freight"]
 [ext_resource type="Resource" path="res://rolling_stock/shunting_locomotive.tres" id="16_shunting"]
@@ -477,6 +480,20 @@ distance_a = 111.3319
 rail_b = NodePath("../../Rails/FreightLine")
 distance_b = 170.128
 
+[node name="Structures" type="Node3D" parent="."]
+
+[node name="TunnelHillLine" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("20_tunnel")
+rail = NodePath("../../Rails/HillLine")
+from_distance = 33.5
+to_distance = 77.0
+
+[node name="BridgeHillLine" type="Node3D" parent="Structures" node_paths=PackedStringArray("rail")]
+script = ExtResource("19_bridge")
+rail = NodePath("../../Rails/HillLine")
+from_distance = 104.5
+to_distance = 126.0
+
 [node name="Signals" type="Node3D" parent="."]
 
 [node name="BalloonWestFromEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
@@ -797,6 +814,9 @@ max_speed = 6.0
 end_behavior = 1
 locomotive = ExtResource("16_shunting")
 wagons = Array[ExtResource("17_wagon_type")]([ExtResource("19_freight_wagon"), ExtResource("19_freight_wagon")])
+
+[node name="Track" type="Node3D" parent="."]
+script = ExtResource("18_mesher")
 
 [node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 2, 0)

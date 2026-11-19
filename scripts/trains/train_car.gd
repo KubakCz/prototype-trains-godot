@@ -13,6 +13,13 @@ extends Node3D
 ##
 ## Origin on the railhead between the two ends, -Z towards the train's nose, the
 ## same frame the single-box train used to have.
+##
+## The body rides [constant FLOOR_HEIGHT] above the rails on two bogies, whose
+## wheelsets are set to standard gauge. The bogies are placed by the train
+## straight onto the rail under them ([method place_bogies]), so on a curve they
+## stay on the track while the body - a chord - swings out over it. The
+## collision box and the click target still run from the railhead to the roof:
+## a train touching another one at bogie height has still touched it.
 
 ## The left mouse button on this car. The train turns it into selection.
 signal clicked
@@ -22,6 +29,15 @@ const _COLOR_WIRE := Color(1.0, 0.2, 0.85)
 const _LOAD_INSET := 0.82
 ## Height of a full load. Half full is half as tall.
 const _LOAD_HEIGHT := 1.1
+## Railhead to the underside of the body: the bogies fit under it.
+const FLOOR_HEIGHT := 1.05
+## Standard gauge, between the railheads' inner faces; the wheel treads sit on
+## the middle of the railheads, half a railhead further out.
+const GAUGE := 1.435
+const _WHEEL_RADIUS := 0.45
+const _WHEELBASE := 2.5
+const _COLOR_BOGIE := Color(0.16, 0.16, 0.17)
+const _COLOR_WHEEL := Color(0.42, 0.4, 0.38)
 
 var car_type: CarType
 var length := 1.0
@@ -34,7 +50,9 @@ var _marker: MeshInstance3D
 var _picker: StaticBody3D
 var _picker_box: BoxShape3D
 var _wire: MeshInstance3D
+var _bogies: Array[MeshInstance3D] = []
 static var _wire_material: StandardMaterial3D
+static var _bogie_mesh: ArrayMesh
 
 
 ## Shapes the car for [param type]. The materials are the train's, shared by all of
@@ -61,11 +79,21 @@ func build(type: CarType, leads: bool, load_fraction: float, body: Material,
 		_picker.input_event.connect(_on_picker_input)
 
 	var body_mesh := _body.mesh as BoxMesh
-	body_mesh.size = Vector3(width, height, length)
-	_body.position = Vector3(0.0, height * 0.5, 0.0)
+	var body_height := maxf(height - FLOOR_HEIGHT, 0.5)
+	body_mesh.size = Vector3(width, body_height, length)
+	_body.position = Vector3(0.0, height - body_height * 0.5, 0.0)
 	_body.material_override = body
-	_picker_box.size = body_mesh.size
-	_picker.position = _body.position
+	_picker_box.size = Vector3(width, height, length)
+	_picker.position = Vector3(0.0, height * 0.5, 0.0)
+	if _bogies.is_empty():
+		for i in 2:
+			var bogie := MeshInstance3D.new()
+			bogie.name = "Bogie%d" % i
+			bogie.mesh = _get_bogie_mesh()
+			# Placed in global space by the train, onto the rail under it.
+			bogie.top_level = true
+			add_child(bogie)
+			_bogies.append(bogie)
 
 	var wagon := type as WagonType
 	var carried := wagon != null and wagon.capacity > 0.0 and load_fraction > 0.0
@@ -92,6 +120,72 @@ func build(type: CarType, leads: bool, load_fraction: float, body: Material,
 				-length * 0.5 + marker_length * 0.5)
 		_marker.material_override = marker
 	_rebuild_wire()
+
+
+#region Bogies
+## How far each bogie's pivot is in from its end of the car.
+func bogie_inset() -> float:
+	return clampf(length * 0.17, minf(1.9, length * 0.5), length * 0.5)
+
+
+## Puts the two bogies onto the rail: [param front] and [param rear] are the
+## track's frame under each pivot, as the train found it by walking.
+func place_bogies(front: Transform3D, rear: Transform3D) -> void:
+	if _bogies.size() == 2:
+		_bogies[0].global_transform = front
+		_bogies[1].global_transform = rear
+
+
+## Leaves the bogies where they sit under the body - on a wreck, which is off
+## the rails anyway.
+func place_bogies_under_body() -> void:
+	var offset := length * 0.5 - bogie_inset()
+	place_bogies(global_transform * Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, -offset)),
+			global_transform * Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, offset)))
+
+
+func bogies() -> Array[MeshInstance3D]:
+	return _bogies
+
+
+## One bogie, shared by every car: two side frames, a bolster for the body to
+## sit on, and two wheelsets whose treads are on the railheads.
+static func _get_bogie_mesh() -> ArrayMesh:
+	if _bogie_mesh != null:
+		return _bogie_mesh
+	var frame := MeshSurface.new()
+	var tread := GAUGE * 0.5 + TrackLayout.HEAD_WIDTH * 0.5
+	for x: float in [-1.0, 1.0]:
+		frame.add_box(Transform3D(Basis.IDENTITY, Vector3(x * (tread + 0.22), _WHEEL_RADIUS, 0.0)),
+				Vector3(0.14, 0.4, _WHEELBASE + 0.6), _COLOR_BOGIE)
+	frame.add_box(Transform3D(Basis.IDENTITY, Vector3(0.0, 0.82, 0.0)),
+			Vector3(tread * 2.0 + 0.6, 0.26, 0.6), _COLOR_BOGIE)
+	for z: float in [-_WHEELBASE * 0.5, _WHEELBASE * 0.5]:
+		frame.add_box(Transform3D(Basis.IDENTITY, Vector3(0.0, _WHEEL_RADIUS, z)),
+				Vector3(tread * 2.0 + 0.3, 0.12, 0.12), _COLOR_BOGIE)
+		for x: float in [-tread, tread]:
+			_add_wheel(frame, Vector3(x, _WHEEL_RADIUS, z))
+	_bogie_mesh = ArrayMesh.new()
+	frame.commit(_bogie_mesh, TrackMaterials.metal())
+	return _bogie_mesh
+
+
+## A wheel as a twelve-sided disc turning about X.
+static func _add_wheel(surface: MeshSurface, centre: Vector3) -> void:
+	const SIDES := 12
+	const HALF_WIDTH := 0.065
+	for i in SIDES:
+		var a := TAU * float(i) / float(SIDES)
+		var b := TAU * float(i + 1) / float(SIDES)
+		var ra := Vector3(0.0, sin(a), cos(a)) * _WHEEL_RADIUS
+		var rb := Vector3(0.0, sin(b), cos(b)) * _WHEEL_RADIUS
+		var side := Vector3(HALF_WIDTH, 0.0, 0.0)
+		surface.add_quad_facing(centre + ra - side, centre + rb - side, centre + rb + side,
+				centre + ra + side, (ra + rb) * 0.5, _COLOR_WHEEL)
+		for x: float in [-1.0, 1.0]:
+			surface.add_triangle_facing(centre + side * x, centre + ra + side * x,
+					centre + rb + side * x, Vector3(x, 0.0, 0.0), _COLOR_WHEEL)
+#endregion
 
 
 #region Collision

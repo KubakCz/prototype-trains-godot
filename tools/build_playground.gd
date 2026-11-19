@@ -187,6 +187,9 @@ var _compounds: Array[Dictionary] = []
 var _crossings: Array[Dictionary] = []
 var _signals: Array[Dictionary] = []
 var _trains: Array[Dictionary] = []
+## Every stretch of track carving found in a tunnel or on a bridge, as a
+## [Tunnel] or [Bridge] to put in the scene: kind, rail, from, to.
+var _structures: Array[Dictionary] = []
 ## Where the wye's legs meet, and where the yard lead and the freight line cross.
 var _apex := Vector2.ZERO
 var _slip := Vector2.ZERO
@@ -751,13 +754,22 @@ func _bake_terrain() -> Image:
 		kinds.resize(columns * rows)
 		railheads.resize(columns * rows)
 		var along := 0.0
+		var run_kind := Kind.TRACK
+		var run_start := 0.0
 		while along <= curve.get_baked_length():
 			var at := curve.sample_baked(along, true)
 			var plan := Vector2(at.x, at.z)
+			var here := along
 			along += 0.5
-			if _is_flat_around(plan - SHIFT):
+			var kind := Kind.TRACK
+			if not _is_flat_around(plan - SHIFT):
+				kind = _kind(_natural(plan - SHIFT))
+			if kind != run_kind:
+				_close_structure(rail, run_kind, run_start, here)
+				run_kind = kind
+				run_start = here
+			if kind == Kind.TRACK and _is_flat_around(plan - SHIFT):
 				continue
-			var kind := _kind(_natural(plan - SHIFT))
 			if kind == Kind.TUNNEL:
 				tunnels += 0.5
 			elif kind == Kind.BRIDGE:
@@ -775,6 +787,7 @@ func _bake_terrain() -> Image:
 						nearest[index] = gap
 						kinds[index] = kind
 						railheads[index] = at.y
+		_close_structure(rail, run_kind, run_start, curve.get_baked_length())
 		for index in columns * rows:
 			var gap := nearest[index]
 			if gap > CARVE_REACH:
@@ -803,6 +816,14 @@ func _bake_terrain() -> Image:
 	return image
 
 
+## Records a finished run of tunnel or bridge along [param rail], for the scene.
+## The stone arch is the playground's bridge; the structures demo has the rest.
+func _close_structure(rail: String, kind: Kind, from: float, to: float) -> void:
+	if kind == Kind.TRACK or to - from < 2.0:
+		return
+	_structures.append({"kind": kind, "rail": rail, "from": from, "to": to})
+
+
 ## Whether the natural ground is level at [param point] and all round it as far as
 ## carving reaches - where track on its bed changes nothing, and the sample can be
 ## skipped. The hill, the gully and the pond are all far wider than the spacing here.
@@ -820,7 +841,7 @@ func _is_flat_around(point: Vector2) -> bool:
 #region Scene text
 func _scene_text() -> String:
 	var lines := PackedStringArray()
-	var resources := 13 + _STOCK.size() + 1 + 6 + _rail_order.size()
+	var resources := 13 + _STOCK.size() + 1 + 3 + 6 + _rail_order.size()
 	lines.append("[gd_scene load_steps=%d format=3]" % (resources + 1))
 	lines.append("")
 	for entry: Array in [
@@ -838,6 +859,9 @@ func _scene_text() -> String:
 		["Script", "res://scripts/rails/crossing.gd", "12_crossing"],
 		["Image", HEIGHTS_PATH, "13_heights"],
 		["Script", "res://scripts/trains/wagon_type.gd", "17_wagon_type"],
+		["Script", "res://scripts/track/track_mesher.gd", "18_mesher"],
+		["Script", "res://scripts/track/bridge.gd", "19_bridge"],
+		["Script", "res://scripts/track/tunnel.gd", "20_tunnel"],
 	]:
 		lines.append('[ext_resource type="%s" path="%s" id="%s"]' % entry)
 	for stock: String in _STOCK:
@@ -926,6 +950,22 @@ func _scene_text() -> String:
 		lines.append("distance_b = %s" % _num(crossing["distance_b"]))
 		lines.append("")
 
+	lines.append('[node name="Structures" type="Node3D" parent="."]')
+	lines.append("")
+	var counts := {}
+	for structure in _structures:
+		var is_bridge: bool = structure["kind"] == Kind.BRIDGE
+		var stem := "%s%s" % ["Bridge" if is_bridge else "Tunnel", structure["rail"]]
+		counts[stem] = int(counts.get(stem, 0)) + 1
+		var label: String = stem if counts[stem] == 1 else "%s%d" % [stem, counts[stem]]
+		lines.append('[node name="%s" type="Node3D" parent="Structures" ' % label
+				+ 'node_paths=PackedStringArray("rail")]')
+		lines.append('script = ExtResource("%s")' % ("19_bridge" if is_bridge else "20_tunnel"))
+		lines.append('rail = NodePath("../../Rails/%s")' % structure["rail"])
+		lines.append("from_distance = %s" % _num(snappedf(structure["from"], 0.5)))
+		lines.append("to_distance = %s" % _num(snappedf(structure["to"], 0.5)))
+		lines.append("")
+
 	lines.append('[node name="Signals" type="Node3D" parent="."]')
 	lines.append("")
 	for rail_signal in _signals:
@@ -957,6 +997,10 @@ func _scene_text() -> String:
 		if train["load"] > 0.0:
 			lines.append("load_factor = %s" % _num(train["load"]))
 		lines.append("")
+
+	lines.append('[node name="Track" type="Node3D" parent="."]')
+	lines.append('script = ExtResource("18_mesher")')
+	lines.append("")
 
 	lines.append_array(_camera_and_ui_text())
 	return "\n".join(lines)
