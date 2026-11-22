@@ -47,6 +47,12 @@ extends Node3D
 ## [b]Selection.[/b] A left click on any car selects the train ([method select]); a
 ## click on nothing clears it. The selected train is drawn lighter blue, and it is
 ## what the debug train panel's keys act on.
+##
+## [b]Route.[/b] A train may have a [member route]: the [InterestPoint]s it has to go
+## through, in order, the last an [OutsideConnection] it leaves the level by. When the
+## next one is a [Station] it brakes to stand with its middle on the platform's mark,
+## whatever a signal says, [i]dwells[/i] there - loading or unloading its freight - and
+## goes on. A train that clears its destination connection is taken off the level.
 
 ## Nose points towards increasing rail distance.
 const ALONG_RAIL := 1
@@ -102,6 +108,8 @@ enum State {
 	TRIPPED,
 	## Off the rails, for good. Black.
 	DERAILED,
+	## Standing at a station, for as long as the stop lasts. Cyan.
+	DWELLING,
 }
 
 ## Speeds below this, in m/s, are standing still.
@@ -129,9 +137,21 @@ const _COLOR_GREEN := Color(0.2, 0.95, 0.3)
 const _COLOR_RED := Color(0.95, 0.12, 0.1)
 const _COLOR_YELLOW := Color(1.0, 0.82, 0.1)
 const _COLOR_BLACK := Color(0.02, 0.02, 0.02)
+const _COLOR_CYAN := Color(0.2, 0.85, 1.0)
+## The share a selected locomotive's livery is lightened by.
+const _SELECTED_LIGHTEN := 0.3
+## A freight load changes in steps this big while a train dwells, so the wagons are
+## rebuilt a handful of times and not every frame.
+const _LOAD_STEP := 0.1
 
 ## Emitted once, when the train derails, with why.
 signal derailment(reason: String)
+## Emitted when the train comes to a stop at a station of its route, which is the
+## moment that stop counts as reached.
+signal reached(point: InterestPoint)
+## Emitted when the train has left the level by its destination, just before it is
+## taken off. [param completed] is whether it went through every stop of its route.
+signal route_finished(completed: bool)
 
 @export var rail: Rail: set = _set_rail
 ## Distance of the middle of the whole train along [member rail], in metres. The
@@ -146,6 +166,13 @@ signal derailment(reason: String)
 ## Top speed, in metres per second.
 @export_range(0.5, 60.0, 0.5, "suffix:m/s") var max_speed := 12.0
 @export var end_behavior := EndBehavior.TURN_AROUND
+
+@export_group("Route")
+## Where the train is going, in order, the last an [OutsideConnection]. Empty for a
+## train that just drives.
+@export var route: Array[InterestPoint] = []: set = _set_route
+## How the engine is painted. Null leaves it the same blue as the wagons.
+@export var livery: Livery: set = _set_livery
 
 @export_group("Consist")
 ## Leads the train, with the nose and the front marker. A train without one is
@@ -175,6 +202,15 @@ var blocking_turnout: Turnout
 var blocking_signal: RailSignal
 ## Whether the train is standing against a dead end.
 var at_dead_end := false
+## How many stops of [member route] it has reached, so the index of the next one.
+var route_index := 0: set = _set_route_index
+## The station the train is standing at, while it dwells there.
+var dwelling_at: Station
+## Set when the train leaves by its destination: whether it went through every stop.
+var completed := false
+## Counts the trains that have come on to the level, in the order they did. What the
+## route list sorts by.
+var arrival_index := 0
 ## What the front marker shows. See [enum State].
 var state := State.DRIVING
 ## The deceleration applied this frame, in m/s². Zero when not braking.
@@ -188,6 +224,7 @@ var obstruction_gap := INF
 var stop_gap := INF
 
 static var _selected: Train
+static var _arrivals := 0
 ## Draw the selected train's stopping distance on the track. A debug panel row.
 static var show_stopping_strip := true
 ## Draw every car's collision box. A debug panel row.
@@ -226,6 +263,12 @@ var _points_dirty := true
 var _front: TrackWalker.Step
 var _rear: TrackWalker.Step
 var _strip: MeshInstance3D
+var _icons: RouteIcons
+var _loco_material: StandardMaterial3D
+var _stripe_material: StandardMaterial3D
+var _dwell_left := 0.0
+var _dwell_total := 0.0
+var _load_before := 0.0
 var _pending_click := false
 var _click_at := Vector2.ZERO
 ## Set while a new position is written field by field, so the body is placed once
@@ -239,6 +282,12 @@ func _ready() -> void:
 	_place_on_rail()
 	var running := not Engine.is_editor_hint()
 	if running:
+		_arrivals += 1
+		arrival_index = _arrivals
+		_icons = RouteIcons.new()
+		_icons.name = "RouteIcons"
+		add_child(_icons, false, Node.INTERNAL_MODE_BACK)
+		_icons.follow(self)
 		add_to_group(GROUP)
 		# Same as [Turnout] and [RailSignal]: without this a car never sees a click.
 		get_viewport().physics_object_picking = true
@@ -261,6 +310,8 @@ func _physics_process(delta: float) -> void:
 		if not derailed:
 			_drive(delta)
 		if not derailed:
+			_check_route_end()
+		if not derailed and not is_queued_for_deletion():
 			if _points_dirty:
 				_points_under = _find_points_under()
 				_points_dirty = false
@@ -292,6 +343,9 @@ func _drive(delta: float) -> void:
 	at_dead_end = false
 	braking = 0.0
 	_braking_for_obstruction = false
+	if _dwell_left > 0.0:
+		_dwell(delta)
+		return
 	if current_speed <= _STANDING:
 		current_speed = 0.0
 		if not tripped:
@@ -327,6 +381,15 @@ func _drive(delta: float) -> void:
 		gap = maxf(limit - STOP_SHORT, 0.0)
 		if not _can_stop_within(gap, full):
 			gap = limit
+	# The next stop on the route, if it is a station, is stopped at - a signal at clear
+	# does not matter - whenever it comes before anything else the train would stop
+	# for. A train that is too fast for the brakes to make it simply passes it.
+	var station: Station = null
+	if not tripped:
+		var station_gap := _station_gap(ahead)
+		if station_gap < gap and _can_stop_within(station_gap, full):
+			gap = station_gap
+			station = next_station()
 	_ahead = ahead
 	obstruction_gap = limit
 	stop_gap = gap
@@ -386,6 +449,9 @@ func _drive(delta: float) -> void:
 	if travel > 0.0:
 		_move(direction, travel)
 
+	if station != null and current_speed == 0.0 and stop - travel <= _HELD_GAP:
+		_arrive_at(station)
+		return
 	if (current_speed == 0.0 and throttle != 0 and not is_inf(stop)
 			and stop - travel <= _HELD_GAP):
 		blocking_turnout = ahead.blocking_turnout
@@ -458,6 +524,22 @@ func roll(speed: float) -> void:
 		return
 	_motion = signi(throttle)
 	current_speed = clampf(speed, 0.0, max_speed)
+
+
+## A rolling start that the train can still stop from: [param speed], less if the first
+## red signal or dead end ahead is too near to stop for at the service rate at that
+## speed. For a train that arrives, so it never comes in too fast for the signal that
+## is waiting for it.
+func roll_safely(speed: float) -> void:
+	if derailed or throttle == 0:
+		return
+	var cap := speed
+	var half := half_length()
+	var ahead := TrackWalker.walk(rail, distance, signi(throttle) * facing, 600.0 + half, half)
+	if ahead.blocking_signal != null or ahead.at_dead_end:
+		var gap := maxf(ahead.travelled - half - STOP_SHORT, 0.0)
+		cap = minf(cap, sqrt(2.0 * service_brake_rate() * gap))
+	roll(cap)
 
 
 ## Lets a tripped train go: the brakes come off and it drives on, past the signal
@@ -555,6 +637,8 @@ func derail(reason: String) -> void:
 	blocking_turnout = null
 	blocking_signal = null
 	at_dead_end = false
+	dwelling_at = null
+	_dwell_left = 0.0
 	_excused.clear()
 	# Knocked askew from exactly where each car stands, rather than placed again:
 	# with points just thrown under it, walking the train out again would put half
@@ -641,6 +725,125 @@ static func _wreck_pose(index: int) -> Transform3D:
 #endregion
 
 
+#region Route
+## The point the train is going to next, or null once the route is done (or with none).
+func next_stop() -> InterestPoint:
+	return route[route_index] if route_index < route.size() else null
+
+
+## The next stop, if it is a station: the one the train brakes for.
+func next_station() -> Station:
+	return next_stop() as Station
+
+
+## Where the train leaves the level: the last stop, if it is an [OutsideConnection].
+func destination() -> OutsideConnection:
+	return route.back() as OutsideConnection if not route.is_empty() else null
+
+
+## The row of shapes floating over the train, once it is running.
+func route_icons() -> RouteIcons:
+	return _icons
+
+
+## The stops of the route still to come, nearest first.
+func remaining_stops() -> Array[InterestPoint]:
+	var left: Array[InterestPoint] = []
+	for i in range(route_index, route.size()):
+		left.append(route[i])
+	return left
+
+
+## How far the middle of the train has to go to stand on the next station's mark, or
+## INF when the next stop is not a station or its mark is not on what the train looks
+## at ahead.
+func _station_gap(ahead: TrackWalker.Step) -> float:
+	var station := next_station()
+	if station == null:
+		return INF
+	var best := INF
+	for track in station.tracks():
+		var along := 0.0
+		for span in ahead.spans:
+			if span.covers(track.rail, track.distance):
+				best = minf(best, along + absf(track.distance - span.from))
+			along += absf(span.to - span.from)
+	return best
+
+
+## Stood on a station's mark: the stop counts as reached, and the dwell begins.
+func _arrive_at(station: Station) -> void:
+	route_index += 1
+	dwell_at(station)
+	reached.emit(station)
+
+
+## Starts standing at [param station] for its dwell time, as a train that has just come
+## to a stop on its mark does. Also how a train is put down at a station when the level
+## starts. Leaves the route alone.
+func dwell_at(station: Station) -> void:
+	current_speed = 0.0
+	dwelling_at = station
+	_dwell_left = station.dwell_time
+	_dwell_total = station.dwell_time
+	_load_before = load_factor
+	if _dwell_left <= 0.0:
+		_apply_cargo(1.0)
+		dwelling_at = null
+
+
+func _dwell(delta: float) -> void:
+	current_speed = 0.0
+	_dwell_left = maxf(_dwell_left - delta, 0.0)
+	_apply_cargo(1.0 - _dwell_left / _dwell_total if _dwell_total > 0.0 else 1.0)
+	if _dwell_left <= 0.0:
+		dwelling_at = null
+
+
+## What the station does to the freight, [param progress] of the way through the stop.
+func _apply_cargo(progress: float) -> void:
+	if dwelling_at == null or dwelling_at.cargo == Station.Cargo.NONE or not _carries_freight():
+		return
+	var target := 1.0 if dwelling_at.cargo == Station.Cargo.LOAD else 0.0
+	var now := target
+	if progress < 1.0:
+		now = snappedf(lerpf(_load_before, target, progress), _LOAD_STEP)
+	if not is_equal_approx(now, load_factor):
+		load_factor = now
+
+
+func _carries_freight() -> bool:
+	for wagon in wagons:
+		if wagon != null and wagon.capacity > 0.0:
+			return true
+	return false
+
+
+## A train with both ends out past the mark of its destination has left the level.
+func _check_route_end() -> void:
+	var out := destination()
+	if out == null or _front == null or Engine.is_editor_hint() or is_queued_for_deletion():
+		return
+	var half := half_length()
+	if out.has_left(_front.locate(half), _rear.locate(half), at_dead_end):
+		completed = route_index >= route.size() - 1
+		route_finished.emit(completed)
+		queue_free()
+
+
+func _set_route(value: Array[InterestPoint]) -> void:
+	route = value
+	route_index = 0
+	update_configuration_warnings()
+
+
+func _set_route_index(value: int) -> void:
+	route_index = value
+	if _icons != null:
+		_icons.refresh()
+#endregion
+
+
 #region Selection
 ## Makes this the selected train, and no other.
 func select() -> void:
@@ -709,6 +912,8 @@ func _update_state() -> void:
 		state = State.DERAILED
 	elif tripped:
 		state = State.TRIPPED
+	elif dwelling_at != null:
+		state = State.DWELLING
 	elif _braking_for_obstruction:
 		state = State.BRAKING
 	elif blocking_turnout != null or blocking_signal != null or at_dead_end:
@@ -730,6 +935,8 @@ static func state_color(of: State) -> Color:
 			return _COLOR_YELLOW
 		State.DERAILED:
 			return _COLOR_BLACK
+		State.DWELLING:
+			return _COLOR_CYAN
 		_:
 			return _COLOR_GREEN
 
@@ -762,7 +969,24 @@ func _refresh_look() -> void:
 		_body_material.albedo_color = _COLOR_WRECK_SELECTED if selected else _COLOR_WRECK
 	else:
 		_body_material.albedo_color = _COLOR_BODY_SELECTED if selected else _COLOR_BODY
+	# The engine's paint, when it has some: a wreck is grey like the rest of it, and a
+	# selected one is lightened, which the wagons - plain blue - show by going lighter.
+	if livery != null and _loco_material != null:
+		if derailed:
+			_loco_material.albedo_color = _body_material.albedo_color
+			_stripe_material.albedo_color = _body_material.albedo_color.lightened(0.25)
+		else:
+			_loco_material.albedo_color = (livery.body.lerp(Color.WHITE, _SELECTED_LIGHTEN)
+					if selected else livery.body)
+			_stripe_material.albedo_color = livery.stripe
 	_paint_marker()
+
+
+## What the locomotive is painted: its livery, or the same as the wagons without one.
+func engine_color() -> Color:
+	if livery != null and _loco_material != null:
+		return _loco_material.albedo_color
+	return body_color()
 
 
 ## What every car's body is painted: blue, lighter while selected, grey once wrecked.
@@ -774,6 +998,8 @@ func body_color() -> Color:
 func blocked_description() -> String:
 	if derailed:
 		return "derailed: %s" % derail_reason
+	if dwelling_at != null:
+		return "at %s, %.1f s more" % [dwelling_at.label(), _dwell_left]
 	if blocking_signal != null:
 		return "held at %s (danger)" % blocking_signal.name
 	if blocking_turnout != null:
@@ -1079,9 +1305,12 @@ func _rebuild_cars() -> void:
 		add_child(car, false, Node.INTERNAL_MODE_BACK)
 		car.clicked.connect(_on_car_clicked)
 		_cars.append(car)
+	var painted := livery != null
 	for i in types.size():
-		_cars[i].build(types[i], i == 0, load_factor, _body_material, _load_material,
-				_marker_material)
+		var engine := i == 0 and painted
+		_cars[i].build(types[i], i == 0, load_factor,
+				_loco_material if engine else _body_material, _load_material, _marker_material,
+				_stripe_material if engine and livery.striped else null)
 	_update_state()
 	_refresh_look()
 	_place_on_rail()
@@ -1096,6 +1325,8 @@ func _ensure_materials() -> void:
 	_load_material.albedo_color = _COLOR_LOAD
 	_marker_material = StandardMaterial3D.new()
 	_marker_material.emission_enabled = true
+	_loco_material = StandardMaterial3D.new()
+	_stripe_material = StandardMaterial3D.new()
 
 
 ## Listens to every type the train is built from, so editing a shared type in the
@@ -1131,6 +1362,15 @@ func _set_wagons(value: Array[WagonType]) -> void:
 	wagons = value
 	_rebuild_cars()
 	update_configuration_warnings()
+
+
+func _set_livery(value: Livery) -> void:
+	if livery != null and livery.changed.is_connected(_rebuild_cars):
+		livery.changed.disconnect(_rebuild_cars)
+	livery = value
+	if livery != null:
+		livery.changed.connect(_rebuild_cars)
+	_rebuild_cars()
 
 
 func _set_load_factor(value: float) -> void:

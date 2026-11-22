@@ -91,10 +91,20 @@ scripts/rails/track_walker.gd     TrackWalker : RefCounted — arc length across
 scripts/rails/surface_snapper.gd  SurfaceSnapper        — ground raycasts
 scripts/trains/train.gd           Train       : Node3D   — a locomotive and wagons driving the network
 scripts/trains/train_car.gd       TrainCar    : Node3D   — one car: its boxes, click target, collision box
+scripts/trains/livery.gd          Livery      : Resource — how a locomotive is painted: a colour, plain or striped
+scripts/trains/train_type.gd      TrainType   : Resource — a recipe for a train the spawner may make
+scripts/trains/route_icons.gd     RouteIcons  : Node3D   — the row of shapes over a train showing its route
 scripts/trains/car_type.gd        CarType     : Resource — a vehicle's size, mass and brakes
 scripts/trains/locomotive_type.gd LocomotiveType : CarType — adds traction
 scripts/trains/wagon_type.gd      WagonType   : CarType  — adds capacity
 rolling_stock/*.tres                                     — the shared locomotive and wagon types
+train_types/*.tres                                       — the train types spawners pick from
+scripts/traffic/interest_point.gd InterestPoint : Node3D — somewhere trains are going: marker, colour, name
+scripts/traffic/interest_track.gd InterestTrack : Node   — one track of an interest point: a rail and a mark on it
+scripts/traffic/station.gd        Station     : InterestPoint — trains stop here, dwell, load or unload
+scripts/traffic/outside_connection.gd OutsideConnection : InterestPoint — a way on to and off the level
+scripts/traffic/train_route.gd    TrainRoute  : Node     — one line of a level's list of routes
+scripts/traffic/train_spawner.gd  TrainSpawner : Node    — puts trains on the level and counts them
 scripts/world/ground.gd           Ground      : MeshInstance3D — procedural or baked-heightmap terrain
 scripts/track/track_mesher.gd     TrackMesher : Node3D   — one per level: builds the track meshes, rebuilds in the editor
 scripts/track/track_layout.gd     TrackLayout : RefCounted — running lines and their cuts, blades, check rails, sleepers
@@ -110,11 +120,14 @@ scripts/ui/track_marker_widget.gd TrackMarkerWidget  : Control — base: follow,
 scripts/ui/turnout_widget.gd      TurnoutWidget      : TrackMarkerWidget
 scripts/ui/signal_widget.gd       SignalWidget       : TrackMarkerWidget
 scripts/ui/compound_turnout_widget.gd CompoundTurnoutWidget : TrackMarkerWidget — an assembly's one control
+scripts/ui/route_list_view.gd     RouteListView : Control — the route list's drawn body
 scripts/debug/camera_rig.gd       CameraRig   : Node3D   — orbit camera (debug)
 scripts/debug/debug_panel.gd      DebugPanel  : PanelContainer — a collapsible HUD section
 scripts/debug/train_debug_panel.gd            : DebugPanel — driving keys (debug)
 scripts/debug/turnout_debug_panel.gd          : DebugPanel — turnout keys (debug)
 scripts/debug/signal_debug_panel.gd           : DebugPanel — signal + presentation keys
+scripts/debug/interest_debug_panel.gd InterestDebugPanel : DebugPanel — interest points, spawner counts, names switch
+scripts/debug/route_list_panel.gd RouteListPanel : DebugPanel — the route list and the icons/list switch
 
 tests/framework/test_case.gd      TestCase       : RefCounted — the base class suites extend
 tests/framework/test_runner.gd                   : SceneTree — discovery, reporting, exit code
@@ -122,6 +135,7 @@ tests/support/turnout_demo_case.gd TurnoutDemoCase — fixture for the turnout d
 tests/support/signal_demo_case.gd  SignalDemoCase  — fixture for the signal demo layout
 tests/support/compound_demo_case.gd CompoundDemoCase — fixture for the compound turnout demo
 tests/support/train_demo_case.gd  TrainDemoCase   — fixture for the trains demo
+tests/support/stations_demo_case.gd StationsDemoCase — fixture for the stations demo
 tests/*_test.gd                                  — the suites themselves
 
 tools/build_playground.gd                        : SceneTree — writes scenes/main.tscn + its heightmap
@@ -142,11 +156,14 @@ straight lines abreast: an express, a loaded and an empty freight to compare, a 
 in front of a train, a crossover to throw under one and a stalled train to run into),
 `scenes/demos/structures.tscn` (**generated** by `tools/build_structures_demo.gd`: three lines, one
 per bridge style, each over a short, a middling and a long gully and through a ridge, a train
-shuttling on each) and
+shuttling on each), `scenes/demos/stations.tscn` (the trains demo's three lines with two gates,
+a three-track station, a mine, a factory and a spawner with five routes - hand-written, see
+[docs/stations.md](docs/stations.md)) and
 `scenes/levels/desert.tscn` (a whole
 level rebuilt from a reference - a balloon loop round a lake with a scissors crossover, a wye, a
-tunnel under a ridge and a bridge over a gully, sixteen signals - on a baked terrain carved to fit
-the track; see [docs/level_authoring.md](docs/level_authoring.md)). All seven are driven by the tests
+tunnel under a ridge and a bridge over a gully, sixteen signals, four gates, five stations and a
+spawner - on a baked terrain carved to fit
+the track; see [docs/level_authoring.md](docs/level_authoring.md)). All eight are driven by the tests
 under `tests/`; keep them working. Every one has a `Track` node (`TrackMesher`): without it the
 rails are not drawn at all, since their own line drawing (`Rail.debug_draw`) is off by default.
 
@@ -197,6 +214,7 @@ the design record for its step, including the cases that look like bugs and are 
 | [docs/turnouts.md](docs/turnouts.md) | the three legs, the passage table, refusal, what is authored vs. derived, the presentation modes and the schematic caption |
 | [docs/compound_turnouts.md](docs/compound_turnouts.md) | assemblies of turnouts worked as one, their positions and single control, routes found by walking, crossings and their occupants |
 | [docs/trains.md](docs/trains.md) | consists and rolling-stock types, acceleration and braking, what a train stops for, overrunning, derailment and collisions, the front marker, selection |
+| [docs/stations.md](docs/stations.md) | interest points, stations and outside connections, routes, the spawner, what a train does at a station and on leaving, liveries, the two ways a route is shown |
 | [docs/signals.md](docs/signals.md) | which direction a signal governs, the stopping rule written from the nose, `signals_from`, the three widget styles |
 | [docs/ui.md](docs/ui.md) | interface scale, the floating marker layer and its de-cluttering, the debug HUD's panels and keys |
 | [docs/level_authoring.md](docs/level_authoring.md) | snapping rails to the terrain, and welding a branch onto a turnout (with and without the editor) |
@@ -447,4 +465,15 @@ the cycle rows in the debug panels are where they live. See the end of [docs/ui.
   `Rail`, and naming it back would make the two scripts mutually dependent. `TrackWalker` casts.
   For the same reason `Turnout.Exit` is an inner class of `Turnout` rather than of the walker,
   and `Turnout.assembly` is typed `Node3D` rather than `CompoundTurnout`.
-
+- **A class that Train names cannot name Train back.** `OutsideConnection.spawn_pose` returns the
+  facing as a bare `1` / `-1` rather than `Train.ALONG_RAIL`, for the same reason `Rail` holds
+  `Array[Node]`: `Train` names `InterestPoint`, `Station` and `OutsideConnection`, and a cycle of
+  class names between scripts is where the parser starts failing on things that look fine.
+- **A level with a `TrainSpawner` has no trains in `_ready`.** The initial ones are placed a frame
+  later (`_spawn_initial.call_deferred()`), because the rails have to have settled first. Anything
+  that looked at the `trains` group at start - the train panel's "No trains" warning did, and the
+  level tests forbid warnings - has to check for a spawner too.
+- **A train that frees itself cannot be captured by a lambda.** `drive_until(func(): return
+  train.x)` over a train that has left the level prints "Lambda capture at index 0 was freed" on
+  every frame after, and the test still passes. Ask by `get_instance_id()` and
+  `is_instance_id_valid()` - see `spawner_test.gd`.

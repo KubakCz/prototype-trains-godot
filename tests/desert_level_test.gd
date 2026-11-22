@@ -2,13 +2,13 @@ extends TestCase
 ## scenes/levels/desert.tscn: a level rebuilt from a reference layout, on a baked
 ## terrain. Its rails are not snapped to the ground - the ground was carved to fit
 ## them - so the things worth asserting are that the two agree, that every
-## junction connects the way the reference does, and that the level opens with a
-## train waiting at each entry signal.
+## junction connects the way the reference does, and that a train spawned at each
+## connection runs up to the entry signal waiting for it.
 ##
-## Built once and run for 1800 physics frames (30 s of game time) in before_all:
-## long enough for the three arrivals to come out of their tunnels and reach their
-## signals. Every test after that either reads the settled state or walks the
-## network, putting back whatever points it set.
+## Built once and run for 1800 physics frames (30 s of game time) in before_all, with
+## the spawner switched off so that no train arrives by chance: the tests that want one
+## place it themselves. Every test after that either reads the settled state or walks
+## the network, putting back whatever points it set.
 
 const LEVEL := "res://scenes/levels/desert.tscn"
 const SETTLE_FRAMES := 1800
@@ -26,7 +26,7 @@ var _rails: Array[Rail] = []
 
 
 func before_all() -> void:
-	_scene = await load_scene(LEVEL)
+	_scene = await load_scene(LEVEL, _silence_spawner)
 	for turnout: Turnout in _scene.get_node("Turnouts").get_children():
 		_turnouts.append(turnout)
 	for compound: CompoundTurnout in _scene.get_node("Compounds").get_children():
@@ -34,6 +34,13 @@ func before_all() -> void:
 	for rail: Rail in _scene.get_node("Rails").get_children():
 		_rails.append(rail)
 	await physics_frames(SETTLE_FRAMES)
+
+
+## No train arrives by itself, and none is put down when the level loads.
+func _silence_spawner(scene: Node) -> void:
+	var spawner: TrainSpawner = scene.get_node("Spawner")
+	spawner.initial_trains = 0
+	spawner.min_spawn_interval = 600.0
 
 
 func test_every_turnout_is_welded_to_its_branch() -> void:
@@ -50,8 +57,13 @@ func test_every_turnout_is_welded_to_its_branch() -> void:
 func test_the_level_has_no_configuration_warnings() -> void:
 	var nodes: Array[Node] = []
 	nodes.append_array(_turnouts)
-	for group: StringName in [&"compound_turnouts", &"crossings", &"signals", &"trains"]:
+	for group: StringName in [&"compound_turnouts", &"crossings", &"signals", &"trains",
+			InterestPoint.GROUP, TrainSpawner.GROUP]:
 		nodes.append_array(tree.get_nodes_in_group(group))
+	for spawner: TrainSpawner in tree.get_nodes_in_group(TrainSpawner.GROUP):
+		nodes.append_array(spawner.routes())
+	for point: InterestPoint in tree.get_nodes_in_group(InterestPoint.GROUP):
+		nodes.append_array(point.tracks())
 	for node: Node in nodes:
 		var warnings: PackedStringArray = node._get_configuration_warnings()
 		if not warnings.is_empty():
@@ -139,18 +151,27 @@ func test_the_ridge_line_crosses_the_tunnel_line_well_above_it() -> void:
 				"and the lower one is in a tunnel there")
 
 
-## Every train comes out of a tunnel at the edge of the level and runs up to the
-## first signal, which is at danger - the level is meant to open with the
-## dispatcher's first decisions already waiting.
+## A train comes out of a tunnel at the edge of the level and runs up to the first
+## signal, which is at danger - the level is meant to be playable by dispatching what
+## waits there. One spawned at each of the three connections the old level opened with a
+## train at, by its own route: the east line's stops at East Halt on the way.
 func test_each_arrival_is_held_at_its_entry_signal() -> void:
-	for pair: Array in [["WestArrival", "WestEntry"], ["NorthArrival", "NorthEntry"],
-			["EastArrival", "EastEntry"]]:
-		var train: Train = _scene.get_node("Trains/" + str(pair[0]))
-		var rail_signal: RailSignal = _scene.get_node("Signals/" + str(pair[1]))
+	var spawner: TrainSpawner = _scene.get_node("Spawner")
+	for row: Array in [["ExpressEastbound", "WestGate", "WestEntry"],
+			["RidgeLocal", "NorthGate", "NorthEntry"], ["HaltLocal", "EastGate", "EastEntry"]]:
+		var route: TrainRoute = spawner.get_node(str(row[0]))
+		var gate: OutsideConnection = _scene.get_node("Interest/" + str(row[1]))
+		var rail_signal: RailSignal = _scene.get_node("Signals/" + str(row[2]))
+		var train := spawner.spawn_at(route, gate, gate.tracks()[0], route.train_types[0])
+		if not assert_not_null(train, "a train fits on %s" % gate.name):
+			continue
+		await physics_frames(2400)
 		note("%-12s on %-10s @ %6.1f m  %s" % [train.name, train.rail.name, train.distance,
 				train.blocked_description()])
 		assert_eq(train.blocking_signal, rail_signal, "%s is held at %s" % [train.name,
 				rail_signal.name])
+		train.queue_free()
+		await physics_frames(2)
 
 
 ## The loop round the lake is a balloon: a train leaving the north line over the

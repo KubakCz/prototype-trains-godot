@@ -153,16 +153,22 @@ func skip(reason: String) -> void:
 ## Instantiates a scene, adds it to the tree, lets it settle for two physics frames
 ## and hands it back. It is freed automatically after the test.
 ##
+## [param prepare], if given, is called with the new node before it enters the tree,
+## for what has to be set before the scene's own [code]_ready[/code] runs.
+##
 ## Physics frames rather than idle frames because the runner speeds the clock up by
 ## stepping physics more often per idle frame: waiting on [signal SceneTree.process_frame]
 ## would advance the simulation by however many steps happened to fit, and a scene
 ## would start each run somewhere slightly different.
-func load_scene(path: String) -> Node:
+func load_scene(path: String, prepare := Callable()) -> Node:
 	var packed: PackedScene = load(path)
 	if packed == null:
 		fail("%s loads" % path, "load() returned null")
 		return null
 	var node := packed.instantiate()
+	# Whatever has to be set before the scene's own _ready runs: a spawner's seed.
+	if prepare.is_valid():
+		prepare.call(node)
 	tree.root.add_child(node)
 	_owned.append(node)
 	await tree.physics_frame
@@ -284,9 +290,10 @@ func _take_result() -> Dictionary:
 ## Frees what the test just took, leaving anything from [method before_all] alone.
 func _release_owned() -> void:
 	while _owned.size() > _owned_mark:
-		var node: Node = _owned.pop_back()
+		# A Variant: a node the test freed itself cannot be held in a typed variable.
+		var node: Variant = _owned.pop_back()
 		if is_instance_valid(node):
-			node.queue_free()
+			(node as Node).queue_free()
 
 
 ## Frees the lot, once the suite is done with it.

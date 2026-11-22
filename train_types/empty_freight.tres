@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TrainType" format=3]
+
+[ext_resource type="Script" path="res://scripts/trains/train_type.gd" id="1_type"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_locomotive.tres" id="2_loco"]
+[ext_resource type="Resource" path="res://rolling_stock/freight_wagon.tres" id="3_wagon"]
+
+[resource]
+script = ExtResource("1_type")
+display_name = "Empty freight"
+locomotive = ExtResource("2_loco")
+wagon = ExtResource("3_wagon")
+min_wagons = 2
+max_wagons = 4
+min_load = 0.0
+max_load = 0.0
+max_speed = 12.0

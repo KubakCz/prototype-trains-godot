@@ -27,6 +27,8 @@ signal clicked
 const _COLOR_WIRE := Color(1.0, 0.2, 0.85)
 ## How far the load block is inset from the wagon's sides and ends.
 const _LOAD_INSET := 0.82
+## How much of the body's height the livery stripe is.
+const _STRIPE_SHARE := 0.3
 ## Height of a full load. Half full is half as tall.
 const _LOAD_HEIGHT := 1.1
 ## Railhead to the underside of the body: the bogies fit under it.
@@ -47,6 +49,7 @@ var height := 1.0
 var _body: MeshInstance3D
 var _load: MeshInstance3D
 var _marker: MeshInstance3D
+var _stripe: MeshInstance3D
 var _picker: StaticBody3D
 var _picker_box: BoxShape3D
 var _wire: MeshInstance3D
@@ -58,9 +61,10 @@ static var _bogie_mesh: ArrayMesh
 ## Shapes the car for [param type]. The materials are the train's, shared by all of
 ## its cars, so recolouring a train is three material writes however long it is.
 ## [param load_fraction] is how full it is - only a wagon with a capacity shows a
-## load at all - and [param leads] puts the front marker on it.
+## load at all - and [param leads] puts the front marker on it. A [param stripe]
+## material puts a band of that colour round the middle of the body.
 func build(type: CarType, leads: bool, load_fraction: float, body: Material,
-		load_material: Material, marker: Material) -> void:
+		load_material: Material, marker: Material, stripe: Material = null) -> void:
 	car_type = type
 	length = type.length
 	width = type.width
@@ -83,6 +87,7 @@ func build(type: CarType, leads: bool, load_fraction: float, body: Material,
 	body_mesh.size = Vector3(width, body_height, length)
 	_body.position = Vector3(0.0, height - body_height * 0.5, 0.0)
 	_body.material_override = body
+	_build_stripe(stripe, body_height)
 	_picker_box.size = Vector3(width, height, length)
 	_picker.position = Vector3(0.0, height * 0.5, 0.0)
 	if _bogies.is_empty():
@@ -120,6 +125,22 @@ func build(type: CarType, leads: bool, load_fraction: float, body: Material,
 				-length * 0.5 + marker_length * 0.5)
 		_marker.material_override = marker
 	_rebuild_wire()
+
+
+## The band round the body: a thin box a little bigger than the body, so it shows on
+## the sides and both ends and not on the roof.
+func _build_stripe(material: Material, body_height: float) -> void:
+	if material == null:
+		if _stripe != null:
+			_stripe.visible = false
+		return
+	if _stripe == null:
+		_stripe = _add_mesh("Stripe")
+	_stripe.visible = true
+	var band := body_height * _STRIPE_SHARE
+	(_stripe.mesh as BoxMesh).size = Vector3(width + 0.06, band, length + 0.06)
+	_stripe.position = Vector3(0.0, height - body_height * 0.5, 0.0)
+	_stripe.material_override = material
 
 
 #region Bogies

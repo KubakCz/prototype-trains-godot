@@ -1,8 +1,7 @@
-[gd_scene load_steps=35 format=3]
+[gd_scene load_steps=41 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
 [ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
-[ext_resource type="Script" path="res://scripts/trains/train.gd" id="3_train"]
 [ext_resource type="Script" path="res://scripts/debug/camera_rig.gd" id="4_camera"]
 [ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="5_panel"]
 [ext_resource type="Script" path="res://scripts/rails/turnout.gd" id="6_turnout"]
@@ -14,14 +13,22 @@
 [ext_resource type="Script" path="res://scripts/rails/crossing.gd" id="12_crossing"]
 [ext_resource type="Image" path="res://scenes/levels/desert_heights.res" id="13_heights"]
 [ext_resource type="ArrayMesh" path="res://scenes/levels/desert_river.res" id="14_river"]
-[ext_resource type="Resource" path="res://rolling_stock/coach.tres" id="wagon_coach"]
-[ext_resource type="Resource" path="res://rolling_stock/freight_locomotive.tres" id="loco_freight"]
-[ext_resource type="Resource" path="res://rolling_stock/freight_wagon.tres" id="wagon_freight"]
-[ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="loco_passenger"]
-[ext_resource type="Script" path="res://scripts/trains/wagon_type.gd" id="wagon_type_script"]
 [ext_resource type="Script" path="res://scripts/track/track_mesher.gd" id="track_mesher"]
 [ext_resource type="Script" path="res://scripts/track/bridge.gd" id="bridge_script"]
 [ext_resource type="Script" path="res://scripts/track/tunnel.gd" id="tunnel_script"]
+
+[ext_resource type="Script" path="res://scripts/traffic/station.gd" id="st_station"]
+[ext_resource type="Script" path="res://scripts/traffic/outside_connection.gd" id="st_connection"]
+[ext_resource type="Script" path="res://scripts/traffic/interest_track.gd" id="st_track"]
+[ext_resource type="Script" path="res://scripts/traffic/train_route.gd" id="st_route"]
+[ext_resource type="Script" path="res://scripts/traffic/train_spawner.gd" id="st_spawner"]
+[ext_resource type="Script" path="res://scripts/trains/train_type.gd" id="st_type_script"]
+[ext_resource type="Resource" path="res://train_types/express.tres" id="st_express"]
+[ext_resource type="Resource" path="res://train_types/local.tres" id="st_local"]
+[ext_resource type="Resource" path="res://train_types/loaded_freight.tres" id="st_loaded"]
+[ext_resource type="Resource" path="res://train_types/empty_freight.tres" id="st_empty"]
+[ext_resource type="Script" path="res://scripts/debug/interest_debug_panel.gd" id="st_ipanel"]
+[ext_resource type="Script" path="res://scripts/debug/route_list_panel.gd" id="st_rpanel"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.36, 0.52, 0.78, 1)
@@ -382,33 +389,143 @@ governs = 0
 
 [node name="Trains" type="Node3D" parent="."]
 
-[node name="WestArrival" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
-script = ExtResource("3_train")
-rail = NodePath("../../Rails/BottomLine")
-distance = 26.0
-facing = 1
-max_speed = 14
-locomotive = ExtResource("loco_passenger")
-wagons = Array[ExtResource("wagon_type_script")]([ExtResource("wagon_coach"), ExtResource("wagon_coach")])
+[node name="Interest" type="Node3D" parent="."]
 
-[node name="NorthArrival" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
-script = ExtResource("3_train")
-rail = NodePath("../../Rails/NorthLine")
-distance = 30.0
-facing = 1
-max_speed = 10
-locomotive = ExtResource("loco_freight")
-wagons = Array[ExtResource("wagon_type_script")]([ExtResource("wagon_freight"), ExtResource("wagon_freight"), ExtResource("wagon_freight")])
-load_factor = 1.0
+[node name="WestGate" type="Node3D" parent="Interest"]
+script = ExtResource("st_connection")
+display_name = "West Gate"
 
-[node name="EastArrival" type="Node3D" parent="Trains" groups=["trains"] node_paths=PackedStringArray("rail")]
-script = ExtResource("3_train")
-rail = NodePath("../../Rails/EastLine")
-distance = 286.0
-facing = -1
-max_speed = 12
-locomotive = ExtResource("loco_passenger")
-wagons = Array[ExtResource("wagon_type_script")]([ExtResource("wagon_coach")])
+[node name="Bottom" type="Node" parent="Interest/WestGate" node_paths=PackedStringArray("rail")]
+script = ExtResource("st_track")
+rail = NodePath("../../../Rails/BottomLine")
+distance = 4.0
+
+[node name="SouthEastGate" type="Node3D" parent="Interest"]
+script = ExtResource("st_connection")
+display_name = "South East Gate"
+
+[node name="Bottom" type="Node" parent="Interest/SouthEastGate" node_paths=PackedStringArray("rail")]
+script = ExtResource("st_track")
+rail = NodePath("../../../Rails/BottomLine")
+distance = 798.5
+
+[node name="NorthGate" type="Node3D" parent="Interest"]
+script = ExtResource("st_connection")
+display_name = "North Gate"
+
+[node name="North" type="Node" parent="Interest/NorthGate" node_paths=PackedStringArray("rail")]
+script = ExtResource("st_track")
+rail = NodePath("../../../Rails/NorthLine")
+distance = 4.0
+
+[node name="EastGate" type="Node3D" parent="Interest"]
+script = ExtResource("st_connection")
+display_name = "East Gate"
+
+[node name="East" type="Node" parent="Interest/EastGate" node_paths=PackedStringArray("rail")]
+script = ExtResource("st_track")
+rail = NodePath("../../../Rails/EastLine")
+distance = 302.7
+
+[node name="DuneHalt" type="Node3D" parent="Interest"]
+script = ExtResource("st_station")
+display_name = "Dune Halt"
+dwell_time = 6.0
+
+[node name="Bottom" type="Node" parent="Interest/DuneHalt" node_paths=PackedStringArray("rail")]
+script = ExtResource("st_track")
+rail = NodePath("../../../Rails/BottomLine")
+distance = 500.0
+
+[node name="CementWorks" type="Node3D" parent="Interest"]
+script = ExtResource("st_station")
+display_name = "Cement Works"
+dwell_time = 8.0
+cargo = 2
+
+[node name="Bottom" type="Node" parent="Interest/CementWorks" node_paths=PackedStringArray("rail")]
+script = ExtResource("st_track")
+rail = NodePath("../../../Rails/BottomLine")
+distance = 600.0
+
+[node name="Quarry" type="Node3D" parent="Interest"]
+script = ExtResource("st_station")
+display_name = "Quarry"
+dwell_time = 8.0
+cargo = 1
+
+[node name="Bottom" type="Node" parent="Interest/Quarry" node_paths=PackedStringArray("rail")]
+script = ExtResource("st_track")
+rail = NodePath("../../../Rails/BottomLine")
+distance = 690.0
+
+[node name="RidgeTown" type="Node3D" parent="Interest"]
+script = ExtResource("st_station")
+display_name = "Ridge Town"
+dwell_time = 6.0
+
+[node name="North" type="Node" parent="Interest/RidgeTown" node_paths=PackedStringArray("rail")]
+script = ExtResource("st_track")
+rail = NodePath("../../../Rails/NorthLine")
+distance = 465.0
+
+[node name="Loop" type="Node" parent="Interest/RidgeTown" node_paths=PackedStringArray("rail")]
+script = ExtResource("st_track")
+rail = NodePath("../../../Rails/LoopLine")
+distance = 545.0
+
+[node name="EastHalt" type="Node3D" parent="Interest"]
+script = ExtResource("st_station")
+display_name = "East Halt"
+dwell_time = 5.0
+
+[node name="East" type="Node" parent="Interest/EastHalt" node_paths=PackedStringArray("rail")]
+script = ExtResource("st_track")
+rail = NodePath("../../../Rails/EastLine")
+distance = 225.0
+
+[node name="Spawner" type="Node" parent="." node_paths=PackedStringArray("trains_parent")]
+script = ExtResource("st_spawner")
+max_trains = 6
+min_spawn_interval = 25.0
+initial_trains = 3
+trains_parent = NodePath("../Trains")
+
+[node name="ExpressEastbound" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
+script = ExtResource("st_route")
+train_types = Array[ExtResource("st_type_script")]([ExtResource("st_express")])
+entries = [NodePath("../../Interest/WestGate")]
+stops = [NodePath("../../Interest/DuneHalt"), NodePath("../../Interest/SouthEastGate")]
+
+[node name="ExpressWestbound" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
+script = ExtResource("st_route")
+train_types = Array[ExtResource("st_type_script")]([ExtResource("st_express")])
+entries = [NodePath("../../Interest/SouthEastGate")]
+stops = [NodePath("../../Interest/DuneHalt"), NodePath("../../Interest/WestGate")]
+
+[node name="LoadedFreight" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
+script = ExtResource("st_route")
+train_types = Array[ExtResource("st_type_script")]([ExtResource("st_loaded")])
+entries = [NodePath("../../Interest/WestGate")]
+stops = [NodePath("../../Interest/CementWorks"), NodePath("../../Interest/SouthEastGate")]
+
+[node name="EmptyFreight" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
+script = ExtResource("st_route")
+train_types = Array[ExtResource("st_type_script")]([ExtResource("st_empty")])
+entries = [NodePath("../../Interest/SouthEastGate")]
+stops = [NodePath("../../Interest/Quarry"), NodePath("../../Interest/WestGate")]
+
+[node name="RidgeLocal" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
+script = ExtResource("st_route")
+train_types = Array[ExtResource("st_type_script")]([ExtResource("st_local")])
+entries = [NodePath("../../Interest/NorthGate")]
+stops = [NodePath("../../Interest/RidgeTown"), NodePath("../../Interest/WestGate")]
+
+[node name="HaltLocal" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
+script = ExtResource("st_route")
+train_types = Array[ExtResource("st_type_script")]([ExtResource("st_local")])
+entries = [NodePath("../../Interest/EastGate")]
+stops = [NodePath("../../Interest/EastHalt"), NodePath("../../Interest/NorthGate")]
 
 [node name="Structures" type="Node3D" parent="."]
 
@@ -491,6 +608,18 @@ size_flags_horizontal = 0
 mouse_filter = 2
 script = ExtResource("10_spanel")
 overlay = NodePath("../../MarkerOverlay")
+
+[node name="InterestDebugPanel" type="PanelContainer" parent="DebugUi/Panels"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("st_ipanel")
+
+[node name="RouteListPanel" type="PanelContainer" parent="DebugUi/Panels"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+script = ExtResource("st_rpanel")
 
 [node name="MarkerOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
 anchor_right = 1.0

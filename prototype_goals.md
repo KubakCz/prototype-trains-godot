@@ -92,7 +92,7 @@ Plan of prototype implementation.
 * In some places it makes sense to create a bridge. Let's try to have different variants for the bridge - stone arch (arch bellow the bridge) and steel truss that have pillars if the span is too large, and wooden that have timber structure along the whole span of the bridge.
 * Track might go under ground - in that case there is a tunnel opening made out of stones.
 
-## 7. Spawnpoints and stations
+## 7. Spawnpoints and stations *(done)*
 
 * There are two types of interest points for trains - stations and outside connection points
 * Each interest point has a distinct color and name; they are marked with a floating shape above (square for outside connections, circle for stations). Colors can be adjusted manually, but if you assign them, make them as distinct from each other as possible. If similar colors should be used, put them close to each other (e.g., a map with a south corridor can have entry, station, and exit with different tints of green). Allow toggling on and off the names as a debug option.

@@ -2,8 +2,8 @@
 
 The regression suite for the prototype. It drives the real scenes — `scenes/main.tscn`,
 `scenes/demos/turnouts.tscn`, `scenes/demos/signals.tscn`,
-`scenes/demos/compound_turnouts.tscn`, `scenes/demos/trains.tscn`, `scenes/demos/structures.tscn`
-and `scenes/levels/desert.tscn`
+`scenes/demos/compound_turnouts.tscn`, `scenes/demos/trains.tscn`, `scenes/demos/structures.tscn`,
+`scenes/demos/stations.tscn` and `scenes/levels/desert.tscn`
 — so these are integration tests
 more than unit tests: they instantiate a level, run the physics, and assert on what the trains,
 turnouts and signals did.
@@ -149,6 +149,10 @@ Assertions: `assert_true`, `assert_false`, `assert_eq`, `assert_ne`, `assert_nea
 `fail` and `succeed`. Each takes the claim as its last argument, phrased as a statement of fact
 ("the branch is welded to the points"), because that string is what the report prints.
 
+`load_scene(path, prepare)` takes an optional callable that is handed the instance *before* it
+enters the tree - what has to be set before the scene's own `_ready`, like a spawner's seed or
+its initial trains.
+
 Alongside them: `note()` for a line of context, `skip()` for a test that does not apply here,
 `load_scene()` / `own()` for anything that should be freed afterwards, `frames()` and
 `physics_frames()` for waiting, `has_display()` for tests that need a window, and three that
@@ -183,7 +187,7 @@ Four things that are not like Python or TypeScript:
   a coroutine are written the same way here.
 
 Shared fixtures live in `tests/support/` and are not collected as suites, because they do not
-end in `_test.gd`. There are four: [`TurnoutDemoCase`](support/turnout_demo_case.gd) builds a
+end in `_test.gd`. There are five (the last, `StationsDemoCase`, is described after the others): [`TurnoutDemoCase`](support/turnout_demo_case.gd) builds a
 fresh copy of the turnout demo for every test and exposes its rails, turnouts and the shuttle
 (and frees the parked `LoopShunter`, which is in the way of everything the shuttle does);
 [`SignalDemoCase`](support/signal_demo_case.gd) does the same for the signal demo and exposes
@@ -192,6 +196,14 @@ does it for the compound demo, exposing its four assemblies and three crossings,
 walk from a named rail and to print a walk or a train in one line;
 [`TrainDemoCase`](support/train_demo_case.gd) does it for the trains demo, with every train
 stopped, and helpers to place a train by its nose and to drive until something is true.
+
+[`StationsDemoCase`](support/stations_demo_case.gd) does it for the stations demo with the spawner
+switched off, so no train is there that the test did not put there: `make_train()` builds one by
+hand with a route, `reload(prepare)` starts the scene again with the spawner configured, and
+`stops()` makes the typed array a route is. Two traps it exists to remember: a train that leaves
+the level frees itself, so a lambda must not capture it (ask by instance id - the error is only
+a message and the test still passes), and a test that frees `demo` itself relies on
+`_release_owned` skipping what is already gone.
 
 **Trains have to get going and stop now** (step 5), so a test that places a train decides how
 fast it is moving. The first three fixtures' `place()` give a **rolling start** at the train's
@@ -227,5 +239,10 @@ it has. Anything placed over another train collides with it, so park the others 
 | `derailment_test.gd` | points thrown under a train, points set against it and the end of the line found too late, two trains touching head on and where tracks converge, trains abreast on parallel tracks not touching, a wreck staying put |
 | `train_selection_test.gd` | the selected train drawn lighter blue, the train panel's keys acting on it - stop, go, let go, the consist keys, turning round only when standing - and doing nothing to a wreck |
 | `train_click_test.gd` | selecting a train by clicking a car, a click on the ground clearing it, a click on a signal leaving it (needs `-Windowed`) |
+| `station_test.gd` | a train stopping with its middle on a station's mark (either way, on any of its tracks), through a signal at clear, held by one at danger instead, passing a station that is not next or that it is too fast to stop at, dwelling for the stop's time, a mine filling and a factory emptying the wagons in steps, coaches untouched, a wreck not dwelling |
+| `spawner_test.gd` | trains at load and then only at connections, the minimum interval and the maximum count (a wreck counts), a taken track refused, in/out tracks, a route that matches its entry and type, the same seed the same trains, a train facing the way its route leads, leaving by the destination (complete or not), a non-destination connection and an in track as dead ends, a train held at the end of its destination leaving |
+| `interest_point_test.gd` | circle and square markers over the middle of the tracks, names and their switch, colours spread over the wheel and a custom colour taking the others' room, configuration warnings, a connection's outside and spawn pose |
+| `livery_test.gd` | the palette with no two shades of one colour, every stripe standing out from its body, random liveries, only the locomotive painted, selection lightening it and a wreck going grey |
+| `route_display_test.gd` | the row of icons over a train - shapes, colours, the next stop in front, dropping stops as they are reached, hidden for a wreck or in list mode - the list in arrival order, the panel rows that switch the display and the names, the interest panel and the route line of the train panel |
 | `track_mesh_test.gd` | the generated track on four levels: built as each loads and in chunks, no two tracks' rails within a flangeway of each other anywhere, two blades and a frog per turnout, a diamond cut at all four corners, the blades swinging with the points, sleepers never crossing and long timbers at every turnout, buffer stops at dead ends but not in tunnels, the ballast reaching the ground, what a rebuild depends on |
 | `structures_test.gd` | `scenes/demos/structures.tscn`: three bridges and a tunnel per line in its own style, long spans split into arches, trusses with piers, a curved truss split until the track stays inside it, the tallest and widest stock fitting through, the ground cut open behind each tunnel mouth, every train running over its bridges and through its tunnel; and the playground's and the desert's structures built and cleanly configured |

@@ -84,7 +84,8 @@ per scene, which is what keeps a panel a single node in the `.tscn` with no `rea
 to get wrong.
 
 Open a section by clicking its header or with its **number key**: `[1]` trains, `[2]` turnouts,
-`[3]` signals. The numbers are read off the column (`DebugPanel.fold_key()` counts `DebugPanel`
+`[3]` signals - and, in the levels that have stations, `[4]` stations and connections and `[5]`
+routes. The numbers are read off the column (`DebugPanel.fold_key()` counts `DebugPanel`
 siblings) rather than authored, so they always run down it in order and reordering the panels
 renumbers them.
 
@@ -148,10 +149,12 @@ Two things the base has to get right, both of them bitten-once:
 header, the cycle rows and the hover marker.
 
 
-## Two presentation questions are still open
+## Three presentation questions are still open
 
 They are deliberately unsettled, and switchable rather than decided: which of the three turnout
 modes and what the turnout schematic is captioned with, which of the three signal widget styles,
-and which of the three collapse rules. All four are cycle rows in the debug panels. Whoever settles them should **delete the losers** rather
+which of the three collapse rules, and - step 7 - whether a train's route is shown as shapes
+floating over it or as a list, and whether the list names its stops (`RouteListPanel`'s two rows,
+[stations.md](stations.md)). All of them are cycle rows in the debug panels. Whoever settles them should **delete the losers** rather
 than leave the switches in — they exist to be tried against a real camera and a real human, not
 forever.

@@ -143,13 +143,28 @@ a tunnel on each of the four exits (`WestExitTunnel`, `EastExitTunnel`, `NorthEx
 `EastLineExitTunnel`), which run off the rails' ends and so have one portal each and swallow the
 dead ends.
 
-Every junction is protected from every way into it, sixteen signals in all, and three trains come
-out of the exit tunnels at the start and wait at the entry signals: `WestArrival` (two coaches)
-at `WestEntry`, `NorthArrival` (three full freight wagons) at `NorthEntry`, `EastArrival` (one
-coach) at `EastEntry`. They start from rest a train's length inside each rail's end - a train's
-configuration warnings say when its tail hangs off one. The exits are plain dead ends, so a
-train sent into one turns round in the dark and comes back (`end_behavior`); see
-[further_development.md](further_development.md).
+Every junction is protected from every way into it, sixteen signals in all.
+
+**Trains come from a `TrainSpawner`** ([stations.md](stations.md)) with four outside connections
+at the exit tunnels - `WestGate` and `SouthEastGate` on `BottomLine`, `NorthGate` on `NorthLine`,
+`EastGate` on `EastLine`, each with its mark 4 m from the rail's end so a train is out of sight
+in the tunnel at both spawn and exit - and five stations: `DuneHalt`, `CementWorks` (unloads),
+`Quarry` (loads) on the bottom line, `RidgeTown` across the north line and the loop where they
+run 5 m apart, and `EastHalt` on the east line. Six routes pair them up for the four train types.
+The scene opens with three trains and a new one every 25 to 50 s, up to six; each runs up to the
+first red signal on its way in, which is the dispatcher's first decision. The three hand-placed
+arrivals the level had before are gone. The exits at the ends of rails that are not a train's
+destination are plain dead ends, so a train sent into one turns round in the dark and comes
+back (`end_behavior`).
+
+## The stations demo
+
+`scenes/demos/stations.tscn` is the trains demo's layout - three straight lines 5 m apart and a
+crossover - with the step 7 nodes on it: a west and an east gate of three tracks each (`IN`,
+`IN`, `OUT` and `OUT`, `OUT`, `IN` - every line runs one way, so the demo does not wreck itself
+in the first minute), `CentralStation` across all three lines, `CoalMine` (loads) on two,
+`Factory` (unloads) on two, four clear signals and a spawner with five routes. Hand-written like
+the other demos, not generated: distances along every line are x + 250.
 
 ## The playground
 

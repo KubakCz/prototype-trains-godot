@@ -89,6 +89,23 @@ Two tracks crossing each other with no way between them (US **diamond**).
 * **Derailment** — a train off the rails, for good. **Code:** `Train.derailed`.
 * **Fouling** — standing close enough to another track that a train on it would touch you.
 
+## Places and routes
+
+* **Interest point** — somewhere trains are going: a station or an outside connection. A
+  point **spans** one or more tracks. **Code:** `InterestPoint`, with an `InterestTrack` per track.
+* **Station** — an interest point where a train stops, **dwells** for a while and may load or
+  unload freight. Drawn as a circle. **Code:** `Station`.
+* **Outside connection** (also *gate*) — an interest point that is a way on to and off the level:
+  trains are put on it and taken off it. Drawn as a square. **Code:** `OutsideConnection`.
+* **Dwell** — the time a train stands at a station. **Code:** `Station.dwell_time`,
+  `Train.dwelling_at`.
+* **Route** — a train's list of interest points, in order, ending at an outside connection. Not
+  to be mixed up with the *Main Route* / *Diverging Route* of a turnout above, which are track.
+  **Code:** `Train.route`; a level's list of them is `TrainRoute` nodes.
+* **Entry** — the interest point a train starts its route at. **Destination** — the last one.
+* **Spawn** — putting a train on the level. **Code:** `TrainSpawner`.
+* **Livery** — how an engine is painted: a colour, plain or striped. **Code:** `Livery`.
+
 ## Blocks
 
 A track section that can only contain one train at a time.

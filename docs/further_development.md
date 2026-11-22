@@ -9,24 +9,21 @@ This is the implementers' side of the plan. **The plan itself is
 edit it.** When a step is finished, its notes for the future go here instead, under the heading
 of the step they are aimed at.
 
-## Step 7 — Spawnpoints and stations
+## Step 8 — Menu and game modes
 
-**Trains are made from types**: `locomotive`, `wagons` and `load_factor` are everything a
-spawnpoint needs to make one, and the shared types under `rolling_stock/` are what it picks from.
-Loading and unloading at a station is `load_factor` - deliberately on the train rather than a
-"loaded" wagon type, so it can change in place. A train arriving from off the level wants
-`Train.roll(speed)`: a rolling start, so it comes in at line speed instead of starting from rest
-in a tunnel mouth.
+**The points are already half there.** `Train.reached(point)` fires each time a train stands at a
+station of its route and `Train.route_finished(completed)` when it leaves by its destination;
+`TrainSpawner` counts `spawned_count`, `left_count` and `completed_count` and emits
+`train_spawned` and `train_left(train, completed)`. A mode that scores one point per interest
+point reached listens to those - there is nothing to add to the trains. Missing a station is not
+an error: the stop is simply not made and `completed` ends false.
 
-**Exits are tunnels.** The desert's four ways off the level are rails running into a `Tunnel`
-and ending inside it, where there is no buffer stop - `TrackStructure.covers()` is the test for
-"this end is a way off the level". A spawnpoint there puts its train in the dark bore or under
-the hillside, out of sight, which is the effect wanted. The playground's and the structures
-demo's dead ends are in the open and have buffer stops.
+**A map's settings are on the spawner**: `max_trains`, `min_spawn_interval`, `initial_trains` and
+`random_seed`. A menu that picks a map and a mode loads the scene and sets them before `_ready`
+if a mode wants different ones (`TestCase.load_scene(path, prepare)` does exactly that).
 
-**A spawned train can collide on its first frame.** Anything placed over another train touches
-it and both derail, so a spawnpoint has to check that its stretch of track is clear first -
-`Train.occupies()` and `occupied_spans()` answer that.
+The spawner has no end. A timed or target mode needs a way to stop it spawning and to say
+"the round is over"; neither exists.
 
 ## Step 9 — Block locking
 
@@ -53,6 +50,14 @@ fouling it in any real sense. A fouling length either side belongs in the block 
 **Compound assemblies lock as one.** `CompoundTurnout.player_operable` is the switch — a click on
 the widget or on any member marker goes through it — so locking an assembly's points under a
 train is one flag, not four. Its members are already non-operable.
+
+**Spawning is the first thing that will need the blocks.** `TrainSpawner.is_clear` asks only
+whether the stretch the new train takes up, 15 m behind and 60 m in front, is empty
+(`TrackWalker.Span.overlaps` against `Train.occupied_spans()`); it does not look further, and
+trains do not look for each other, so a train held at a red signal with another running up behind
+it is a collision waiting to happen - the desert's first minute shows it. A spawn should wait for
+the block it would enter to be free, and the spawner is the obvious caller of "is this block
+locked". The demo's lines are one-way for the same reason.
 
 Still missing: automatic replacement (a cleared signal currently stays clear forever), locking a
 signal to danger while its block is occupied, and locking points under an occupying train.
@@ -84,6 +89,17 @@ block". `Train.derailment(reason)` fires for every derailment, which is the hook
 "train collision" fail condition.
 
 ## Not tied to a step
+
+- **Train models are still boxes, and a spawned train just appears.** A connection puts a train
+  tail-first inside its mark; with the desert's short exit tunnels a long train has its nose out
+  of the mouth on its first frame, and there is no animation. A level whose exits want that to be
+  invisible has to have a tunnel as long as its longest train (see `TrainType.longest_length()`).
+- **Liveries are on the locomotive only**, as chosen: the wagons are all the same blue. Painting
+  every car is a matter of `Train._rebuild_cars`, which already passes materials per car.
+- **A station is always stopped at by the middle of the train**, whatever the platform's length.
+  A train longer than its platform overhangs both ends equally and nothing says so.
+- **The route display is undecided**, like the turnout and signal ones: shapes floating over each
+  train or a list ([ui.md](ui.md)). Whoever settles it deletes the loser.
 
 - **Train models are still boxes**, now on bogies at standard gauge ([trains.md](trains.md)).
   Real models replace the body; they should keep the click collider and the collision box
@@ -138,6 +154,11 @@ most of it. The assembly's configuration warnings already say what a correct one
 [compound_turnouts.md](compound_turnouts.md). `TrackWalker` needs two turnouts on one rail to be
 more than `EPSILON` apart, so a three-way is staggered by a few metres, and an editor placing one
 should keep it that way.
+
+Step 7 added more: an interest point is a node with a child per track, and each track a rail and
+a distance by number; routes are lists of node paths. An editor that places a station by clicking
+a rail, or a gate at a rail's end, would remove most of it. The colours are picked for the level
+as a whole (`InterestPoint.assign_colors`), so placing one more point re-spreads the rest.
 
 Step 6 left two more things placed by hand: a `Bridge` or `Tunnel` is a rail and two distances,
 and **Find Bridges & Tunnels** on the level's `TrackMesher` proposes them from the terrain. The

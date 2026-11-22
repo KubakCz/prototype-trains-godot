@@ -24,6 +24,9 @@ the desert level's three all have consists.
 0 to 1, not a separate "loaded" type: loading is something that happens *to* a train - at a
 station, in step 7 - so an empty and a full freight are one consist with a different load.
 
+A train may also have a `route` and a `livery` (step 7, [stations.md](stations.md)): where it is
+going, and how its locomotive is painted. A train without them is what it always was.
+
 Authoring is all inspector: pick a locomotive, add wagon slots, pick a type in each, set the
 load. Editing a shared type rebuilds every train that uses it (each setter emits `changed`).
 The configuration warnings catch a missing locomotive (a 16 m stand-in is drawn), an empty slot,
@@ -56,6 +59,10 @@ roof: a train touching another at bogie height has touched it.
 
 ## Getting going and stopping
 
+(Stopping at a station, and what a train with a route does when it gets there, is in
+[stations.md](stations.md): it is one more thing `_drive` stops for, and the one stop that is
+made by the middle of the train rather than its nose.)
+
 One speed, `current_speed`, never negative. The direction of travel (nose-first or backing) is
 separate and **only changes at a standstill**: reversing a train at speed brakes it first. The
 throttle (`-1` / `0` / `1`) is still what the train is told; it no longer is how fast it goes.
@@ -80,7 +87,8 @@ needs lands exactly on what it is braking for - to the millimetre, which the tes
 
 `Train.roll(speed)` is a **rolling start**: the train is moving the moment it appears. The test
 fixtures use it so the older passage tests stay about the points rather than about the time it
-takes to get going, and step 7's arrivals will want it.
+takes to get going. `roll_safely(speed)` is the one a spawned train gets: the same, but never
+faster than it could stop from for the first red signal or dead end ahead.
 
 ## What a train stops for
 
@@ -88,8 +96,8 @@ Every frame the train looks ahead from its centre out past its leading end, as f
 stopping distance plus this frame's travel plus `STOP_SHORT` plus 2 m, for a signal at danger (from
 the nose on - the rule in [signals.md](signals.md)), points set against it, or a dead end.
 
-**Only a signal at danger and the end of the line are stopped for.** Points set against the train
-are not braked for at all: it runs into them at whatever speed it has and derails there ("ran into
+**Only a signal at danger, the end of the line and - since step 7 - the next station on its
+route are stopped for.** Points set against the train are not braked for at all: it runs into them at whatever speed it has and derails there ("ran into
 ..."). Protecting a junction is the signals' job - the player sets a red in front of points before
 setting them against a train, as on a real railway.
 
@@ -166,6 +174,7 @@ still occupies whatever it lies on, crossings included, and another train touchi
 | `STOPPED` | standing with the throttle cut | yellow |
 | `TRIPPED` | could not stop in time; waiting to be let go | blinking red |
 | `DERAILED` | off the rails | black |
+| `DWELLING` | standing at a station of its route for the length of the stop (step 7) | cyan |
 
 `Train.state` is worked out every frame from the physics, never set. The colours are
 `Train.state_color()` and `Train.state_blinks()`; the marker is emissive so it reads from afar.
@@ -173,7 +182,8 @@ still occupies whatever it lies on, crossings included, and another train touchi
 ## Selection
 
 A left click on any car selects the train (`TrainCar` carries a click collider), and the selected
-train is drawn lighter blue. Selection is static on `Train` - `select()`, `selected_train()`,
+train is drawn lighter blue - its wagons; a locomotive with a livery ([stations.md](stations.md))
+is lightened by 30% instead, so the livery is still the livery. Selection is static on `Train` - `select()`, `selected_train()`,
 `clear_selection()` - because there is only ever one. A click on nothing clears it: the selected
 train hears the unhandled click and, on the next physics frame, casts the same ray; if it hits
 nothing clickable, it deselects. A click on a signal or a turnout leaves the selection alone,

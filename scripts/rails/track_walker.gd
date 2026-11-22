@@ -77,6 +77,12 @@ class Span:
 				and at <= maxf(from, to) + EPSILON)
 
 
+	## Whether the two spans share any of one rail, ends included.
+	func overlaps(other: Span) -> bool:
+		return (rail == other.rail and minf(from, to) <= maxf(other.from, other.to)
+				and maxf(from, to) >= minf(other.from, other.to))
+
+
 ## A place on the network: a rail and a distance along it.
 class Location:
 	var rail: Rail

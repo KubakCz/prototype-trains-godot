@@ -19,7 +19,8 @@ var _trains: Array[Train] = []
 func _ready() -> void:
 	super._ready()
 	_collect_trains()
-	if _trains.is_empty():
+	# A level with a spawner starts with none: the trains come a frame later.
+	if _trains.is_empty() and get_tree().get_nodes_in_group(TrainSpawner.GROUP).is_empty():
 		push_warning("No trains in group '%s'." % train_group)
 
 
@@ -118,6 +119,9 @@ func _describe(train: Train) -> Array[String]:
 			train.acceleration_rate(), train.service_brake_rate(), train.full_brake_rate(),
 			Train.stopping_distance(train.current_speed, train.service_brake_rate()),
 			Train.EndBehavior.keys()[train.end_behavior]])
+	if not train.route.is_empty():
+		lines.append("    route %s%s" % [_describe_route(train),
+				"   engine %s" % train.livery.label() if train.livery != null else ""])
 	# A held train still has its throttle open: it is waiting, not stopped, and
 	# goes by itself once the way is clear.
 	var blocked := train.blocked_description()
@@ -127,6 +131,19 @@ func _describe(train: Train) -> Array[String]:
 	elif not ahead.is_empty() and train.braking > 0.0:
 		lines.append("    <- braking at %.2f m/s² for %s" % [train.braking, ahead])
 	return lines
+
+
+## "Central Station > East Gate": the stops reached are crossed out, the next is starred.
+func _describe_route(train: Train) -> String:
+	var parts: Array[String] = []
+	for i in train.route.size():
+		var text: String = train.route[i].label()
+		if i < train.route_index:
+			text = "(%s)" % text
+		elif i == train.route_index:
+			text = "*%s" % text
+		parts.append(text)
+	return " > ".join(parts)
 
 
 ## The point of the readout: "forward" is about the train's nose, not the rail's
