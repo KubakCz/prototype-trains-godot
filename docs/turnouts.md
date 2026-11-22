@@ -4,7 +4,7 @@ How the points work: the three legs, the passage rule, what is authored and what
 and how a turnout is presented. Level-authoring steps are in
 [level_authoring.md](level_authoring.md); the floating widget that sits over a turnout is in
 [ui.md](ui.md). Engine traps that bite while working on this are in
-[CLAUDE.md](../CLAUDE.md) — the turnout ones are that a rail distance exactly at the points is
+[track-network.md](../.claude/rules/track-network.md) — the turnout ones are that a rail distance exactly at the points is
 ambiguous, and that a correctly aligned branch leaves *tangent* so the tangents cannot tell the
 legs apart.
 

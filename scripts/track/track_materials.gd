@@ -67,7 +67,7 @@ static func bore() -> StandardMaterial3D:
 static func _vertex_coloured(roughness: float) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
-	# Authored by eye, so sRGB - linear renders them far darker (see CLAUDE.md).
+	# Authored by eye, so sRGB - linear renders them far darker (see .claude/rules/meshes-and-ground.md).
 	material.vertex_color_is_srgb = true
 	material.roughness = roughness
 	return material

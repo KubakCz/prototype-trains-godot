@@ -4,7 +4,8 @@ Step 4: assemblies of simple turnouts that the player works as one — the three
 crossover, the double crossover and the double slip — and the plain crossing, which the player cannot work at
 all. The simple turnout they are all built from is in [turnouts.md](turnouts.md); the widget
 layer is in [ui.md](ui.md). The demo is `scenes/demos/compound_turnouts.tscn`, and the playground, `main.tscn`,
-has one of each kind on its oval and in its yard.
+has one of each kind on its oval and in its yard. Engine traps are in
+[track-network.md](../.claude/rules/track-network.md).
 
 ## An assembly groups turnouts, it does not replace them
 

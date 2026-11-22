@@ -7,7 +7,7 @@ extends Node
 ## canvas: a 1920x1009 window at factor 1.0 lays the UI out in 1920x1009 logical
 ## pixels, and at factor 2.0 in 960x505 drawn twice as large. Nothing about the 3D
 ## view changes - it always renders at the window's native resolution. See the
-## coordinate-space note in CLAUDE.md.
+## coordinate-space note in .claude/rules/ui-and-input.md.
 ##
 ## Registered as an autoload, so main.tscn and both demo scenes get it alike.
 

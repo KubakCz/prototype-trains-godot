@@ -60,7 +60,7 @@ turns with the layout as the camera orbits and stays honest on a curve.
 **Left click is the only way to change a signal**, as with a turnout: the mast, or the floating
 widget over it. The 3D model is a mast, a head and two lamps with the lit one emissive, plus a
 stop line across the track and an arrow down the governed direction in the aspect's colour. The
-mast stands on the ground rather than on the track — see `Rail.ground_frame()` under the gotchas
-in [CLAUDE.md](../CLAUDE.md) — so `mast_position()` is a point on the terrain and `mast_lift()`
+mast stands on the ground rather than on the track — see `Rail.ground_frame()` in
+[track-network.md](../.claude/rules/track-network.md) — so `mast_position()` is a point on the terrain and `mast_lift()`
 is how far the railhead is above it.
 

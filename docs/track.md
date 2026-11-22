@@ -2,7 +2,8 @@
 
 Step 6: the track is a generated mesh - steel rails, timber sleepers, a ballast bed - built from
 the rails' curves, with real points and frogs at every junction, buffer stops at dead ends, and
-bridges and tunnels where the authoring says so.
+bridges and tunnels where the authoring says so. The engine traps for meshes and the ground are
+in [meshes-and-ground.md](../.claude/rules/meshes-and-ground.md).
 
 | script | what it is |
 | --- | --- |

@@ -3,3 +3,6 @@
 /android/
 
 .vscode
+
+# Per-machine Claude Code settings
+.claude/settings.local.json

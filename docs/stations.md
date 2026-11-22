@@ -3,7 +3,8 @@
 Step 7: the places trains are going, how they get on the level, what they do when they get
 there and how that is shown. The track they run on is in [turnouts.md](turnouts.md), the train
 itself in [trains.md](trains.md). The demo is `scenes/demos/stations.tscn`; the desert level
-([level_authoring.md](level_authoring.md)) has the same nodes on a real map.
+([level_authoring.md](level_authoring.md)) has the same nodes on a real map. Engine traps are in
+[track-network.md](../.claude/rules/track-network.md).
 
 ## Interest points
 

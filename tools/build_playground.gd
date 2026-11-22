@@ -1041,7 +1041,7 @@ func _environment_text() -> PackedStringArray:
 
 
 ## [code]in[/code], [code]out[/code], [code]position[/code] per point, handles relative
-## to their point - see CLAUDE.md.
+## to their point - see .claude/rules/tscn.md.
 func _curve_text(rail: String) -> PackedStringArray:
 	var curve := _curves[rail]
 	var numbers := PackedStringArray()

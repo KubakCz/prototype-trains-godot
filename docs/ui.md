@@ -6,8 +6,8 @@ point *at* is in [turnouts.md](turnouts.md) and [signals.md](signals.md).
 
 The `Control` traps that shaped all of this — a `Control` eating clicks on the 3D world behind
 it, `Control.scale` not moving `position`/`size`, canvas vs. window coordinates, child order
-being draw order — are in [CLAUDE.md](../CLAUDE.md), because they bite anything that touches the
-canvas, not just this.
+being draw order — are in [ui-and-input.md](../.claude/rules/ui-and-input.md), which Claude Code loads for
+anything under `scripts/ui/`, `scripts/debug/` or clickable.
 
 ## Interface scale
 
@@ -141,7 +141,7 @@ Two things the base has to get right, both of them bitten-once:
   focus between headers, and `Space` — the train panel's stop key — presses whichever header has
   it.
 - **The panel stays `mouse_filter = IGNORE`; only its buttons stop clicks.** That keeps the
-  "a `Control` eats clicks on the 3D world behind it" gotcha (in [CLAUDE.md](../CLAUDE.md))
+  "a `Control` eats clicks on the 3D world behind it" gotcha (in [ui-and-input.md](../.claude/rules/ui-and-input.md))
   confined to the header strip and the cycle rows, which are the places a click is meant to be a
   UI click.
 

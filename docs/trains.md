@@ -36,7 +36,7 @@ train longer. A hand-written `.tscn` writes the list as a typed array whose type
 
 `Train.distance` is still the **middle of the whole train**. Not the nose: a train held with its
 nose on points would then have its own position in the ambiguous zone at them (see the gotcha in
-[CLAUDE.md](../CLAUDE.md)). Changing the consist keeps the nose put and moves the middle instead
+[track-network.md](../.claude/rules/track-network.md)). Changing the consist keeps the nose put and moves the middle instead
 (`add_wagon`, `remove_wagon`).
 
 **Placement.** The `Train` node itself sits on the rail at its distance - exactly on the arc,
