@@ -70,7 +70,7 @@ func test_a_livery_describes_itself() -> void:
 
 
 func test_only_the_locomotive_is_painted() -> void:
-	var train := make_train(express_type, north_line, 100.0, 1, stops([east_gate]))
+	var train := make_train(express_type, north_main, 100.0, 1, stops([east_gate]))
 	var wagon_blue := train.body_color()
 	var livery := Livery.new()
 	livery.body = Livery.PALETTE["red"]
@@ -92,7 +92,7 @@ func test_only_the_locomotive_is_painted() -> void:
 
 
 func test_a_selected_engine_is_lightened_and_a_wreck_goes_grey() -> void:
-	var train := make_train(express_type, north_line, 100.0, 1, stops([east_gate]))
+	var train := make_train(express_type, north_main, 100.0, 1, stops([east_gate]))
 	var livery := Livery.new()
 	livery.body = Livery.PALETTE["green"]
 	train.livery = livery
@@ -108,7 +108,7 @@ func test_a_selected_engine_is_lightened_and_a_wreck_goes_grey() -> void:
 
 
 func test_a_train_without_a_livery_is_blue_all_through() -> void:
-	var train := make_train(express_type, north_line, 100.0, 1, stops([east_gate]))
+	var train := make_train(express_type, north_main, 100.0, 1, stops([east_gate]))
 	await physics_frames(2)
 	assert_eq(train.engine_color(), train.body_color(), "the engine matches the wagons")
 	assert_null(train.cars()[0].get_node_or_null("Stripe"), "with no stripe")

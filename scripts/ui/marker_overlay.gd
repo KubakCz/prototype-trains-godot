@@ -1,8 +1,8 @@
 class_name MarkerOverlay
 extends Control
 ## The floating layer: one [TrackMarkerWidget] for every [RailSignal], every
-## [Turnout] and every [CompoundTurnout] in the level, kept from covering each
-## other and collapsed when there are too many of them to read.
+## [Turnout], every [CompoundTurnout] and every [InterestPoint] in the level, kept
+## from covering each other and collapsed when there are too many of them to read.
 ##
 ## A turnout that is a member of a compound assembly gets no widget of its own:
 ## the assembly's is the single control the player sees for all of its points.
@@ -63,6 +63,8 @@ const _MAX_COLLAPSE_ROUNDS := 6
 @export var signal_group: StringName = &"signals"
 ## Compound turnouts in this group get a widget, and their members do not.
 @export var compound_group: StringName = &"compound_turnouts"
+## Stations and outside connections in this group get a badge.
+@export var interest_group: StringName = InterestPoint.GROUP
 @export var mode := Mode.LEGS_AND_SCHEMATIC: set = _set_mode
 ## The text under a turnout's or an assembly's miniature, in every mode that
 ## shows one.
@@ -84,7 +86,7 @@ const _MAX_COLLAPSE_ROUNDS := 6
 ## Pixels left between two widgets that had to be separated.
 @export var widget_gap := 6.0
 
-## Widget per subject - a [Turnout], a [CompoundTurnout] or a [RailSignal]. Subjects are re-read every
+## Widget per subject - a [Turnout], a [CompoundTurnout], a [RailSignal] or an [InterestPoint]. Subjects are re-read every
 ## frame, since a level may add or remove them, but their widgets are kept.
 var _widgets: Dictionary[Node, TrackMarkerWidget] = {}
 
@@ -188,12 +190,14 @@ func _collect_subjects() -> Array[Node]:
 			found.append(turnout)
 	found.append_array(get_tree().get_nodes_in_group(compound_group))
 	found.append_array(get_tree().get_nodes_in_group(signal_group))
+	found.append_array(get_tree().get_nodes_in_group(interest_group))
 	return found
 
 
 func _make_widget(subject: Node) -> TrackMarkerWidget:
 	var turnout := subject as Turnout
 	var compound := subject as CompoundTurnout
+	var point := subject as InterestPoint
 	var widget: TrackMarkerWidget
 	if turnout != null:
 		var turnout_widget := TurnoutWidget.new()
@@ -203,6 +207,10 @@ func _make_widget(subject: Node) -> TrackMarkerWidget:
 		var compound_widget := CompoundTurnoutWidget.new()
 		compound_widget.compound = compound
 		widget = compound_widget
+	elif point != null:
+		var point_widget := InterestPointWidget.new()
+		point_widget.point = point
+		widget = point_widget
 	else:
 		var signal_widget := SignalWidget.new()
 		signal_widget.rail_signal = subject as RailSignal
@@ -223,6 +231,8 @@ func _apply_styles() -> void:
 		var signal_widget := widget as SignalWidget
 		if signal_widget != null:
 			signal_widget.style = signal_style
+			continue
+		if widget is InterestPointWidget:
 			continue
 		_set_legs(subject, wants_legs)
 		widget.suppressed = not wants_turnout_widget
@@ -262,9 +272,14 @@ func _arrange(shown: Array[TrackMarkerWidget], viewport: Vector2) -> void:
 		# what could not be given a clear place even after being shifted. One
 		# round is not enough - collapsing frees room, and how much it frees
 		# decides how many of the rest can stay open.
+		var collapsing := false
 		for widget in stuck:
-			if not widget.is_pointer_over():
+			if not widget.is_pointer_over() and widget.collapsible():
 				widget.collapsed = true
+				collapsing = true
+		# Only badges that never collapse are left without room: nothing more to free.
+		if not collapsing:
+			return
 
 
 ## Draw order, which for a [Control] is child order: dots, then open badges, then
@@ -297,6 +312,10 @@ func _stack_tier(widget: TrackMarkerWidget) -> int:
 
 
 func _apply_collapse(widget: TrackMarkerWidget) -> void:
+	if not widget.collapsible():
+		widget.set_widget_scale(1.0)
+		widget.collapsed = false
+		return
 	match collapse_rule:
 		Collapse.WHEN_FAR:
 			widget.set_widget_scale(1.0)

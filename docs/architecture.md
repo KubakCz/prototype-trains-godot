@@ -14,15 +14,15 @@ scripts/trains/train.gd           Train       : Node3D   — a locomotive and wa
 scripts/trains/train_car.gd       TrainCar    : Node3D   — one car: its boxes, click target, collision box
 scripts/trains/livery.gd          Livery      : Resource — how a locomotive is painted: a colour, plain or striped
 scripts/trains/train_type.gd      TrainType   : Resource — a recipe for a train the spawner may make
-scripts/trains/route_icons.gd     RouteIcons  : Node3D   — the row of shapes over a train showing its route
+scripts/trains/route_icons.gd     RouteIcons  : Node3D   — the row of billboard icons over a train's locomotive showing its route
 scripts/trains/car_type.gd        CarType     : Resource — a vehicle's size, mass and brakes
 scripts/trains/locomotive_type.gd LocomotiveType : CarType — adds traction
 scripts/trains/wagon_type.gd      WagonType   : CarType  — adds capacity
 rolling_stock/*.tres                                     — the shared locomotive and wagon types
 train_types/*.tres                                       — the train types spawners pick from
-scripts/traffic/interest_point.gd InterestPoint : Node3D — somewhere trains are going: marker, colour, name
+scripts/traffic/interest_point.gd InterestPoint : Node3D — somewhere trains are going: poles to its badge, colour, name
 scripts/traffic/interest_track.gd InterestTrack : Node   — one track of an interest point: a rail and a mark on it
-scripts/traffic/station.gd        Station     : InterestPoint — trains stop here, dwell, load or unload
+scripts/traffic/station.gd        Station     : InterestPoint — trains stop here, dwell, load or unload; draws its building
 scripts/traffic/outside_connection.gd OutsideConnection : InterestPoint — a way on to and off the level
 scripts/traffic/train_route.gd    TrainRoute  : Node     — one line of a level's list of routes
 scripts/traffic/train_spawner.gd  TrainSpawner : Node    — puts trains on the level and counts them
@@ -41,6 +41,7 @@ scripts/ui/track_marker_widget.gd TrackMarkerWidget  : Control — base: follow,
 scripts/ui/turnout_widget.gd      TurnoutWidget      : TrackMarkerWidget
 scripts/ui/signal_widget.gd       SignalWidget       : TrackMarkerWidget
 scripts/ui/compound_turnout_widget.gd CompoundTurnoutWidget : TrackMarkerWidget — an assembly's one control
+scripts/ui/interest_point_widget.gd InterestPointWidget : TrackMarkerWidget — a station's or connection's badge, name inside
 scripts/ui/route_list_view.gd     RouteListView : Control — the route list's drawn body
 scripts/debug/camera_rig.gd       CameraRig   : Node3D   — orbit camera (debug)
 scripts/debug/debug_panel.gd      DebugPanel  : PanelContainer — a collapsible HUD section
@@ -77,9 +78,9 @@ straight lines abreast: an express, a loaded and an empty freight to compare, a 
 in front of a train, a crossover to throw under one and a stalled train to run into),
 `scenes/demos/structures.tscn` (**generated** by `tools/build_structures_demo.gd`: three lines, one
 per bridge style, each over a short, a middling and a long gully and through a ridge, a train
-shuttling on each), `scenes/demos/stations.tscn` (the trains demo's three lines with two gates,
-a three-track station, a mine, a factory and a spawner with five routes - hand-written, see
-[docs/stations.md](stations.md)) and
+shuttling on each), `scenes/demos/stations.tscn` (**generated** by `tools/build_stations_demo.gd`: a two-way double
+main line between two gates, a three-track station with crossovers, a halt, a mine branch, a
+factory siding, every signal red, and a spawner - see [docs/level_authoring.md](level_authoring.md)) and
 `scenes/levels/desert.tscn` (a whole
 level rebuilt from a reference - a balloon loop round a lake with a scissors crossover, a wye, a
 tunnel under a ridge and a bridge over a gully, sixteen signals, four gates, five stations and a

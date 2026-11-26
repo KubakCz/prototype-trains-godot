@@ -60,8 +60,7 @@ roof: a train touching another at bogie height has touched it.
 ## Getting going and stopping
 
 (Stopping at a station, and what a train with a route does when it gets there, is in
-[stations.md](stations.md): it is one more thing `_drive` stops for, and the one stop that is
-made by the middle of the train rather than its nose.)
+[stations.md](stations.md): it is one more thing `_drive` stops for, made with the nose like every other stop.)
 
 One speed, `current_speed`, never negative. The direction of travel (nose-first or backing) is
 separate and **only changes at a standstill**: reversing a train at speed brakes it first. The

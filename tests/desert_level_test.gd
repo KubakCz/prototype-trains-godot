@@ -71,6 +71,20 @@ func test_the_level_has_no_configuration_warnings() -> void:
 		assert_true(warnings.is_empty(), "%s: no configuration warnings" % node.name)
 
 
+## The badges carry the names inside them, so a name is one short word.
+func test_every_interest_point_has_a_one_word_name() -> void:
+	var names: Array[String] = []
+	for point: InterestPoint in tree.get_nodes_in_group(InterestPoint.GROUP):
+		names.append(point.label())
+		assert_false(point.label().contains(" "), "%s is one word" % point.label())
+		assert_less(float(point.label().length()), 10.5, "%s is short" % point.label())
+	names.sort()
+	note(", ".join(names))
+	var expected: Array[String] = ["Cement", "Dune", "East", "Halt", "North", "Quarry", "Ridge",
+			"Southeast", "West"]
+	assert_eq(names, expected, "the level's nine points have their short names")
+
+
 ## The terrain was carved to the track rather than the track snapped to the
 ## terrain, so this is the one thing that could quietly go wrong: ground rising
 ## into the space a train drives through. Along every rail, metre by metre, the
@@ -154,7 +168,7 @@ func test_the_ridge_line_crosses_the_tunnel_line_well_above_it() -> void:
 ## A train comes out of a tunnel at the edge of the level and runs up to the first
 ## signal, which is at danger - the level is meant to be playable by dispatching what
 ## waits there. One spawned at each of the three connections the old level opened with a
-## train at, by its own route: the east line's stops at East Halt on the way.
+## train at, by its own route: the east line's stops at Halt on the way.
 func test_each_arrival_is_held_at_its_entry_signal() -> void:
 	var spawner: TrainSpawner = _scene.get_node("Spawner")
 	for row: Array in [["ExpressEastbound", "WestGate", "WestEntry"],

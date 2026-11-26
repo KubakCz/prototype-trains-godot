@@ -187,7 +187,7 @@ Four things that are not like Python or TypeScript:
   a coroutine are written the same way here.
 
 Shared fixtures live in `tests/support/` and are not collected as suites, because they do not
-end in `_test.gd`. There are five (the last, `StationsDemoCase`, is described after the others): [`TurnoutDemoCase`](support/turnout_demo_case.gd) builds a
+end in `_test.gd`. There are five (the last, `StationsDemoCase`, is described after the others, and a shared check after it): [`TurnoutDemoCase`](support/turnout_demo_case.gd) builds a
 fresh copy of the turnout demo for every test and exposes its rails, turnouts and the shuttle
 (and frees the parked `LoopShunter`, which is in the way of everything the shuttle does);
 [`SignalDemoCase`](support/signal_demo_case.gd) does the same for the signal demo and exposes
@@ -199,11 +199,21 @@ stopped, and helpers to place a train by its nose and to drive until something i
 
 [`StationsDemoCase`](support/stations_demo_case.gd) does it for the stations demo with the spawner
 switched off, so no train is there that the test did not put there: `make_train()` builds one by
-hand with a route, `reload(prepare)` starts the scene again with the spawner configured, and
-`stops()` makes the typed array a route is. Two traps it exists to remember: a train that leaves
+hand with a route, `park()` one that stands still, `reload(prepare)` starts the scene again with
+the spawner configured, and `stops()` makes the typed array a route is. Every signal in that demo
+starts at danger, so a test that drives a train clears what lies on its way (`clear()`,
+`clear_all()`) and sets its points (`throw()`); `mark()` and `stop_mark()` read a point's mark
+and the platform end a train stops its nose on off a rail rather than having them written down,
+and `nose_on()` says where a train's nose is on a given rail. Two traps it exists to remember: a train that leaves
 the level frees itself, so a lambda must not capture it (ask by instance id - the error is only
 a message and the test still passes), and a test that frees `demo` itself relies on
 `_release_owned` skipping what is already gone.
+
+[`JunctionProtection`](support/junction_protection.gd) is not a fixture but the two rules levels
+are checked against: `ways_in()` lists every way into every junction; `check()` asserts each meets
+a signal governing it first (one signal per junction, `main_scene_test.gd`), and
+`check_signalled()` that every way back from it, through any points, meets one before the end of
+the line (signalled the way stations are, entry and exit signals only, `stations_demo_test.gd`).
 
 **Trains have to get going and stop now** (step 5), so a test that places a train decides how
 fast it is moving. The first three fixtures' `place()` give a **rolling start** at the train's

@@ -1,36 +1,30 @@
-[gd_scene load_steps=38 format=3]
+[gd_scene format=3]
 
-[ext_resource type="Script" path="res://scripts/world/ground.gd" id="1_ground"]
-[ext_resource type="Script" path="res://scripts/rails/rail.gd" id="2_rail"]
-[ext_resource type="Script" path="res://scripts/rails/turnout.gd" id="3_turnout"]
-[ext_resource type="Script" path="res://scripts/rails/compound_turnout.gd" id="4_compound"]
-[ext_resource type="Script" path="res://scripts/rails/rail_signal.gd" id="5_signal"]
-[ext_resource type="Script" path="res://scripts/trains/train.gd" id="6_train"]
-[ext_resource type="Script" path="res://scripts/debug/camera_rig.gd" id="7_camera"]
-[ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="8_trains"]
-[ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="9_turnouts"]
-[ext_resource type="Script" path="res://scripts/debug/signal_debug_panel.gd" id="10_signals"]
-[ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="11_overlay"]
-[ext_resource type="Script" path="res://scripts/trains/wagon_type.gd" id="12_wagon_type"]
-[ext_resource type="Resource" path="res://rolling_stock/passenger_locomotive.tres" id="13_passenger"]
-[ext_resource type="Resource" path="res://rolling_stock/freight_locomotive.tres" id="14_freight"]
-[ext_resource type="Resource" path="res://rolling_stock/shunting_locomotive.tres" id="15_shunting"]
-[ext_resource type="Resource" path="res://rolling_stock/coach.tres" id="16_coach"]
-[ext_resource type="Resource" path="res://rolling_stock/freight_wagon.tres" id="17_freight_wagon"]
-[ext_resource type="Script" path="res://scripts/track/track_mesher.gd" id="track_mesher"]
-
-[ext_resource type="Script" path="res://scripts/traffic/station.gd" id="st_station"]
-[ext_resource type="Script" path="res://scripts/traffic/outside_connection.gd" id="st_connection"]
-[ext_resource type="Script" path="res://scripts/traffic/interest_track.gd" id="st_track"]
-[ext_resource type="Script" path="res://scripts/traffic/train_route.gd" id="st_route"]
-[ext_resource type="Script" path="res://scripts/traffic/train_spawner.gd" id="st_spawner"]
-[ext_resource type="Script" path="res://scripts/trains/train_type.gd" id="st_type_script"]
-[ext_resource type="Resource" path="res://train_types/express.tres" id="st_express"]
-[ext_resource type="Resource" path="res://train_types/local.tres" id="st_local"]
-[ext_resource type="Resource" path="res://train_types/loaded_freight.tres" id="st_loaded"]
-[ext_resource type="Resource" path="res://train_types/empty_freight.tres" id="st_empty"]
-[ext_resource type="Script" path="res://scripts/debug/interest_debug_panel.gd" id="st_ipanel"]
-[ext_resource type="Script" path="res://scripts/debug/route_list_panel.gd" id="st_rpanel"]
+[ext_resource type="Script" path="res://scripts/world/ground.gd" id="ground"]
+[ext_resource type="Script" path="res://scripts/rails/rail.gd" id="rail"]
+[ext_resource type="Script" path="res://scripts/trains/train.gd" id="train"]
+[ext_resource type="Script" path="res://scripts/rails/turnout.gd" id="turnout"]
+[ext_resource type="Script" path="res://scripts/rails/compound_turnout.gd" id="compound"]
+[ext_resource type="Script" path="res://scripts/rails/crossing.gd" id="crossing"]
+[ext_resource type="Script" path="res://scripts/rails/rail_signal.gd" id="signal"]
+[ext_resource type="Script" path="res://scripts/traffic/station.gd" id="station"]
+[ext_resource type="Script" path="res://scripts/traffic/outside_connection.gd" id="connection"]
+[ext_resource type="Script" path="res://scripts/traffic/interest_track.gd" id="interest_track"]
+[ext_resource type="Script" path="res://scripts/traffic/train_route.gd" id="route"]
+[ext_resource type="Script" path="res://scripts/traffic/train_spawner.gd" id="spawner"]
+[ext_resource type="Script" path="res://scripts/trains/train_type.gd" id="train_type"]
+[ext_resource type="Script" path="res://scripts/track/track_mesher.gd" id="mesher"]
+[ext_resource type="Script" path="res://scripts/debug/camera_rig.gd" id="camera"]
+[ext_resource type="Script" path="res://scripts/debug/train_debug_panel.gd" id="train_panel"]
+[ext_resource type="Script" path="res://scripts/debug/turnout_debug_panel.gd" id="turnout_panel"]
+[ext_resource type="Script" path="res://scripts/debug/signal_debug_panel.gd" id="signal_panel"]
+[ext_resource type="Script" path="res://scripts/debug/interest_debug_panel.gd" id="interest_panel"]
+[ext_resource type="Script" path="res://scripts/debug/route_list_panel.gd" id="route_panel"]
+[ext_resource type="Script" path="res://scripts/ui/marker_overlay.gd" id="overlay"]
+[ext_resource type="Resource" path="res://train_types/express.tres" id="type_express"]
+[ext_resource type="Resource" path="res://train_types/local.tres" id="type_local"]
+[ext_resource type="Resource" path="res://train_types/loaded_freight.tres" id="type_loaded"]
+[ext_resource type="Resource" path="res://train_types/empty_freight.tres" id="type_empty"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_horizon_color = Color(0.66, 0.7, 0.74, 1)
@@ -46,33 +40,103 @@ sky = SubResource("Sky_1")
 tonemap_mode = 2
 ssao_enabled = true
 
-[sub_resource type="Curve3D" id="Curve3D_NorthLine"]
+[sub_resource type="Curve3D" id="Curve3D_NorthMain"]
 _data = {
-"points": PackedVector3Array(-33, 0, 0, 33, 0, 0, -250, 0, -5, -33, 0, 0, 33, 0, 0, -150, 0, -5, -33, 0, 0, 33, 0, 0, -50, 0, -5, -33, 0, 0, 33, 0, 0, 50, 0, -5, -33, 0, 0, 33, 0, 0, 150, 0, -5, -33, 0, 0, 33, 0, 0, 250, 0, -5),
-"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0)
+"points": PackedVector3Array(0, 0, 0, 35.2147, 0, 0, -740.0, 0.25, -42.5, -35.2147, 0, 0, 30.574, 0, 0, -634.356, 0.25, -42.5, -27.5166, 0, -13.3269, 26.8372, 0, 12.9978, -546.0883, 0.25, -22.25, -29.8191, 0, 0, 386.6667, 0, 0, -460.0, 0.25, -2.5, -386.6667, 0, 0, 30.574, 0, 0, 700.0, 0.25, -2.5, -27.5166, 0, -13.3269, 26.8372, 0, 12.9978, 788.2677, 0.25, 17.75, -29.8191, 0, 0, 35.2147, 0, 0, 874.356, 0.25, 37.5, -35.2147, 0, 0, 0, 0, 0, 980.0, 0.25, 37.5),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0)
 }
-point_count = 6
+point_count = 8
 
-[sub_resource type="Curve3D" id="Curve3D_MiddleLine"]
+[sub_resource type="Curve3D" id="Curve3D_SouthMain"]
 _data = {
-"points": PackedVector3Array(-33, 0, 0, 33, 0, 0, -250, 0, 0, -33, 0, 0, 33, 0, 0, -150, 0, 0, -33, 0, 0, 33, 0, 0, -50, 0, 0, -33, 0, 0, 33, 0, 0, 50, 0, 0, -33, 0, 0, 33, 0, 0, 150, 0, 0, -33, 0, 0, 33, 0, 0, 250, 0, 0),
-"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0)
+"points": PackedVector3Array(0, 0, 0, 35.2147, 0, 0, -740.0, 0.25, -37.5, -35.2147, 0, 0, 29.8191, 0, 0, -634.356, 0.25, -37.5, -26.8372, 0, -12.9978, 27.5166, 0, 13.3269, -548.2677, 0.25, -17.75, -30.574, 0, 0, 386.6667, 0, 0, -460.0, 0.25, 2.5, -386.6667, 0, 0, 29.8191, 0, 0, 700.0, 0.25, 2.5, -26.8372, 0, -12.9978, 27.5166, 0, 13.3269, 786.0883, 0.25, 22.25, -30.574, 0, 0, 35.2147, 0, 0, 874.356, 0.25, 42.5, -35.2147, 0, 0, 0, 0, 0, 980.0, 0.25, 42.5),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0)
 }
-point_count = 6
+point_count = 8
 
-[sub_resource type="Curve3D" id="Curve3D_SouthLine"]
+[sub_resource type="Curve3D" id="Curve3D_CentralLoop"]
 _data = {
-"points": PackedVector3Array(-33, 0, 0, 33, 0, 0, -250, 0, 5, -33, 0, 0, 33, 0, 0, -150, 0, 5, -33, 0, 0, 33, 0, 0, -50, 0, 5, -33, 0, 0, 33, 0, 0, 50, 0, 5, -33, 0, 0, 33, 0, 0, 150, 0, 5, -33, 0, 0, 33, 0, 0, 250, 0, 5),
-"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0)
+"points": PackedVector3Array(0, 0, 0, 20.2759, 0, 0, -250.0, 0.25, -2.5, -20.2759, 0, 0, 73.3333, 0, 0, -190.0, 0.25, -12.5, -73.3333, 0, 0, 20.2759, 0, 0, 30.0, 0.25, -12.5, -20.2759, 0, 0, 0, 0, 0, 90.0, 0.25, -2.5),
+"tilts": PackedFloat32Array(0, 0, 0, 0)
 }
-point_count = 6
+point_count = 4
 
-[sub_resource type="Curve3D" id="Curve3D_Link"]
+[sub_resource type="Curve3D" id="Curve3D_WestCrossoverDown"]
 _data = {
-"points": PackedVector3Array(-12, 0, 0, 12, 0, 0, 40, 0, -5, -12, 0, 0, 12, 0, 0, 76, 0, 0),
+"points": PackedVector3Array(0, 0, 0, 12.1152, 0, 0, -330.0, 0.25, -2.5, -12.1152, 0, 0, 0, 0, 0, -294.0, 0.25, 2.5),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_WestCrossoverUp"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 12.1152, 0, 0, -330.0, 0.25, 2.5, -12.1152, 0, 0, 0, 0, 0, -294.0, 0.25, -2.5),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_EastCrossoverDown"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 12.1152, 0, 0, 130.0, 0.25, -2.5, -12.1152, 0, 0, 0, 0, 0, 166.0, 0.25, 2.5),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_EastCrossoverUp"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 12.1152, 0, 0, 130.0, 0.25, 2.5, -12.1152, 0, 0, 0, 0, 0, 166.0, 0.25, -2.5),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_HaltWestCrossoverDown"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 12.1152, 0, 0, 340.0, 0.25, -2.5, -12.1152, 0, 0, 0, 0, 0, 376.0, 0.25, 2.5),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_HaltWestCrossoverUp"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 12.1152, 0, 0, 340.0, 0.25, 2.5, -12.1152, 0, 0, 0, 0, 0, 376.0, 0.25, -2.5),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_HaltEastCrossoverDown"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 12.1152, 0, 0, 580.0, 0.25, -2.5, -12.1152, 0, 0, 0, 0, 0, 616.0, 0.25, 2.5),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_HaltEastCrossoverUp"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 12.1152, 0, 0, 580.0, 0.25, 2.5, -12.1152, 0, 0, 0, 0, 0, 616.0, 0.25, -2.5),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_MineBranch"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, -28.2123, 0, 0, -380.0, 0.25, 2.5, 21.6119, 0, -18.1345, -37.3381, 0, 31.3304, -457.1345, 0.25, 30.5747, 37.3381, 0, -31.3304, 0, 0, 0, -569.1487, 0.25, 124.5658),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[sub_resource type="Curve3D" id="Curve3D_MineSiding"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, -7.3582, 0, 6.1742, -463.4346, 0.25, 35.8611, 6.1742, 0, -7.3582, -6.1742, 0, 7.3582, -483.772, 0.25, 56.1984, 7.3582, 0, -6.1742, -22.3185, 0, 18.7274, -504.1094, 0.25, 76.5358, 22.3185, 0, -18.7274, 0, 0, 0, -571.0648, 0.25, 132.7181),
+"tilts": PackedFloat32Array(0, 0, 0, 0)
+}
+point_count = 4
+
+[sub_resource type="Curve3D" id="Curve3D_FactorySiding"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 26.3305, 0, 0, 220.0, 0.25, -2.5, -22.8029, 0, 13.1652, 25.9808, 0, -15.0, 295.0, 0.25, -22.5962, -25.9808, 0, 15.0, 0, 0, 0, 372.9423, 0.25, -67.5962),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
 
 [node name="StationsDemo" type="Node3D"]
 
@@ -83,236 +147,630 @@ environment = SubResource("Environment_1")
 transform = Transform3D(0.6452, -0.628, 0.4352, 0, 0.5696, 0.822, -0.764, -0.5303, 0.3675, 0, 60, 0)
 light_energy = 1.3
 shadow_enabled = true
-directional_shadow_max_distance = 600.0
+directional_shadow_max_distance = 700.0
 
 [node name="Ground" type="MeshInstance3D" parent="." groups=["snap_surface"]]
-script = ExtResource("1_ground")
-size = Vector2(560, 120)
-subdivisions = 70
+script = ExtResource("ground")
+size = Vector2(2000.0, 400.0)
+subdivisions = 150
 hill_height = 0.0
 
 [node name="Rails" type="Node3D" parent="."]
 
-[node name="NorthLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
-curve = SubResource("Curve3D_NorthLine")
-script = ExtResource("2_rail")
+[node name="NorthMain" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_NorthMain")
+script = ExtResource("rail")
 surface_root = NodePath("../../Ground")
 surface_offset = 0.25
+snap_on_ready = false
 
-[node name="MiddleLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
-curve = SubResource("Curve3D_MiddleLine")
-script = ExtResource("2_rail")
+[node name="SouthMain" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_SouthMain")
+script = ExtResource("rail")
 surface_root = NodePath("../../Ground")
 surface_offset = 0.25
+snap_on_ready = false
 
-[node name="SouthLine" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
-curve = SubResource("Curve3D_SouthLine")
-script = ExtResource("2_rail")
+[node name="CentralLoop" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_CentralLoop")
+script = ExtResource("rail")
 surface_root = NodePath("../../Ground")
 surface_offset = 0.25
+snap_on_ready = false
 
-[node name="CrossoverLink" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
-curve = SubResource("Curve3D_Link")
-script = ExtResource("2_rail")
+[node name="WestCrossoverDown" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_WestCrossoverDown")
+script = ExtResource("rail")
 surface_root = NodePath("../../Ground")
 surface_offset = 0.25
+snap_on_ready = false
+
+[node name="WestCrossoverUp" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_WestCrossoverUp")
+script = ExtResource("rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="EastCrossoverDown" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_EastCrossoverDown")
+script = ExtResource("rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="EastCrossoverUp" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_EastCrossoverUp")
+script = ExtResource("rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="HaltWestCrossoverDown" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_HaltWestCrossoverDown")
+script = ExtResource("rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="HaltWestCrossoverUp" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_HaltWestCrossoverUp")
+script = ExtResource("rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="HaltEastCrossoverDown" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_HaltEastCrossoverDown")
+script = ExtResource("rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="HaltEastCrossoverUp" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_HaltEastCrossoverUp")
+script = ExtResource("rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="MineBranch" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_MineBranch")
+script = ExtResource("rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="MineSiding" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_MineSiding")
+script = ExtResource("rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="FactorySiding" type="Path3D" parent="Rails" node_paths=PackedStringArray("surface_root")]
+curve = SubResource("Curve3D_FactorySiding")
+script = ExtResource("rail")
+surface_root = NodePath("../../Ground")
+surface_offset = 0.25
+snap_on_ready = false
+
+[node name="Turnouts" type="Node3D" parent="."]
+
+[node name="MineJunction" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../Rails/SouthMain")
+main_distance = 366.0549
+diverge_towards = 0
+branch_rail = NodePath("../../Rails/MineBranch")
+branch_end = 0
+
+[node name="MineSplit" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../Rails/MineBranch")
+main_distance = 92.0
+diverge_towards = 1
+branch_rail = NodePath("../../Rails/MineSiding")
+branch_end = 0
+
+[node name="LoopWest" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../Rails/NorthMain")
+main_distance = 496.0547
+diverge_towards = 1
+branch_rail = NodePath("../../Rails/CentralLoop")
+branch_end = 0
+
+[node name="LoopEast" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../Rails/NorthMain")
+main_distance = 836.0548
+diverge_towards = 0
+branch_rail = NodePath("../../Rails/CentralLoop")
+branch_end = 1
+
+[node name="FactoryJunction" type="Node3D" parent="Turnouts" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../Rails/NorthMain")
+main_distance = 966.0547
+diverge_towards = 1
+branch_rail = NodePath("../../Rails/FactorySiding")
+branch_end = 0
 
 [node name="Compounds" type="Node3D" parent="."]
 
-[node name="Crossover" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
-script = ExtResource("4_compound")
-kind = 1
-members = [NodePath("NorthPoints"), NodePath("MiddlePoints")]
+[node name="WestCrossover" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("compound")
+kind = 2
+members = [NodePath("NorthWest"), NodePath("SouthEast"), NodePath("SouthWest"), NodePath("NorthEast")]
 
-[node name="NorthPoints" type="Node3D" parent="Compounds/Crossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
-script = ExtResource("3_turnout")
-main_rail = NodePath("../../../Rails/NorthLine")
-main_distance = 290
+[node name="NorthWest" type="Node3D" parent="Compounds/WestCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/NorthMain")
+main_distance = 416.0547
 diverge_towards = 1
-branch_rail = NodePath("../../../Rails/CrossoverLink")
+branch_rail = NodePath("../../../Rails/WestCrossoverDown")
 branch_end = 0
 
-[node name="MiddlePoints" type="Node3D" parent="Compounds/Crossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
-script = ExtResource("3_turnout")
-main_rail = NodePath("../../../Rails/MiddleLine")
-main_distance = 326
+[node name="SouthEast" type="Node3D" parent="Compounds/WestCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/SouthMain")
+main_distance = 452.0549
 diverge_towards = 0
-branch_rail = NodePath("../../../Rails/CrossoverLink")
+branch_rail = NodePath("../../../Rails/WestCrossoverDown")
 branch_end = 1
+
+[node name="SouthWest" type="Node3D" parent="Compounds/WestCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/SouthMain")
+main_distance = 416.0549
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/WestCrossoverUp")
+branch_end = 0
+
+[node name="NorthEast" type="Node3D" parent="Compounds/WestCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/NorthMain")
+main_distance = 452.0547
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/WestCrossoverUp")
+branch_end = 1
+
+[node name="EastCrossover" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("compound")
+kind = 2
+members = [NodePath("NorthWest"), NodePath("SouthEast"), NodePath("SouthWest"), NodePath("NorthEast")]
+
+[node name="NorthWest" type="Node3D" parent="Compounds/EastCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/NorthMain")
+main_distance = 876.0548
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/EastCrossoverDown")
+branch_end = 0
+
+[node name="SouthEast" type="Node3D" parent="Compounds/EastCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/SouthMain")
+main_distance = 912.0549
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/EastCrossoverDown")
+branch_end = 1
+
+[node name="SouthWest" type="Node3D" parent="Compounds/EastCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/SouthMain")
+main_distance = 876.0549
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/EastCrossoverUp")
+branch_end = 0
+
+[node name="NorthEast" type="Node3D" parent="Compounds/EastCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/NorthMain")
+main_distance = 912.0547
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/EastCrossoverUp")
+branch_end = 1
+
+[node name="HaltWestCrossover" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("compound")
+kind = 2
+members = [NodePath("NorthWest"), NodePath("SouthEast"), NodePath("SouthWest"), NodePath("NorthEast")]
+
+[node name="NorthWest" type="Node3D" parent="Compounds/HaltWestCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/NorthMain")
+main_distance = 1086.0547
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/HaltWestCrossoverDown")
+branch_end = 0
+
+[node name="SouthEast" type="Node3D" parent="Compounds/HaltWestCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/SouthMain")
+main_distance = 1122.0549
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/HaltWestCrossoverDown")
+branch_end = 1
+
+[node name="SouthWest" type="Node3D" parent="Compounds/HaltWestCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/SouthMain")
+main_distance = 1086.0549
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/HaltWestCrossoverUp")
+branch_end = 0
+
+[node name="NorthEast" type="Node3D" parent="Compounds/HaltWestCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/NorthMain")
+main_distance = 1122.0547
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/HaltWestCrossoverUp")
+branch_end = 1
+
+[node name="HaltEastCrossover" type="Node3D" parent="Compounds" groups=["compound_turnouts"] node_paths=PackedStringArray("members")]
+script = ExtResource("compound")
+kind = 2
+members = [NodePath("NorthWest"), NodePath("SouthEast"), NodePath("SouthWest"), NodePath("NorthEast")]
+
+[node name="NorthWest" type="Node3D" parent="Compounds/HaltEastCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/NorthMain")
+main_distance = 1326.0547
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/HaltEastCrossoverDown")
+branch_end = 0
+
+[node name="SouthEast" type="Node3D" parent="Compounds/HaltEastCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/SouthMain")
+main_distance = 1362.0549
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/HaltEastCrossoverDown")
+branch_end = 1
+
+[node name="SouthWest" type="Node3D" parent="Compounds/HaltEastCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/SouthMain")
+main_distance = 1326.0549
+diverge_towards = 1
+branch_rail = NodePath("../../../Rails/HaltEastCrossoverUp")
+branch_end = 0
+
+[node name="NorthEast" type="Node3D" parent="Compounds/HaltEastCrossover" groups=["turnouts"] node_paths=PackedStringArray("main_rail", "branch_rail")]
+script = ExtResource("turnout")
+main_rail = NodePath("../../../Rails/NorthMain")
+main_distance = 1362.0547
+diverge_towards = 0
+branch_rail = NodePath("../../../Rails/HaltEastCrossoverUp")
+branch_end = 1
+
+[node name="Crossings" type="Node3D" parent="."]
+
+[node name="WestCrossoverMiddle" type="Node3D" parent="Crossings" groups=["crossings"] node_paths=PackedStringArray("rail_a", "rail_b")]
+script = ExtResource("crossing")
+rail_a = NodePath("../../Rails/WestCrossoverDown")
+distance_a = 18.2072
+rail_b = NodePath("../../Rails/WestCrossoverUp")
+distance_b = 18.2072
+
+[node name="EastCrossoverMiddle" type="Node3D" parent="Crossings" groups=["crossings"] node_paths=PackedStringArray("rail_a", "rail_b")]
+script = ExtResource("crossing")
+rail_a = NodePath("../../Rails/EastCrossoverDown")
+distance_a = 18.2072
+rail_b = NodePath("../../Rails/EastCrossoverUp")
+distance_b = 18.2072
+
+[node name="HaltWestCrossoverMiddle" type="Node3D" parent="Crossings" groups=["crossings"] node_paths=PackedStringArray("rail_a", "rail_b")]
+script = ExtResource("crossing")
+rail_a = NodePath("../../Rails/HaltWestCrossoverDown")
+distance_a = 18.2072
+rail_b = NodePath("../../Rails/HaltWestCrossoverUp")
+distance_b = 18.2072
+
+[node name="HaltEastCrossoverMiddle" type="Node3D" parent="Crossings" groups=["crossings"] node_paths=PackedStringArray("rail_a", "rail_b")]
+script = ExtResource("crossing")
+rail_a = NodePath("../../Rails/HaltEastCrossoverDown")
+distance_a = 18.2072
+rail_b = NodePath("../../Rails/HaltEastCrossoverUp")
+distance_b = 18.2072
 
 [node name="Interest" type="Node3D" parent="."]
 
 [node name="WestGate" type="Node3D" parent="Interest"]
-script = ExtResource("st_connection")
-display_name = "West Gate"
+script = ExtResource("connection")
+display_name = "West"
 
 [node name="North" type="Node" parent="Interest/WestGate" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/NorthLine")
-distance = 110
-role = 1
-
-[node name="Middle" type="Node" parent="Interest/WestGate" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/MiddleLine")
-distance = 110
-role = 1
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/NorthMain")
+distance = 80.0
 
 [node name="South" type="Node" parent="Interest/WestGate" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/SouthLine")
-distance = 110
-role = 2
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/SouthMain")
+distance = 80.0
 
-[node name="EastGate" type="Node3D" parent="Interest"]
-script = ExtResource("st_connection")
-display_name = "East Gate"
-
-[node name="North" type="Node" parent="Interest/EastGate" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/NorthLine")
-distance = 390
-role = 2
-
-[node name="Middle" type="Node" parent="Interest/EastGate" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/MiddleLine")
-distance = 390
-role = 2
-
-[node name="South" type="Node" parent="Interest/EastGate" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/SouthLine")
-distance = 390
-role = 1
-
-[node name="CentralStation" type="Node3D" parent="Interest"]
-script = ExtResource("st_station")
-display_name = "Central Station"
+[node name="Central" type="Node3D" parent="Interest"]
+script = ExtResource("station")
+display_name = "Central"
 dwell_time = 6.0
 
-[node name="North" type="Node" parent="Interest/CentralStation" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/NorthLine")
-distance = 250
+[node name="Loop" type="Node" parent="Interest/Central" node_paths=PackedStringArray("rail")]
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/CentralLoop")
+distance = 170.9922
+platform_length = 120.0
 
-[node name="Middle" type="Node" parent="Interest/CentralStation" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/MiddleLine")
-distance = 250
+[node name="North" type="Node" parent="Interest/Central" node_paths=PackedStringArray("rail")]
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/NorthMain")
+distance = 666.0548
+platform_length = 120.0
 
-[node name="South" type="Node" parent="Interest/CentralStation" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/SouthLine")
-distance = 250
+[node name="South" type="Node" parent="Interest/Central" node_paths=PackedStringArray("rail")]
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/SouthMain")
+distance = 666.0549
+platform_length = 120.0
 
-[node name="CoalMine" type="Node3D" parent="Interest"]
-script = ExtResource("st_station")
-display_name = "Coal Mine"
+[node name="Mine" type="Node3D" parent="Interest"]
+script = ExtResource("station")
+display_name = "Mine"
 dwell_time = 8.0
 cargo = 1
 
-[node name="Middle" type="Node" parent="Interest/CoalMine" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/MiddleLine")
-distance = 150
+[node name="TrackA" type="Node" parent="Interest/Mine" node_paths=PackedStringArray("rail")]
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/MineBranch")
+distance = 172.0
+platform_length = 90.0
 
-[node name="South" type="Node" parent="Interest/CoalMine" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/SouthLine")
-distance = 150
+[node name="TrackB" type="Node" parent="Interest/Mine" node_paths=PackedStringArray("rail")]
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/MineSiding")
+distance = 95.0
+platform_length = 90.0
 
 [node name="Factory" type="Node3D" parent="Interest"]
-script = ExtResource("st_station")
+script = ExtResource("station")
 display_name = "Factory"
 dwell_time = 8.0
 cargo = 2
 
-[node name="North" type="Node" parent="Interest/Factory" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/NorthLine")
-distance = 350
+[node name="Siding" type="Node" parent="Interest/Factory" node_paths=PackedStringArray("rail")]
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/FactorySiding")
+distance = 100.0
+platform_length = 90.0
 
-[node name="Middle" type="Node" parent="Interest/Factory" node_paths=PackedStringArray("rail")]
-script = ExtResource("st_track")
-rail = NodePath("../../../Rails/MiddleLine")
-distance = 350
+[node name="Halt" type="Node3D" parent="Interest"]
+script = ExtResource("station")
+display_name = "Halt"
+dwell_time = 4.0
+
+[node name="North" type="Node" parent="Interest/Halt" node_paths=PackedStringArray("rail")]
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/NorthMain")
+distance = 1226.0547
+platform_length = 90.0
+
+[node name="South" type="Node" parent="Interest/Halt" node_paths=PackedStringArray("rail")]
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/SouthMain")
+distance = 1226.0549
+platform_length = 90.0
+
+[node name="EastGate" type="Node3D" parent="Interest"]
+script = ExtResource("connection")
+display_name = "East"
+
+[node name="North" type="Node" parent="Interest/EastGate" node_paths=PackedStringArray("rail")]
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/NorthMain")
+distance = 1652.1111
+
+[node name="South" type="Node" parent="Interest/EastGate" node_paths=PackedStringArray("rail")]
+script = ExtResource("interest_track")
+rail = NodePath("../../../Rails/SouthMain")
+distance = 1652.1111
 
 [node name="Signals" type="Node3D" parent="."]
 
-[node name="WestNorth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
-script = ExtResource("5_signal")
-rail = NodePath("../../Rails/NorthLine")
-distance = 135
+[node name="CentralWestEntryNorth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/NorthMain")
+distance = 326.0547
 governs = 0
-aspect = 1
 
-[node name="WestMiddle" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
-script = ExtResource("5_signal")
-rail = NodePath("../../Rails/MiddleLine")
-distance = 135
-governs = 0
-aspect = 1
-
-[node name="EastSouth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
-script = ExtResource("5_signal")
-rail = NodePath("../../Rails/SouthLine")
-distance = 365
+[node name="CentralEastEntryNorth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/NorthMain")
+distance = 1006.0547
 governs = 1
-aspect = 1
+
+[node name="HaltWestEntryNorth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/NorthMain")
+distance = 1056.0547
+governs = 0
+
+[node name="HaltEastEntryNorth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/NorthMain")
+distance = 1396.0547
+governs = 1
+
+[node name="CentralWestEntrySouth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/SouthMain")
+distance = 326.0549
+governs = 0
+
+[node name="CentralEastEntrySouth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/SouthMain")
+distance = 1006.0549
+governs = 1
+
+[node name="HaltWestEntrySouth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/SouthMain")
+distance = 1056.0549
+governs = 0
+
+[node name="HaltEastEntrySouth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/SouthMain")
+distance = 1396.0549
+governs = 1
+
+[node name="CentralWestExitLoop" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/CentralLoop")
+distance = 105.9922
+governs = 1
+
+[node name="CentralEastExitLoop" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/CentralLoop")
+distance = 235.9922
+governs = 0
+
+[node name="CentralWestExitNorth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/NorthMain")
+distance = 601.0548
+governs = 1
+
+[node name="CentralEastExitNorth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/NorthMain")
+distance = 731.0548
+governs = 0
+
+[node name="CentralWestExitSouth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/SouthMain")
+distance = 601.0549
+governs = 1
+
+[node name="CentralEastExitSouth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/SouthMain")
+distance = 731.0549
+governs = 0
+
+[node name="MineExitTrackA" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/MineBranch")
+distance = 122.0
+governs = 1
+
+[node name="MineExitTrackB" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/MineSiding")
+distance = 45.0
+governs = 1
+
+[node name="FactoryExitSiding" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/FactorySiding")
+distance = 50.0
+governs = 1
+
+[node name="HaltWestExitNorth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/NorthMain")
+distance = 1176.0547
+governs = 1
+
+[node name="HaltEastExitNorth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/NorthMain")
+distance = 1276.0547
+governs = 0
+
+[node name="HaltWestExitSouth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/SouthMain")
+distance = 1176.0549
+governs = 1
+
+[node name="HaltEastExitSouth" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("signal")
+rail = NodePath("../../Rails/SouthMain")
+distance = 1276.0549
+governs = 0
 
 [node name="Trains" type="Node3D" parent="."]
 
 [node name="Spawner" type="Node" parent="." node_paths=PackedStringArray("trains_parent")]
-script = ExtResource("st_spawner")
-max_trains = 6
-min_spawn_interval = 20.0
-initial_trains = 3
+script = ExtResource("spawner")
+max_trains = 4
+min_spawn_interval = 60.0
+initial_trains = 2
+random_seed = 0
 trains_parent = NodePath("../Trains")
 
 [node name="Express" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
-script = ExtResource("st_route")
-train_types = Array[ExtResource("st_type_script")]([ExtResource("st_express")])
+script = ExtResource("route")
+train_types = Array[ExtResource("train_type")]([ExtResource("type_express")])
 entries = [NodePath("../../Interest/WestGate")]
-stops = [NodePath("../../Interest/CentralStation"), NodePath("../../Interest/EastGate")]
+stops = [NodePath("../../Interest/Central"), NodePath("../../Interest/EastGate")]
+
+[node name="ExpressWest" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
+script = ExtResource("route")
+train_types = Array[ExtResource("train_type")]([ExtResource("type_express")])
+entries = [NodePath("../../Interest/EastGate")]
+stops = [NodePath("../../Interest/Central"), NodePath("../../Interest/WestGate")]
 
 [node name="Local" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
-script = ExtResource("st_route")
-train_types = Array[ExtResource("st_type_script")]([ExtResource("st_local")])
+script = ExtResource("route")
+train_types = Array[ExtResource("train_type")]([ExtResource("type_local")])
+entries = [NodePath("../../Interest/WestGate")]
+stops = [NodePath("../../Interest/Central"), NodePath("../../Interest/Halt"), NodePath("../../Interest/EastGate")]
+
+[node name="LocalWest" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
+script = ExtResource("route")
+train_types = Array[ExtResource("train_type")]([ExtResource("type_local")])
 entries = [NodePath("../../Interest/EastGate")]
-stops = [NodePath("../../Interest/CentralStation"), NodePath("../../Interest/WestGate")]
+stops = [NodePath("../../Interest/Halt"), NodePath("../../Interest/Central"), NodePath("../../Interest/WestGate")]
 
 [node name="Coal" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
-script = ExtResource("st_route")
-train_types = Array[ExtResource("st_type_script")]([ExtResource("st_loaded")])
-entries = [NodePath("../../Interest/WestGate")]
-stops = [NodePath("../../Interest/Factory"), NodePath("../../Interest/EastGate")]
-
-[node name="Empties" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
-script = ExtResource("st_route")
-train_types = Array[ExtResource("st_type_script")]([ExtResource("st_empty")])
+script = ExtResource("route")
+train_types = Array[ExtResource("train_type")]([ExtResource("type_empty")])
 entries = [NodePath("../../Interest/EastGate")]
-stops = [NodePath("../../Interest/CoalMine"), NodePath("../../Interest/WestGate")]
+stops = [NodePath("../../Interest/Mine"), NodePath("../../Interest/EastGate")]
+
+[node name="Deliveries" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
+script = ExtResource("route")
+train_types = Array[ExtResource("train_type")]([ExtResource("type_loaded")])
+entries = [NodePath("../../Interest/WestGate")]
+stops = [NodePath("../../Interest/Factory"), NodePath("../../Interest/WestGate")]
 
 [node name="StationLocal" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]
-script = ExtResource("st_route")
-train_types = Array[ExtResource("st_type_script")]([ExtResource("st_local")])
-entries = [NodePath("../../Interest/CentralStation")]
-stops = [NodePath("../../Interest/EastGate")]
+script = ExtResource("route")
+train_types = Array[ExtResource("train_type")]([ExtResource("type_local")])
+entries = [NodePath("../../Interest/Central")]
+stops = [NodePath("../../Interest/Halt"), NodePath("../../Interest/EastGate")]
 
 [node name="Track" type="Node3D" parent="."]
-script = ExtResource("track_mesher")
+script = ExtResource("mesher")
 
 [node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 2, 0)
-script = ExtResource("7_camera")
-yaw_degrees = -8.0
-pitch_degrees = -38.0
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 120, 0, 30)
+script = ExtResource("camera")
 camera = NodePath("Camera3D")
-zoom = 230.0
+yaw_degrees = 0.0
+pitch_degrees = -55.0
+zoom = 650.0
+max_zoom = 1400.0
 
 [node name="Camera3D" type="Camera3D" parent="CameraRig"]
-far = 2000.0
+far = 3000.0
 
 [node name="DebugUi" type="CanvasLayer" parent="."]
 
@@ -326,37 +784,37 @@ theme_override_constants/separation = 8
 layout_mode = 2
 size_flags_horizontal = 0
 mouse_filter = 2
-script = ExtResource("8_trains")
+script = ExtResource("train_panel")
 
 [node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
 layout_mode = 2
 size_flags_horizontal = 0
 mouse_filter = 2
-script = ExtResource("9_turnouts")
+script = ExtResource("turnout_panel")
 overlay = NodePath("../../MarkerOverlay")
 
 [node name="SignalDebugPanel" type="PanelContainer" parent="DebugUi/Panels" node_paths=PackedStringArray("overlay")]
 layout_mode = 2
 size_flags_horizontal = 0
 mouse_filter = 2
-script = ExtResource("10_signals")
+script = ExtResource("signal_panel")
 overlay = NodePath("../../MarkerOverlay")
 
 [node name="InterestDebugPanel" type="PanelContainer" parent="DebugUi/Panels"]
 layout_mode = 2
 size_flags_horizontal = 0
 mouse_filter = 2
-script = ExtResource("st_ipanel")
+script = ExtResource("interest_panel")
 
 [node name="RouteListPanel" type="PanelContainer" parent="DebugUi/Panels"]
 layout_mode = 2
 size_flags_horizontal = 0
 mouse_filter = 2
-script = ExtResource("st_rpanel")
+script = ExtResource("route_panel")
 
 [node name="MarkerOverlay" type="Control" parent="DebugUi" node_paths=PackedStringArray("camera")]
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
-script = ExtResource("11_overlay")
+script = ExtResource("overlay")
 camera = NodePath("../../CameraRig/Camera3D")

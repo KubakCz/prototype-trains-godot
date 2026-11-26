@@ -171,7 +171,13 @@ func distances_on(query_rail: Rail) -> PackedFloat64Array:
 ## stopped here. The direction test is the whole one-directional rule: a train
 ## going the other way never sees this signal at all.
 func blocks(query_rail: Rail, direction: int) -> bool:
-	if aspect == Aspect.CLEAR or rail == null or query_rail != rail:
+	return aspect == Aspect.DANGER and applies_to(query_rail, direction)
+
+
+## Whether this signal is one a train travelling [param direction] along
+## [param query_rail] sees at all, whatever it shows.
+func applies_to(query_rail: Rail, direction: int) -> bool:
+	if rail == null or query_rail != rail:
 		return false
 	return signi(direction) == governed_direction()
 

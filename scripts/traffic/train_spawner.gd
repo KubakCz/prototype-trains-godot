@@ -11,11 +11,12 @@ extends Node
 ## on the level.
 ##
 ## A spawn picks a route at random, an entry point of the route, a train type of the
-## route and a free track of the entry. A track is free when no train is on the stretch
-## the new one would take up, a few metres behind it and [constant CLEAR_AHEAD] in front;
-## if none is, the spawner tries another route and, failing that, again a second later.
-## Nothing else keeps a new train from running into one ahead of it: that is step 9's
-## blocks.
+## route and a free track of the entry. A track is free when no train is anywhere on the
+## sector the new one would be put into: from a few metres behind its tail forward to
+## the first signal ahead of its nose - the entry signal of a connection, the exit
+## signal of a station - whatever that signal shows. If none is, the spawner tries
+## another route and, failing that, again a second later. Whether the train may go on
+## past that signal is the player's call: at red it rolls in and stops there.
 
 ## Every spawner joins this group, for the debug panel to find.
 const GROUP := &"train_spawners"
@@ -25,9 +26,11 @@ signal train_spawned(train: Train)
 ## went through every stop on the way.
 signal train_left(train: Train, completed: bool)
 
-## Free track wanted behind a new train's tail, and ahead of its nose, in metres.
+## Free track wanted behind a new train's tail, in metres.
 const CLEAR_BEHIND := 15.0
-const CLEAR_AHEAD := 60.0
+## How far ahead the sector is looked for. A level with no signal within this of
+## a spawn point has a sector this long.
+const SECTOR_REACH := 2000.0
 ## After a spawn the next is due between one and this many times the minimum interval
 ## later.
 const JITTER := 2.0
@@ -35,9 +38,9 @@ const JITTER := 2.0
 const RETRY_INTERVAL := 1.0
 
 ## The most trains the level holds at once, those standing wrecked included.
-@export_range(1, 50) var max_trains := 6
+@export_range(1, 50) var max_trains := 4
 ## The least time between two spawns while the level runs, in seconds.
-@export_range(1.0, 600.0, 1.0, "suffix:s") var min_spawn_interval := 30.0:
+@export_range(1.0, 600.0, 1.0, "suffix:s") var min_spawn_interval := 60.0:
 	set(value):
 		min_spawn_interval = value
 		# Changed while the level runs: the wait starts again from now.
@@ -45,7 +48,7 @@ const RETRY_INTERVAL := 1.0
 			_since_spawn = 0.0
 			_next_due = _due_after_spawn()
 ## Trains put on the level when it loads.
-@export_range(0, 50) var initial_trains := 3
+@export_range(0, 50) var initial_trains := 2
 ## Zero rolls the dice differently every run; anything else makes a level repeat.
 @export var random_seed := 0:
 	set(value):
@@ -161,22 +164,34 @@ func spawn_at(route: TrainRoute, entry: InterestPoint, track: InterestTrack,
 	var wagons := type.roll_wagons(_rng)
 	var length := consist_length(type, wagons)
 	var pose := _pose(route, entry, track, length)
-	if pose.is_empty() or not is_clear(track.rail, pose["distance"], pose["facing"], length):
+	if pose.is_empty():
 		return null
-	return _create(route, entry, type, wagons, track.rail, pose["distance"], pose["facing"])
+	var rail: Rail = pose["rail"]
+	if not is_clear(rail, pose["distance"], pose["facing"], length):
+		return null
+	return _create(route, entry, type, wagons, rail, pose["distance"], pose["facing"])
 
 
-## The distance of the middle and the facing for a train of [param length] at
-## [param track] of [param entry]: standing on the mark at a station, nose to whichever
-## way leads to the route's stops; just inside the mark, nose in, at a connection. Empty
+## The rail and distance of the middle and the facing for a train of [param length] at
+## [param track] of [param entry]: nose on the stop mark at a station, facing whichever
+## way leads to the route's stops; nose on the mark, facing in, at a connection. Empty
 ## when it cannot go there.
 func _pose(route: TrainRoute, entry: InterestPoint, track: InterestTrack,
 		length: float) -> Dictionary:
 	var connection := entry as OutsideConnection
 	if connection != null:
-		return connection.spawn_pose(track, length) if track.can_spawn() else {}
-	return {"distance": track.distance,
-			"facing": _facing_towards(route, track.rail, track.distance)}
+		if not track.can_spawn():
+			return {}
+		var pose := connection.spawn_pose(track, length)
+		if not pose.is_empty():
+			pose["rail"] = track.rail
+		return pose
+	var facing := _facing_towards(route, track.rail, track.distance)
+	# Back from the nose to the middle, across any points behind the platform.
+	var back := TrackWalker.walk(track.rail, track.stop_distance(facing), -facing, length * 0.5)
+	if back.is_blocked():
+		return {}
+	return {"rail": back.rail, "distance": back.distance, "facing": -back.direction}
 
 
 ## The way along [param rail] from [param distance] that reaches the route's stops - the
@@ -196,12 +211,14 @@ func _facing_towards(route: TrainRoute, rail: Rail, distance: float) -> int:
 	return 1 if _rng.randf() < 0.5 else -1
 
 
-## Whether [param length] metres of train centred at [param distance] on [param rail],
-## with room around it for a train to arrive, would touch any train already there.
+## Whether a train of [param length] metres centred at [param distance] on
+## [param rail], nose towards [param facing], would be put into an empty sector: no
+## train from [constant CLEAR_BEHIND] behind its tail up to the first signal ahead of
+## its nose, the points as they are set now.
 func is_clear(rail: Rail, distance: float, facing: int, length: float) -> bool:
 	var half := length * 0.5
 	var mine: Array[TrackWalker.Span] = []
-	mine.append_array(TrackWalker.walk(rail, distance, facing, half + CLEAR_AHEAD).spans)
+	mine.append_array(sector_ahead(rail, distance, facing, half).spans)
 	mine.append_array(TrackWalker.walk(rail, distance, -facing, half + CLEAR_BEHIND).spans)
 	for node in get_tree().get_nodes_in_group(Train.GROUP):
 		var other := node as Train
@@ -212,6 +229,14 @@ func is_clear(rail: Rail, distance: float, facing: int, length: float) -> bool:
 				if span.overlaps(theirs):
 					return false
 	return true
+
+
+## The walk from a new train's middle up to the first signal ahead of its nose (its
+## [member TrackWalker.Step.blocking_signal]), or to the first points set against it
+## or the end of the line when there is no signal before them.
+static func sector_ahead(rail: Rail, distance: float, facing: int,
+		half: float) -> TrackWalker.Step:
+	return TrackWalker.walk(rail, distance, facing, half + SECTOR_REACH, half, [], true)
 
 
 ## Nose to tail of a train of [param type] with [param wagons], couplings included.
@@ -280,4 +305,21 @@ func _get_configuration_warnings() -> PackedStringArray:
 	var found := routes()
 	if found.is_empty():
 		warnings.append("No TrainRoute children: nothing can be spawned.")
+	# A connection puts a train down with its nose on the mark and the rest outside.
+	for route in found:
+		var longest := 0.0
+		for type in route.train_types:
+			if type != null and type.locomotive != null:
+				longest = maxf(longest, type.longest_length())
+		for entry in route.entries:
+			var connection := entry as OutsideConnection
+			if connection == null:
+				continue
+			for track in connection.tracks():
+				if not track.can_spawn() or not track.rail.is_inside_tree():
+					continue
+				var room := OutsideConnection.room_outside(track)
+				if room < longest:
+					warnings.append("%s/%s has %.0f m of rail outside its mark, and route %s sends trains up to %.0f m long in there." % [
+							connection.name, track.name, room, route.name, longest])
 	return warnings

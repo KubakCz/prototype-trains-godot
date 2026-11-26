@@ -2,9 +2,11 @@
 class_name InterestPoint
 extends Node3D
 ## Somewhere trains are going: a [Station] or an [OutsideConnection]. It spans one
-## or more tracks - its [InterestTrack] children - and is marked by a shape floating
-## over the middle of them, with a pole down to each: a circle for a station, a
-## square for a connection, in the point's own colour, and its name beside it.
+## or more tracks - its [InterestTrack] children - and is marked by a badge floating
+## over the middle of them, with a pole down to each: a pill for a station, a box for
+## a connection, in the point's own colour, with its name inside. The poles are drawn
+## here, in 3D; the badge is an [InterestPointWidget] on the floating marker layer, so
+## that it is sized like the rest of the interface and scales with it.
 ##
 ## The colour is picked for the whole level at once: every point that does not set
 ## its own gets a hue spread as far from the others as the number of points allows
@@ -18,17 +20,16 @@ extends Node3D
 ## Every point joins this group, in the editor too.
 const GROUP := &"interest_points"
 
-## How high the marker floats over the tracks, and how big it is.
-const MARKER_HEIGHT := 16.0
-const MARKER_SIZE := 5.0
+## How high the badge floats over the tracks: where the poles meet.
+const MARKER_HEIGHT := 14.0
 ## Hues at least this far apart, out of a whole turn, for the points that pick one.
 const MIN_AUTO_HUE_GAP := 0.05
 
 const _SATURATION := 0.78
 const _VALUE := 0.95
 
-## The names beside the markers. A debug option, switched from the interest point
-## panel.
+## The names inside the badges; without them a badge is a bare circle or square.
+## A debug option, switched from the interest point panel.
 static var show_names := true
 static var _colors_pending := false
 static var _line_material: StandardMaterial3D
@@ -37,7 +38,6 @@ static var _line_material: StandardMaterial3D
 @export var display_name := "":
 	set(value):
 		display_name = value
-		_refresh_label()
 ## Set the colour by hand instead of having one picked.
 @export var use_custom_color := false:
 	set(value):
@@ -52,10 +52,7 @@ static var _line_material: StandardMaterial3D
 
 var _auto_color := Color.WHITE
 var _marker: Node3D
-var _shape: MeshInstance3D
 var _lines: MeshInstance3D
-var _label: Label3D
-var _material: StandardMaterial3D
 var _anchor := Vector3.INF
 
 
@@ -75,15 +72,14 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _label != null:
-		_label.visible = show_names
 	# A rail dragged in the editor takes the marker with it. At runtime nothing
 	# under it moves.
 	if Engine.is_editor_hint():
 		refresh()
 
 
-## A circle or a square? The one thing a station and a connection draw differently.
+## A circle or a square? The one thing a station's badge and a connection's draw
+## differently.
 func is_square() -> bool:
 	return false
 
@@ -177,11 +173,10 @@ func _set_auto_color(value: Color) -> void:
 	_refresh_colors()
 
 
+## The colour changed. The badge reads it every frame; a subclass with something of
+## its own in the point's colour repaints it here.
 func _refresh_colors() -> void:
-	if _material != null:
-		_material.albedo_color = color()
-	if _label != null:
-		_label.modulate = color().lightened(0.35)
+	pass
 #endregion
 
 
@@ -201,8 +196,14 @@ func refresh() -> void:
 	_ensure_marker()
 	_marker.global_position = middle + Vector3.UP * MARKER_HEIGHT
 	_rebuild_lines(middle, marks)
-	_refresh_label()
+	_marker_moved()
 	update_configuration_warnings()
+
+
+## The tracks under the point moved, or the point entered the tree. A subclass with
+## something standing by its tracks places it again here.
+func _marker_moved() -> void:
+	pass
 
 
 func _ensure_marker() -> void:
@@ -212,41 +213,12 @@ func _ensure_marker() -> void:
 	_marker.name = "Marker"
 	_marker.top_level = true
 	add_child(_marker, false, Node.INTERNAL_MODE_BACK)
-	_material = StandardMaterial3D.new()
-	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_material.albedo_color = color()
-	_shape = MeshInstance3D.new()
-	_shape.name = "Shape"
-	if is_square():
-		var box := BoxMesh.new()
-		box.size = Vector3.ONE * MARKER_SIZE
-		_shape.mesh = box
-	else:
-		var ball := SphereMesh.new()
-		ball.radius = MARKER_SIZE * 0.5
-		ball.height = MARKER_SIZE
-		_shape.mesh = ball
-	_shape.material_override = _material
-	_shape.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_marker.add_child(_shape)
 	_lines = MeshInstance3D.new()
 	_lines.name = "Poles"
 	_lines.top_level = true
 	_lines.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_lines.material_override = _get_line_material()
 	_marker.add_child(_lines)
-	_label = Label3D.new()
-	_label.name = "Name"
-	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_label.fixed_size = true
-	_label.pixel_size = 0.0011
-	_label.font_size = 40
-	_label.outline_size = 12
-	_label.no_depth_test = true
-	_label.position = Vector3.UP * (MARKER_SIZE * 0.5 + 1.0)
-	_label.shaded = false
-	_marker.add_child(_label)
-	_refresh_colors()
 
 
 func _rebuild_lines(middle: Vector3, marks: Array[Vector3]) -> void:
@@ -255,17 +227,12 @@ func _rebuild_lines(middle: Vector3, marks: Array[Vector3]) -> void:
 	_lines.mesh = mesh
 	if marks.is_empty():
 		return
-	var top := middle + Vector3.UP * (MARKER_HEIGHT - MARKER_SIZE * 0.5)
+	var top := middle + Vector3.UP * MARKER_HEIGHT
 	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	for mark in marks:
 		mesh.surface_add_vertex(top)
 		mesh.surface_add_vertex(mark)
 	mesh.surface_end()
-
-
-func _refresh_label() -> void:
-	if _label != null:
-		_label.text = label()
 
 
 static func _get_line_material() -> StandardMaterial3D:
@@ -280,14 +247,6 @@ static func _get_line_material() -> StandardMaterial3D:
 
 func marker_position() -> Vector3:
 	return _marker.global_position if _marker != null else Vector3.ZERO
-
-
-func marker_shape() -> MeshInstance3D:
-	return _shape
-
-
-func name_label() -> Label3D:
-	return _label
 
 
 func _get_configuration_warnings() -> PackedStringArray:

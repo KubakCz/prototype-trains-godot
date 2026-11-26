@@ -109,8 +109,9 @@ class Step:
 	## The turnout that refused passage, if one did. A train here has to wait for
 	## it to be thrown.
 	var blocking_turnout: Turnout
-	## The signal at danger the walk stopped at, if it stopped at one. A train
-	## here has to wait for it to clear.
+	## The signal at danger the walk stopped at, if it stopped at one - or the
+	## first signal at all, for a walk asked to stop at any aspect. A train here has
+	## to wait for it to clear.
 	var blocking_signal: RailSignal
 	## True when the walk ran off the end of a rail with nothing attached to it.
 	var at_dead_end: bool
@@ -170,8 +171,14 @@ class Step:
 ## [param excused] are signals that do not stop this walk whatever they show: the
 ## ones a train found at danger too late to stop for, and is running past with its
 ## brakes full on. See [member Train.tripped].
+##
+## [param any_aspect] stops the walk at the first signal it reaches whether it is
+## red or green - the end of the stretch that signal protects, which is what a new
+## train needs free before it is put down ([TrainSpawner]). That signal is then
+## [member Step.blocking_signal] even at clear.
 static func walk(rail: Rail, distance: float, direction: int, length: float,
-		signals_from := IGNORE_SIGNALS, excused: Array[RailSignal] = []) -> Step:
+		signals_from := IGNORE_SIGNALS, excused: Array[RailSignal] = [],
+		any_aspect := false) -> Step:
 	var step := Step.new()
 	step.rail = rail
 	step.direction = 1 if direction >= 0 else -1
@@ -185,7 +192,7 @@ static func walk(rail: Rail, distance: float, direction: int, length: float,
 	for _hop in MAX_HOPS:
 		if remaining <= EPSILON:
 			return step
-		var ahead := _next_stop(step, signals_from, excused)
+		var ahead := _next_stop(step, signals_from, excused, any_aspect)
 		var turnout := ahead.turnout
 		var gap := absf(ahead.distance - step.distance)
 		# `gap - EPSILON`, not `gap`: travel that would leave the walk resting a
@@ -241,7 +248,8 @@ class _Stop:
 ## at a set of points wins the tie. Stopping short of points a train was going to
 ## be allowed through is harmless; being let through points a signal was holding
 ## it at is not.
-static func _next_stop(step: Step, signals_from: float, excused: Array[RailSignal]) -> _Stop:
+static func _next_stop(step: Step, signals_from: float, excused: Array[RailSignal],
+		any_aspect: bool) -> _Stop:
 	var stop := _Stop.new()
 	stop.distance = step.rail.rail_length() if step.direction > 0 else 0.0
 	for node in step.rail.attachments():
@@ -257,7 +265,10 @@ static func _next_stop(step: Step, signals_from: float, excused: Array[RailSigna
 
 	for node in step.rail.attachments():
 		var rail_signal := node as RailSignal
-		if rail_signal == null or not rail_signal.blocks(step.rail, step.direction):
+		if rail_signal == null:
+			continue
+		if not (rail_signal.applies_to(step.rail, step.direction) if any_aspect
+				else rail_signal.blocks(step.rail, step.direction)):
 			continue
 		if excused.has(rail_signal):
 			continue

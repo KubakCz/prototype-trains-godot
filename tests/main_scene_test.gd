@@ -97,7 +97,7 @@ func test_the_level_has_one_of_every_kind_of_junction() -> void:
 				% CompoundTurnout.Kind.keys()[kind].to_lower().replace("_", " "))
 	var plain := 0
 	for crossing in _crossings:
-		if not _is_inside_an_assembly(crossing):
+		if not JunctionProtection.is_inside_an_assembly(crossing):
 			plain += 1
 	note("%d turnouts (%d of them in assemblies), %d crossings (%d plain), %d signals"
 			% [_turnouts.size(), _turnouts.size() - _scene.get_node("Turnouts").get_child_count(),
@@ -163,91 +163,21 @@ func _off_track(at: Vector3) -> float:
 
 
 #region Signalling
-## The rule the level is built to: from wherever a train can come at a junction, it
-## meets a signal governing its way in before it reaches the junction - so no train
-## ever has to be let into one without the dispatcher's say.
-##
-## Checked from the junction's side: walking out along every track that leads in,
-## the first thing on the rail is that signal, before any other points and before
-## the end of the line. Crossings are passed over rather than stopped at, because
-## the two diamonds stand 5 m apart and are protected as one; the crossings in the
-## middle of the scissors and the slip belong to their assemblies, whose outer legs
-## are what is checked.
+## The rule the level is built to - see [JunctionProtection]. Here the two diamonds
+## stand 5 m apart and are protected as one, and every signal on the level protects a
+## way in.
 func test_every_way_into_every_junction_is_protected() -> void:
-	var ways_in: Array[Array] = []
+	var turnouts: Array[Turnout] = []
 	for turnout: Turnout in _scene.get_node("Turnouts").get_children():
-		for leg: Turnout.Leg in [Turnout.Leg.TOE, Turnout.Leg.THROUGH, Turnout.Leg.DIVERGING]:
-			ways_in.append([str(turnout.name), turnout.leg_exit(leg)])
-	for compound in _compounds:
-		for entry in compound.outer_legs():
-			var member: Turnout = entry["member"]
-			ways_in.append(["%s/%s" % [compound.name, member.name],
-					member.leg_exit(entry["leg"] as Turnout.Leg)])
-	for crossing in _crossings:
-		if _is_inside_an_assembly(crossing):
-			continue
-		for rail: Rail in [crossing.rail_a, crossing.rail_b]:
-			for direction: int in [1, -1]:
-				ways_in.append([str(crossing.name), Turnout.Exit.new(rail,
-						crossing.distances_on(rail)[0], direction)])
+		turnouts.append(turnout)
+	var ways_in := JunctionProtection.ways_in(turnouts, _compounds, _crossings)
 	# The two diamonds share the freight line's pair, so ways in outnumber signals; what
 	# has to hold the other way is that no signal stands there protecting nothing.
-	var protecting: Dictionary[RailSignal, bool] = {}
-	for way_in in ways_in:
-		var rail_signal := _assert_protected(way_in[0] as String, way_in[1] as Turnout.Exit)
-		if rail_signal != null:
-			protecting[rail_signal] = true
+	var protecting := JunctionProtection.check(self, ways_in)
 	note("%d ways in, protected by %d of the %d signals" % [ways_in.size(), protecting.size(),
 			_signals.size()])
 	for rail_signal in _signals:
 		assert_true(protecting.has(rail_signal), "%s protects a way in" % rail_signal.name)
-
-
-## The signal protecting the way in along [param out], failing if there is none.
-func _assert_protected(junction: String, out: Turnout.Exit) -> RailSignal:
-	var found := _first_on_the_way(out)
-	var rail_signal := found as RailSignal
-	if rail_signal == null:
-		fail("%s is protected from %s, %s" % [junction, out.rail.name,
-				"rising" if out.direction > 0 else "falling"],
-				"walking out from %.1f m the first thing met is %s" % [out.distance,
-				str(found.name) if found != null else "the end of the rail"])
-		return null
-	note("%-28s <- %-28s %5.1f m out along %s" % [junction, rail_signal.name,
-			absf(rail_signal.signal_distance() - out.distance), out.rail.name])
-	succeed("%s is protected by %s" % [junction, rail_signal.name])
-	return rail_signal
-
-
-## The nearest turnout, or signal governing back the way [param out] came, strictly
-## beyond [param out]'s distance along its rail; null when the rail ends first.
-func _first_on_the_way(out: Turnout.Exit) -> Node:
-	var best: Node = null
-	var best_at := INF
-	for node in out.rail.attachments():
-		var at := PackedFloat64Array()
-		if node is Turnout:
-			at = (node as Turnout).distances_on(out.rail)
-		elif node is RailSignal and (node as RailSignal).governed_direction() == -out.direction:
-			at = (node as RailSignal).distances_on(out.rail)
-		for distance in at:
-			var ahead := (distance - out.distance) * float(out.direction)
-			if ahead > TrackWalker.EPSILON and ahead < best_at:
-				best_at = ahead
-				best = node
-	return best
-
-
-## Whether every way out of [param crossing] runs into the points of an assembly
-## before anything else - the middle of a scissors or a double slip.
-func _is_inside_an_assembly(crossing: Crossing) -> bool:
-	for rail: Rail in [crossing.rail_a, crossing.rail_b]:
-		for direction: int in [1, -1]:
-			var first := _first_on_the_way(Turnout.Exit.new(rail,
-					crossing.distances_on(rail)[0], direction)) as Turnout
-			if first == null or first.assembly == null:
-				return false
-	return true
 #endregion
 
 

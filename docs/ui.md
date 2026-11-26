@@ -24,8 +24,8 @@ before) scales the UI by exactly `window / 1152`, which made the readouts 1.557x
 
 ## The floating layer
 
-`MarkerOverlay` owns **every** floating marker — signals, turnouts and compound assemblies
-together. A turnout that is a member of an assembly gets no widget: the assembly's
+`MarkerOverlay` owns **every** floating marker — signals, turnouts, compound assemblies and the
+stations' and connections' badges together. A turnout that is a member of an assembly gets no widget: the assembly's
 `CompoundTurnoutWidget` is its one control, and follows the same turnout mode as a single
 turnout's widget ([compound_turnouts.md](compound_turnouts.md)). One overlay
 rather than one each, because de-cluttering only works if it knows about every widget on
@@ -34,7 +34,10 @@ Folding turnouts in is what fixed the overlap step 2 left behind.
 
 `TrackMarkerWidget` is the base: follow the camera, collapse, hover, leader line, click.
 A subclass supplies what it points at, how big it is, what colour it is, what a click does and
-how to draw itself.
+how to draw itself. `InterestPointWidget`, a station's or connection's badge, is the odd one: it
+is not clickable (`MOUSE_FILTER_IGNORE`), sits centred on its anchor - the top of the point's
+poles - instead of above a leader line, and says `collapsible() == false`, so the collapse rules
+leave it open and full size ([stations.md](stations.md)).
 
 All three collapse rules are implemented and the signal panel's **collapse row** cycles them
 (`MarkerOverlay.Collapse`):

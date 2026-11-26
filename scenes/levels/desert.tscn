@@ -387,49 +387,85 @@ rail = NodePath("../../Rails/LoopLine")
 distance = 1666.9847
 governs = 0
 
+[node name="DuneEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/BottomLine")
+distance = 548.0
+governs = 0
+
+[node name="CementWest" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/BottomLine")
+distance = 552.0
+governs = 1
+
+[node name="CementEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/BottomLine")
+distance = 650.0
+governs = 0
+
+[node name="QuarryWest" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/BottomLine")
+distance = 640.0
+governs = 1
+
+[node name="QuarryEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/BottomLine")
+distance = 740.0
+governs = 0
+
+[node name="HaltEast" type="Node3D" parent="Signals" groups=["signals"] node_paths=PackedStringArray("rail")]
+script = ExtResource("9_signal")
+rail = NodePath("../../Rails/EastLine")
+distance = 272.0
+governs = 0
+
 [node name="Trains" type="Node3D" parent="."]
 
 [node name="Interest" type="Node3D" parent="."]
 
 [node name="WestGate" type="Node3D" parent="Interest"]
 script = ExtResource("st_connection")
-display_name = "West Gate"
+display_name = "West"
 
 [node name="Bottom" type="Node" parent="Interest/WestGate" node_paths=PackedStringArray("rail")]
 script = ExtResource("st_track")
 rail = NodePath("../../../Rails/BottomLine")
-distance = 4.0
+distance = 75.0
 
 [node name="SouthEastGate" type="Node3D" parent="Interest"]
 script = ExtResource("st_connection")
-display_name = "South East Gate"
+display_name = "Southeast"
 
 [node name="Bottom" type="Node" parent="Interest/SouthEastGate" node_paths=PackedStringArray("rail")]
 script = ExtResource("st_track")
 rail = NodePath("../../../Rails/BottomLine")
-distance = 798.5
+distance = 727.5
 
 [node name="NorthGate" type="Node3D" parent="Interest"]
 script = ExtResource("st_connection")
-display_name = "North Gate"
+display_name = "North"
 
 [node name="North" type="Node" parent="Interest/NorthGate" node_paths=PackedStringArray("rail")]
 script = ExtResource("st_track")
 rail = NodePath("../../../Rails/NorthLine")
-distance = 4.0
+distance = 53.0
 
 [node name="EastGate" type="Node3D" parent="Interest"]
 script = ExtResource("st_connection")
-display_name = "East Gate"
+display_name = "East"
 
 [node name="East" type="Node" parent="Interest/EastGate" node_paths=PackedStringArray("rail")]
 script = ExtResource("st_track")
 rail = NodePath("../../../Rails/EastLine")
-distance = 302.7
+distance = 253.7
 
 [node name="DuneHalt" type="Node3D" parent="Interest"]
 script = ExtResource("st_station")
-display_name = "Dune Halt"
+display_name = "Dune"
 dwell_time = 6.0
 
 [node name="Bottom" type="Node" parent="Interest/DuneHalt" node_paths=PackedStringArray("rail")]
@@ -439,7 +475,7 @@ distance = 500.0
 
 [node name="CementWorks" type="Node3D" parent="Interest"]
 script = ExtResource("st_station")
-display_name = "Cement Works"
+display_name = "Cement"
 dwell_time = 8.0
 cargo = 2
 
@@ -461,22 +497,24 @@ distance = 690.0
 
 [node name="RidgeTown" type="Node3D" parent="Interest"]
 script = ExtResource("st_station")
-display_name = "Ridge Town"
+display_name = "Ridge"
 dwell_time = 6.0
 
 [node name="North" type="Node" parent="Interest/RidgeTown" node_paths=PackedStringArray("rail")]
 script = ExtResource("st_track")
 rail = NodePath("../../../Rails/NorthLine")
 distance = 465.0
+platform_length = 60.0
 
 [node name="Loop" type="Node" parent="Interest/RidgeTown" node_paths=PackedStringArray("rail")]
 script = ExtResource("st_track")
 rail = NodePath("../../../Rails/LoopLine")
 distance = 545.0
+platform_length = 60.0
 
 [node name="EastHalt" type="Node3D" parent="Interest"]
 script = ExtResource("st_station")
-display_name = "East Halt"
+display_name = "Halt"
 dwell_time = 5.0
 
 [node name="East" type="Node" parent="Interest/EastHalt" node_paths=PackedStringArray("rail")]
@@ -486,9 +524,9 @@ distance = 225.0
 
 [node name="Spawner" type="Node" parent="." node_paths=PackedStringArray("trains_parent")]
 script = ExtResource("st_spawner")
-max_trains = 6
-min_spawn_interval = 25.0
-initial_trains = 3
+max_trains = 4
+min_spawn_interval = 60.0
+initial_trains = 2
 trains_parent = NodePath("../Trains")
 
 [node name="ExpressEastbound" type="Node" parent="Spawner" node_paths=PackedStringArray("entries", "stops")]

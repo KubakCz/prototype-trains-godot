@@ -53,3 +53,6 @@ Traps for running and writing the suite. Found the hard way; keep new ones in th
   train.x)` over a train that has left the level prints "Lambda capture at index 0 was freed" on
   every frame after, and the test still passes. Ask by `get_instance_id()` and
   `is_instance_id_valid()` - see `spawner_test.gd`.
+- **A script error inside a test does not fail it.** The runner only counts assertions, so a test
+  that dies halfway - a method called on the wrong type - reports PASS on whatever it asserted
+  before. Read the log for `SCRIPT ERROR` lines after writing a test, not just the RESULT line.

@@ -66,6 +66,8 @@ godot --headless --path . --script res://tools/build_playground.gd
 
 # Same for the bridges-and-tunnels demo, scenes/demos/structures.tscn; see docs/track.md.
 godot --headless --path . --script res://tools/build_structures_demo.gd
+# ... and the stations demo, scenes/demos/stations.tscn; see docs/level_authoring.md.
+godot --headless --path . --script res://tools/build_stations_demo.gd
 ```
 
 On Windows the suite is `tests/run.ps1` (`-List`, `-Color always`, `-Windowed`, `-Window visible`),
@@ -112,8 +114,8 @@ tests/            the suite: framework/, support/ fixtures, *_test.gd
 The class-by-class map, every scene and what it is for, and the core model (rails as `Path3D`,
 why `PathFollow3D` is not used, how a train's direction is held) are in
 [docs/architecture.md](docs/architecture.md). **Read it before a change that adds a class or a
-scene.** Two scenes are **generated** - `scenes/main.tscn` and `scenes/demos/structures.tscn`:
-edit `tools/build_playground.gd` / `tools/build_structures_demo.gd` and re-run, never the `.tscn`.
+scene.** Three scenes are **generated** - `scenes/main.tscn`, `scenes/demos/structures.tscn` and
+`scenes/demos/stations.tscn`: edit their `tools/build_*.gd` and re-run, never the `.tscn`.
 Every scene is driven by the tests under `tests/`; keep them working.
 
 ## Where things are written down

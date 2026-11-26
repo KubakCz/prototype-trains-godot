@@ -1,8 +1,16 @@
 extends StationsDemoCase
 ## The spawner and the way off the level: where trains are put, how many and how often,
-## which routes they get, and what a connection does with a train that reaches it.
+## which routes they get, the sector a new train needs empty, and what a connection
+## does with a train that reaches it.
+##
+## A train is put down at a gate with its nose on the mark, facing in, the whole of it
+## outside - between the mark and the end of the rail; at a station with its nose on
+## the stop mark for the way it faces. Every signal in the demo starts at danger, so a
+## spawned train runs in and stops at its gate's entry signal - Central's west entry
+## signals (326 m, 246 m in from the mark) on the west gate's tracks, the Halt's east
+## entry signals (1396 m, 256 m in) on the east gate's.
 
-const MINE_ROUTE_STOPS := 2
+const WEST_NORTH_ENTRY := "CentralWestEntryNorth"
 
 
 func _all_routes() -> Array[TrainRoute]:
@@ -50,7 +58,9 @@ func test_trains_placed_at_load_may_stand_at_stations_and_connections() -> void:
 		if train.dwelling_at != null:
 			at_station += 1
 			assert_eq(train.dwelling_at, central, "a train placed at a station is dwelling at it")
-			assert_near(train.distance, 250.0, 0.001, "on its mark")
+			var nose := train.nose()
+			assert_near(nose.distance, central.mark_on(nose.rail).stop_distance(train.facing), 0.01,
+					"with its nose on the stop mark for the way it faces")
 		else:
 			at_gate += 1
 		await _free(train)
@@ -60,12 +70,19 @@ func test_trains_placed_at_load_may_stand_at_stations_and_connections() -> void:
 
 
 func test_a_train_placed_at_a_station_faces_the_way_to_its_stops() -> void:
+	# The loop only leads east with its east points set for it, and those points set
+	# for the loop close the north main - so the loop goes last.
 	var route: TrainRoute = spawner.get_node("StationLocal")
-	for track in central.tracks():
+	for track: InterestTrack in [central.tracks()[1], central.tracks()[2], central.tracks()[0]]:
+		if track.rail == central_loop:
+			throw("Turnouts/LoopEast", Turnout.Position.REVERSE)
 		var train := spawner.spawn_at(route, central, track, local_type)
 		if not assert_not_null(train, "a train fits on %s" % track.name):
 			continue
-		assert_eq(train.facing, 1, "on %s it faces east, towards the east gate" % track.name)
+		assert_eq(train.facing, 1, "on %s it faces east, towards the Halt" % track.name)
+		assert_eq(train.nose().rail, track.rail, "its nose is on %s's rail" % track.name)
+		assert_near(train.nose().distance, track.stop_distance(1), 0.01,
+				"on the eastbound stop mark of %s" % track.name)
 		assert_eq(train.dwelling_at, central, "and stands at the station")
 		assert_eq(train.route_index, 0, "which is not one of its stops")
 		await _free(train)
@@ -77,7 +94,9 @@ func test_while_the_level_runs_only_connections_spawn_trains() -> void:
 		var train := spawner.spawn_random(false)
 		if assert_not_null(train, "a train is spawned"):
 			assert_null(train.dwelling_at, "it is not standing at a station")
-			assert_greater(float(train.route.size()), 1.0, "its route is not the station-only one")
+			var gate := _entry_of(train)
+			assert_near(train.nose().distance, mark(gate, train.rail), 0.01,
+					"%s stands with its nose on the %s gate's mark" % [train.name, gate.label()])
 			await _free(train)
 
 
@@ -130,6 +149,8 @@ func test_a_track_with_a_train_on_it_is_not_free() -> void:
 
 
 func test_trains_never_start_on_a_track_that_only_takes_them_off() -> void:
+	# The demo's gate tracks all work both ways; make the west gate's north one an out track.
+	west_gate.tracks()[0].role = InterestTrack.Role.OUT
 	spawner.random_seed = 21
 	var seen := {}
 	for i in 60:
@@ -139,12 +160,10 @@ func test_trains_never_start_on_a_track_that_only_takes_them_off() -> void:
 		seen["%s/%d" % [train.rail.name, train.facing]] = true
 		await _free(train)
 	note("tracks used: %s" % [seen.keys()])
-	assert_false(seen.has("SouthLine/1"), "nothing enters the west gate's out track")
-	assert_false(seen.has("NorthLine/-1"), "nor the east gate's north track")
-	assert_false(seen.has("MiddleLine/-1"), "nor its middle one")
-	assert_true(seen.has("NorthLine/1") and seen.has("MiddleLine/1"),
-			"the west gate's in tracks both get trains")
-	assert_true(seen.has("SouthLine/-1"), "and so does the east gate's")
+	assert_false(seen.has("NorthMain/1"), "nothing enters by the west gate's out track")
+	assert_true(seen.has("SouthMain/1"), "the west gate's other track gets trains")
+	assert_true(seen.has("NorthMain/-1") and seen.has("SouthMain/-1"),
+			"and so do both of the east gate's")
 
 
 func test_a_spawned_trains_route_is_one_of_the_levels_lines_for_its_entry_and_type() -> void:
@@ -193,27 +212,224 @@ func test_the_same_seed_gives_the_same_trains() -> void:
 	assert_eq(runs[0], runs[1], "a second run with the seed puts the same trains in the same places")
 
 
+#region Where a new train is put
+func test_a_train_at_a_gate_stands_outside_with_its_nose_on_the_mark() -> void:
+	for gate: OutsideConnection in [west_gate, east_gate]:
+		var route: TrainRoute = spawner.get_node("Express" if gate == west_gate else "ExpressWest")
+		for track in gate.tracks():
+			var train := spawner.spawn_at(route, gate, track, express_type)
+			if not assert_not_null(train, "a train is put on %s/%s" % [gate.label(), track.name]):
+				continue
+			var inward := -OutsideConnection.outward(track)
+			var tail := train.distance - float(train.facing) * train.half_length()
+			note("%s/%s: mark %.2f, nose %.2f, tail %.2f, rail %.1f m" % [gate.label(), track.name,
+					track.distance, train.nose().distance, tail, track.rail.rail_length()])
+			assert_eq(train.facing, inward, "on %s/%s it faces in" % [gate.label(), track.name])
+			assert_near(train.nose().distance, track.distance, 0.01,
+					"with its nose on %s/%s's mark" % [gate.label(), track.name])
+			assert_between(tail, 0.0, track.rail.rail_length(), "and its tail still on the rail")
+			assert_less(float(inward) * (tail - track.distance), 0.0, "outside the mark")
+			await _free(train)
+
+
+func test_a_train_too_long_for_the_rail_outside_the_mark_is_refused() -> void:
+	# A gate whose mark is 30 m from the start of the north main: too little for any train.
+	var gate := OutsideConnection.new()
+	gate.name = "TightGate"
+	var track := InterestTrack.new()
+	track.name = "Tight"
+	track.rail = north_main
+	track.distance = 30.0
+	gate.add_child(track)
+	demo.get_node("Interest").add_child(gate)
+	var route: TrainRoute = spawner.get_node("Express")
+	assert_true(spawner.spawn_at(route, gate, track, express_type) == null,
+			"an express does not fit in the 30 m outside the mark, and is not put down")
+	assert_true(gate.spawn_pose(track, 31.0).is_empty(), "there is no pose for a train of 31 m")
+	assert_false(gate.spawn_pose(track, 29.0).is_empty(), "but there is for one of 29 m")
+	gate.queue_free()
+
+
+func test_the_spawner_warns_of_a_gate_too_short_for_a_routes_trains() -> void:
+	assert_true(spawner._get_configuration_warnings().is_empty(), "the demo's spawner has no warnings")
+	var gate := OutsideConnection.new()
+	gate.name = "TightGate"
+	var track := InterestTrack.new()
+	track.name = "Tight"
+	track.rail = north_main
+	track.distance = 30.0
+	gate.add_child(track)
+	demo.get_node("Interest").add_child(gate)
+	var route := TrainRoute.new()
+	route.name = "Squeezed"
+	route.train_types = [express_type]
+	route.entries = [gate]
+	route.stops = [central, east_gate]
+	spawner.add_child(route)
+	var warnings := spawner._get_configuration_warnings()
+	note(", ".join(warnings))
+	assert_eq(warnings.size(), 1, "one warning: the one track of the one route")
+	assert_true(warnings.size() == 1 and warnings[0].contains("Tight") and warnings[0].contains("Squeezed"),
+			"naming the track and the route")
+	track.role = InterestTrack.Role.OUT
+	assert_true(spawner._get_configuration_warnings().is_empty(),
+			"a track that takes no trains in needs no room for them")
+	route.queue_free()
+	gate.queue_free()
+#endregion
+
+
+#region The sector a new train needs
+## A new train of 40 m on the west gate's north track, eastbound with its middle at
+## 100 m: tail at 80, nose at 120, the entry signal at 326 m ends its sector.
+const PROBE_AT := 100.0
+const PROBE_LENGTH := 40.0
+
+
+func _probe_clear() -> bool:
+	return spawner.is_clear(north_main, PROBE_AT, 1, PROBE_LENGTH)
+
+
+func test_the_sector_runs_from_the_new_trains_middle_to_the_first_signal_ahead() -> void:
+	var step := TrainSpawner.sector_ahead(north_main, PROBE_AT, 1, PROBE_LENGTH * 0.5)
+	var entry := signal_named(WEST_NORTH_ENTRY)
+	assert_eq(step.blocking_signal, entry, "the sector ends at the gate's entry signal")
+	assert_near(step.distance, entry.signal_distance(), 0.01, "on the signal itself")
+	entry.aspect = RailSignal.Aspect.CLEAR
+	step = TrainSpawner.sector_ahead(north_main, PROBE_AT, 1, PROBE_LENGTH * 0.5)
+	assert_eq(step.blocking_signal, entry, "it ends there at clear as well")
+
+
+func test_a_train_far_ahead_but_short_of_the_entry_signal_blocks_a_spawn() -> void:
+	assert_true(_probe_clear(), "with nothing on the line the sector is clear")
+	# 80 m beyond the new train's nose - well past the 60 m the old rule looked ahead.
+	var standing := park(local_type, north_main, 200.0, 1)
+	await physics_frames(2)
+	assert_false(_probe_clear(), "a train standing 80 m ahead, short of the entry signal, blocks it")
+	var route: TrainRoute = spawner.get_node("Express")
+	assert_null(spawner.spawn_at(route, west_gate, west_gate.tracks()[0], express_type),
+			"and the spawner puts no train on that track")
+	assert_true(spawner.is_clear(south_main, PROBE_AT, 1, PROBE_LENGTH),
+			"the other main, beside it, is clear")
+	standing.queue_free()
+
+
+func test_a_train_past_the_entry_signal_does_not_block_a_spawn() -> void:
+	var entry := signal_named(WEST_NORTH_ENTRY)
+	var standing := park(local_type, north_main, entry.signal_distance() + 30.0, 1)
+	await physics_frames(2)
+	note("train %.1f m long, its tail at %.1f m, the signal at %.1f m" % [standing.train_length(),
+			standing.distance - standing.half_length(), entry.signal_distance()])
+	assert_true(_probe_clear(), "a train wholly past the entry signal leaves the sector clear")
+	entry.aspect = RailSignal.Aspect.CLEAR
+	await physics_frames(2)
+	assert_true(_probe_clear(), "and it still does with the signal at clear")
+
+
+func test_a_train_straddling_the_entry_signal_blocks_a_spawn() -> void:
+	var entry := signal_named(WEST_NORTH_ENTRY)
+	park(local_type, north_main, entry.signal_distance() + 5.0, 1)
+	await physics_frames(2)
+	assert_false(_probe_clear(), "a train with its tail short of the signal is in the sector")
+
+
+func test_room_behind_the_new_trains_tail_must_be_clear_too() -> void:
+	# Westbound train, so "behind" is east of it: middle at 100, tail at 120 facing west.
+	var behind_tail := PROBE_AT + PROBE_LENGTH * 0.5
+	var standing := park(local_type, north_main, 300.0, 1)
+	standing.distance = behind_tail + TrainSpawner.CLEAR_BEHIND - 5.0 + standing.half_length()
+	await physics_frames(2)
+	assert_false(spawner.is_clear(north_main, PROBE_AT, -1, PROBE_LENGTH),
+			"a train within %.0f m behind the tail blocks it" % TrainSpawner.CLEAR_BEHIND)
+	standing.distance = behind_tail + TrainSpawner.CLEAR_BEHIND + 5.0 + standing.half_length()
+	await physics_frames(2)
+	assert_true(spawner.is_clear(north_main, PROBE_AT, -1, PROBE_LENGTH),
+			"one further back than that does not")
+
+
+func test_a_spawn_is_allowed_again_once_the_train_ahead_has_gone_past_the_signal() -> void:
+	var route: TrainRoute = spawner.get_node("Express")
+	var track := west_gate.tracks()[0]
+	var first := spawner.spawn_at(route, west_gate, track, express_type)
+	if not assert_not_null(first, "the first train fits"):
+		return
+	await drive(1800)
+	note("%s @ %.1f m: %s" % [first.name, first.distance, first.blocked_description()])
+	assert_null(spawner.spawn_at(route, west_gate, track, express_type),
+			"no second train while the first waits at the entry signal")
+	# Let it in, on towards Central.
+	clear([WEST_NORTH_ENTRY])
+	var entry := signal_named(WEST_NORTH_ENTRY)
+	var past := await drive_until(func() -> bool:
+		return first.distance - first.half_length() > entry.signal_distance() + 1.0, 3000)
+	assert_true(past, "the first train has gone past the entry signal")
+	var second := spawner.spawn_at(route, west_gate, track, express_type)
+	assert_not_null(second, "then a second one is put on the track")
+
+
+func test_a_train_spawned_at_a_red_entry_signal_rolls_in_and_stops_at_it() -> void:
+	var entry := signal_named(WEST_NORTH_ENTRY)
+	var route: TrainRoute = spawner.get_node("Express")
+	var train := spawner.spawn_at(route, west_gate, west_gate.tracks()[0], express_type)
+	if not assert_not_null(train, "a train is spawned at the west gate"):
+		return
+	assert_greater(train.current_speed, 0.0, "it comes in rolling")
+	await drive(2400)
+	note("%s @ %.1f m: %s" % [train.name, train.distance, train.blocked_description()])
+	assert_eq(train.blocking_signal, entry, "it is held at the entry signal")
+	assert_eq(train.current_speed, 0.0, "standing")
+	assert_false(train.tripped, "having stopped for it rather than running past")
+	assert_between(entry.signal_distance() - train.nose().distance, 0.0, Train.STOP_SHORT + 0.1,
+			"its nose just short of the signal")
+
+
+func test_every_gate_track_has_its_entry_signal_and_every_spawn_stops_at_it() -> void:
+	for gate: OutsideConnection in [west_gate, east_gate]:
+		for track in gate.tracks():
+			var entry := track.guarding_signal(-OutsideConnection.outward(track))
+			if not assert_not_null(entry, "%s/%s has an entry signal" % [gate.label(), track.name]):
+				continue
+			var route: TrainRoute = spawner.get_node("Express" if gate == west_gate else "ExpressWest")
+			var train := spawner.spawn_at(route, gate, track, express_type)
+			if not assert_not_null(train, "a train is spawned on %s/%s" % [gate.label(), track.name]):
+				continue
+			await drive(2400)
+			assert_eq(train.blocking_signal, entry, "the train from %s/%s is held at %s" % [
+					gate.label(), track.name, entry.name])
+			await _free(train)
+#endregion
+
+
 #region Leaving the level
 func test_a_train_that_clears_its_destination_leaves_the_level() -> void:
-	var train := make_train(express_type, north_line, 330.0, 1, stops([east_gate]))
+	var train := make_train(express_type, north_main, 1400.0, 1, stops([east_gate]))
 	var train_id := train.get_instance_id()
 	var results := []
-	train.route_finished.connect(func(done: bool) -> void: results.append(done))
+	var tails := []
+	train.route_finished.connect(func(done: bool) -> void:
+		results.append(done)
+		tails.append(train.distance - train.half_length()))
+	var leaving_mark := mark(east_gate, north_main)
 	await drive_until(_gone.bind(train_id), 3000)
 	assert_true(_gone(train_id), "the train is gone")
 	assert_eq(results, [true], "having gone through every stop of its route")
+	if assert_eq(tails.size(), 1, "it was taken off once"):
+		note("taken off with its tail at %.2f, the mark at %.2f" % [tails[0], leaving_mark])
+		assert_between(tails[0], leaving_mark, leaving_mark + 1.0,
+				"as soon as its tail had cleared the mark")
 
 
 func test_a_train_that_missed_a_station_still_leaves_but_incomplete() -> void:
-	var train := make_train(express_type, north_line, 330.0, 1, stops([central, east_gate]))
+	var train := make_train(express_type, north_main, 1400.0, 1, stops([central, east_gate]))
 	var train_id := train.get_instance_id()
 	var results := []
 	train.route_finished.connect(func(done: bool) -> void: results.append(done))
 	await drive_until(_gone.bind(train_id), 3000)
-	assert_eq(results, [false], "it left without having been to Central Station")
+	assert_eq(results, [false], "it left without having been to Central")
 
 
 func test_the_spawner_counts_what_leaves() -> void:
+	clear_all()
 	var route: TrainRoute = spawner.get_node("Express")
 	var left := []
 	spawner.train_left.connect(func(_t: Train, done: bool) -> void: left.append(done))
@@ -221,7 +437,7 @@ func test_the_spawner_counts_what_leaves() -> void:
 	if not assert_not_null(train, "an express is spawned"):
 		return
 	var train_id := train.get_instance_id()
-	await drive_until(_gone.bind(train_id), 9000)
+	await drive_until(_gone.bind(train_id), 12000)
 	assert_eq(left, [true], "it left having visited the station and gone out by the east gate")
 	assert_eq(spawner.left_count, 1, "one train has left")
 	assert_eq(spawner.completed_count, 1, "and it completed its route")
@@ -229,7 +445,7 @@ func test_the_spawner_counts_what_leaves() -> void:
 
 func test_a_connection_that_is_not_the_destination_is_just_a_dead_end() -> void:
 	# Bound for the east gate, running west into the west gate's south track.
-	var train := make_train(local_type, south_line, 60.0, -1, stops([east_gate]), 1)
+	var train := make_train(local_type, south_main, 150.0, -1, stops([east_gate]), 1)
 	await drive(1500)
 	assert_true(is_instance_valid(train), "the train was not taken off the level")
 	assert_eq(train.facing, 1, "it turned round at the end of the line")
@@ -237,8 +453,9 @@ func test_a_connection_that_is_not_the_destination_is_just_a_dead_end() -> void:
 
 
 func test_a_track_that_only_lets_trains_in_does_not_take_one_off() -> void:
-	# The west gate's north track is an in track: its own destination, and still no way out.
-	var train := make_train(local_type, north_line, 60.0, -1, stops([west_gate]), 1)
+	# The west gate's north track made an in track: its own destination, and still no way out.
+	west_gate.tracks()[0].role = InterestTrack.Role.IN
+	var train := make_train(local_type, north_main, 150.0, -1, stops([west_gate]), 1)
 	await drive(1500)
 	assert_true(is_instance_valid(train), "the train is still on the level")
 	assert_eq(train.facing, 1, "it turned round at the end of the line")
@@ -250,11 +467,12 @@ func test_a_train_held_at_the_end_of_its_destination_has_left() -> void:
 	var gate := OutsideConnection.new()
 	gate.name = "ShortGate"
 	var track := InterestTrack.new()
-	track.rail = north_line
-	track.distance = 497.0
+	track.rail = north_main
+	track.distance = north_main.rail_length() - 3.0
 	gate.add_child(track)
 	demo.add_child(gate)
-	var train := make_train(local_type, north_line, 440.0, 1, stops([gate]), 1)
+	var train := make_train(local_type, north_main, north_main.rail_length() - 60.0, 1,
+			stops([gate]), 1)
 	var train_id := train.get_instance_id()
 	var results := []
 	train.route_finished.connect(func(done: bool) -> void: results.append(done))

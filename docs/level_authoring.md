@@ -145,15 +145,23 @@ a tunnel on each of the four exits (`WestExitTunnel`, `EastExitTunnel`, `NorthEx
 `EastLineExitTunnel`), which run off the rails' ends and so have one portal each and swallow the
 dead ends.
 
-Every junction is protected from every way into it, sixteen signals in all.
+Every junction is protected from every way into it, and every station track has an exit signal
+each way and every gate an entry signal ([stations.md](stations.md)) - twenty-two signals in all,
+six of them (`DuneEast`, `CementWest`, `CementEast`, `QuarryWest`, `QuarryEast`, `HaltEast`) only
+for the stations; the rest double as exit and entry signals where they stand between a mark and
+the next points.
 
 **Trains come from a `TrainSpawner`** ([stations.md](stations.md)) with four outside connections
 at the exit tunnels - `WestGate` and `SouthEastGate` on `BottomLine`, `NorthGate` on `NorthLine`,
-`EastGate` on `EastLine`, each with its mark 4 m from the rail's end so a train is out of sight
-in the tunnel at both spawn and exit - and five stations: `DuneHalt`, `CementWorks` (unloads),
+`EastGate` on `EastLine`, each with its mark 5 m more than the longest train its routes send in
+from the rail's end (75 m at the west and south-east gates, 53 m at the north and east ones), so a
+new train fits outside the mark with its nose on it - mostly inside the exit tunnel - and five
+stations: `DuneHalt`, `CementWorks` (unloads),
 `Quarry` (loads) on the bottom line, `RidgeTown` across the north line and the loop where they
-run 5 m apart, and `EastHalt` on the east line. Six routes pair them up for the four train types.
-The scene opens with three trains and a new one every 25 to 50 s, up to six; each runs up to the
+run 5 m apart, and `EastHalt` on the east line. `RidgeTown`'s platforms are 60 m, short enough for the junction signals beyond them to be its
+exit signals. Their badges read "West", "Southeast", "North",
+"East", "Dune", "Cement", "Quarry", "Ridge" and "Halt". Six routes pair them up for the four train types.
+The scene opens with two trains and a new one every 60 to 120 s, up to four; each runs up to the
 first red signal on its way in, which is the dispatcher's first decision. The three hand-placed
 arrivals the level had before are gone. The exits at the ends of rails that are not a train's
 destination are plain dead ends, so a train sent into one turns round in the dark and comes
@@ -161,12 +169,30 @@ back (`end_behavior`).
 
 ## The stations demo
 
-`scenes/demos/stations.tscn` is the trains demo's layout - three straight lines 5 m apart and a
-crossover - with the step 7 nodes on it: a west and an east gate of three tracks each (`IN`,
-`IN`, `OUT` and `OUT`, `OUT`, `IN` - every line runs one way, so the demo does not wreck itself
-in the first minute), `CentralStation` across all three lines, `CoalMine` (loads) on two,
-`Factory` (unloads) on two, four clear signals and a spawner with five routes. Hand-written like
-the other demos, not generated: distances along every line are x + 250.
+`scenes/demos/stations.tscn` is **generated** by
+[`tools/build_stations_demo.gd`](../tools/build_stations_demo.gd) - edit that and re-run it, never
+the scene. A flat 2000 x 400 m board with a two-way double main line (`NorthMain`, `SouthMain`,
+5 m apart, an S-bend at each end) between `WestGate` ("West") and `EastGate` ("East"), and on it:
+`Central` across both mains and a platform loop (`CentralLoop`, 10 m north of the north main, an
+island platform between them); `Mine` (loads) on a branch curving away south that splits into two
+dead-end loading tracks; `Factory` (unloads) on a dead-end siding to the north; and `Halt` on both
+mains towards the east gate. As at a real station, a train can go from any track of Central or
+the Halt to any track on either side: a scissors crossover between the mains at each end of both
+(`Compounds/WestCrossover`, `EastCrossover`, `HaltWestCrossover`, `HaltEastCrossover`, each with
+its `...Middle` crossing), Central's loop joining the north main inside its pair.
+
+It is signalled the way stations are, not one signal per turnout: Central and the Halt each have
+an entry signal on both mains outside their outermost points (`CentralWestEntryNorth`,
+`HaltEastEntrySouth`, ...), and every station track an exit signal each way 5 m past the end of
+its platform (`CentralWestExitLoop`, `HaltEastExitNorth`, ...; one only, `MineExitTrackA`,
+`FactoryExitSiding`, off a dead end). The points in between have none of their own: whatever way a
+train comes at them it has passed an entry or exit signal. The Halt's east entry signals double
+as the East gate's, Central's west ones as the West gate's. 21 signals, all red at start, so
+nothing moves until the player sets a route. The scene opens with two trains and a new one every
+60 to 120 s, up to four. Each gate's mark is 80 m in from its rail's end, room for the longest
+train (70 m) outside it; Central's platforms are 120 m, the others' 90 m. The mine faces the east
+gate and the factory the west one, so the freight routes go in and out by the same gate: a train
+backing out of a dead end is pointed back the way it came.
 
 ## The playground
 

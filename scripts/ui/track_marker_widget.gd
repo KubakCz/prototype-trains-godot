@@ -80,6 +80,11 @@ func is_alive() -> bool:
 	return false
 
 
+## False for a widget that stays open and full size whatever the collapse rule says.
+func collapsible() -> bool:
+	return true
+
+
 ## The widget's contents, drawn inside the frame in unscaled coordinates.
 func _draw_expanded(_accent: Color) -> void:
 	pass

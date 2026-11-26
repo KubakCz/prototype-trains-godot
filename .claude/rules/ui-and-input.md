@@ -71,3 +71,9 @@ Godot traps for `Control`s, picking, clicks and screen coordinates. Found the ha
   the project does not use it.
 - `Tab` is swallowed by the GUI focus system in `_unhandled_key_input`; the debug panel uses
   `_input` instead.
+- **A `fixed_size` `Label3D` or `Sprite3D` ignores the UI scale.** It keeps a fraction of the
+  *window* height, whatever `content_scale_factor` says, so station names drawn that way stayed
+  small beside the scaled debug text - the reason the station badges moved onto the marker
+  overlay. `RouteIcons` still uses fixed-size sprites and sets `pixel_size` every frame from the
+  camera's `fov`, the window's native height and the scale factor; anything else that must match
+  the interface in 3D needs the same sum.

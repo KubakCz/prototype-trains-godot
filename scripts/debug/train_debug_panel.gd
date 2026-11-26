@@ -133,7 +133,7 @@ func _describe(train: Train) -> Array[String]:
 	return lines
 
 
-## "Central Station > East Gate": the stops reached are crossed out, the next is starred.
+## "Central > East": the stops reached are crossed out, the next is starred.
 func _describe_route(train: Train) -> String:
 	var parts: Array[String] = []
 	for i in train.route.size():

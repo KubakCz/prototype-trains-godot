@@ -51,13 +51,13 @@ fouling it in any real sense. A fouling length either side belongs in the block 
 the widget or on any member marker goes through it — so locking an assembly's points under a
 train is one flag, not four. Its members are already non-operable.
 
-**Spawning is the first thing that will need the blocks.** `TrainSpawner.is_clear` asks only
-whether the stretch the new train takes up, 15 m behind and 60 m in front, is empty
-(`TrackWalker.Span.overlaps` against `Train.occupied_spans()`); it does not look further, and
-trains do not look for each other, so a train held at a red signal with another running up behind
-it is a collision waiting to happen - the desert's first minute shows it. A spawn should wait for
-the block it would enter to be free, and the spawner is the obvious caller of "is this block
-locked". The demo's lines are one-way for the same reason.
+**Spawning already waits for a sector, not yet for a block.** `TrainSpawner.is_clear` wants no
+train from 15 m behind the new one up to the first signal ahead of it (`sector_ahead`, a walk with
+`any_aspect`) - the entry signal at a connection, the exit signal at a station. Past that signal
+trains still do not look for each other, so a train let in and held at the next red with another
+running up behind it is a collision waiting to happen. With blocks, the sector *is* the block
+behind the entry signal and the spawner is the obvious caller of "is this block locked";
+`sector_ahead` is where that question goes.
 
 Still missing: automatic replacement (a cleared signal currently stays clear forever), locking a
 signal to danger while its block is occupied, and locking points under an occupying train.
@@ -90,16 +90,16 @@ block". `Train.derailment(reason)` fires for every derailment, which is the hook
 
 ## Not tied to a step
 
-- **Train models are still boxes, and a spawned train just appears.** A connection puts a train
-  tail-first inside its mark; with the desert's short exit tunnels a long train has its nose out
-  of the mouth on its first frame, and there is no animation. A level whose exits want that to be
-  invisible has to have a tunnel as long as its longest train (see `TrainType.longest_length()`).
+- **A spawned train just appears.** A connection puts a train down with its nose on its mark
+  and the rest outside; where the exit tunnel is shorter than that (the desert's south-east gate)
+  part of the train appears in view on its first frame, and there is no animation. A level whose
+  exits want that to be invisible needs a tunnel reaching the mark from the rail's end.
 - **Liveries are on the locomotive only**, as chosen: the wagons are all the same blue. Painting
   every car is a matter of `Train._rebuild_cars`, which already passes materials per car.
-- **A station is always stopped at by the middle of the train**, whatever the platform's length.
-  A train longer than its platform overhangs both ends equally and nothing says so.
-- **The route display is undecided**, like the turnout and signal ones: shapes floating over each
-  train or a list ([ui.md](ui.md)). Whoever settles it deletes the loser.
+- **A train longer than its platform overhangs its near end** and nothing says so; nothing checks
+  `platform_length` against the trains a route sends.
+- **The route display is undecided**, like the turnout and signal ones: icons floating over each
+  locomotive or a list ([ui.md](ui.md)). Whoever settles it deletes the loser.
 
 - **Train models are still boxes**, now on bogies at standard gauge ([trains.md](trains.md)).
   Real models replace the body; they should keep the click collider and the collision box

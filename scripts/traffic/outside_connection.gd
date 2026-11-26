@@ -5,16 +5,14 @@ extends InterestPoint
 ## route ends here is taken off it.
 ##
 ## Each track has a mark on its rail. The end of the rail the mark is nearer to is
-## the *outside*: the mark is where a train has finished leaving, so it is meant to
-## have room beyond it for the longest train - a tunnel, usually, so that the train
-## goes out of sight on its way. A train is put on the level with its tail just inside
-## the mark, facing in, and is taken off it once its tail has gone out past the mark.
+## the *outside*. A new train is put on the level with its **nose on the mark**, facing
+## in, and the rest of it outside - so the rail beyond the mark has to be long enough
+## for the longest train the level's routes send in here (a tunnel, usually, so that it
+## comes out of the dark; [TrainSpawner] warns when it is not). A train leaving is
+## taken off once its tail has gone out past the mark.
 ##
 ## A connection that is not a train's destination is nothing but the end of a rail
 ## to it - it turns round or stops there like at any dead end.
-
-## How far inside the mark the tail of a new train stands, in metres.
-const SPAWN_INSET := 1.0
 
 
 func is_square() -> bool:
@@ -48,13 +46,13 @@ func has_left(front: TrackWalker.Location, rear: TrackWalker.Location,
 
 
 ## Where a train of [param length] metres goes on [param track]: the distance of its
-## middle and the way its nose points, or null when the rail is too short for it.
+## middle and the way its nose points - nose on the mark, facing in - or empty when
+## there is not room enough outside the mark for it.
 func spawn_pose(track: InterestTrack, length: float) -> Dictionary:
-	var inward := -outward(track)
-	var middle := track.distance + float(inward) * (length * 0.5 + SPAWN_INSET)
-	var nose := middle + float(inward) * length * 0.5
-	if nose < 0.0 or nose > track.rail.rail_length():
+	if room_outside(track) < length:
 		return {}
+	var inward := -outward(track)
+	var middle := track.distance - float(inward) * length * 0.5
 	# `facing` is a Train's: 1 along the rail, -1 against it. Not named here, so
 	# that Train can name this class.
 	return {"distance": middle, "facing": inward}
@@ -71,4 +69,6 @@ func _get_configuration_warnings() -> PackedStringArray:
 		if track.rail.rail_length() > 0.0 and room_outside(track) < 1.0:
 			warnings.append("%s's mark is at the end of %s: no room outside it for a train to go out of sight." % [
 					track.name, track.rail.name])
+		if track.can_spawn() and track.guarding_signal(-outward(track)) == null:
+			warnings.append("%s has no entry signal: a signal governing trains coming in, between the mark and the first points." % track.name)
 	return warnings

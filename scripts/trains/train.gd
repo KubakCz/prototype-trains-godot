@@ -754,24 +754,33 @@ func remaining_stops() -> Array[InterestPoint]:
 	return left
 
 
-## How far the middle of the train has to go to stand on the next station's mark, or
-## INF when the next stop is not a station or its mark is not on what the train looks
-## at ahead.
+## How far the train has to go to stand with its leading end on the next station's
+## stop mark for the way it is going ([method InterestTrack.stop_distance]), or INF when
+## the next stop is not a station or no stop mark is on what the train looks at ahead.
+## The walk starts at the middle, so half the train comes off: what is left is how far
+## the middle moves, the same measure as the gap to a signal.
 func _station_gap(ahead: TrackWalker.Step) -> float:
 	var station := next_station()
 	if station == null:
 		return INF
+	var half := half_length()
 	var best := INF
 	for track in station.tracks():
 		var along := 0.0
 		for span in ahead.spans:
-			if span.covers(track.rail, track.distance):
-				best = minf(best, along + absf(track.distance - span.from))
-			along += absf(span.to - span.from)
+			var run := span.to - span.from
+			if absf(run) > 0.0:
+				var stop := track.stop_distance(signi(run))
+				if span.covers(track.rail, stop):
+					var gap := along + absf(stop - span.from) - half
+					# Already past it by more than a hair: the nose is beyond the stop.
+					if gap >= -_HELD_GAP:
+						best = minf(best, maxf(gap, 0.0))
+			along += absf(run)
 	return best
 
 
-## Stood on a station's mark: the stop counts as reached, and the dwell begins.
+## Stood on a station's stop mark: the stop counts as reached, and the dwell begins.
 func _arrive_at(station: Station) -> void:
 	route_index += 1
 	dwell_at(station)
