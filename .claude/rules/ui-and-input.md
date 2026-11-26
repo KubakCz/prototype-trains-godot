@@ -32,8 +32,8 @@ Godot traps for `Control`s, picking, clicks and screen coordinates. Found the ha
   default, and the reason an embedded run sits at 1152x648 in the middle of a large window),
   *Keep Aspect Ratio* or *Stretch to Fit*.
 - **`get_viewport().physics_object_picking` is off by default**, and without it a
-  `CollisionObject3D.input_event` never fires. `Turnout` and `RailSignal` switch it on at runtime.
-  A `Control` that calls `accept_event()` consumes the click before picking sees it, which is
+  `CollisionObject3D.input_event` never fires. `TracksideModel` switches it on at runtime, when
+  `Turnout` or `RailSignal` builds its click target. A `Control` that calls `accept_event()` consumes the click before picking sees it, which is
   what stops the floating widget and the 3D collider under it both throwing the same points.
 - **Any `Control` with the default `mouse_filter` eats clicks on the 3D world behind it**, and
   the debug readouts are big. A click on a signal that happened to be behind the signal panel

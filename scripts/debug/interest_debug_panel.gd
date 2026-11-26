@@ -9,7 +9,7 @@ func _panel_title() -> String:
 
 
 func _panel_controls() -> Array[String]:
-	return ["names: %s" % ("on" if InterestPoint.show_names else "off")]
+	return ["names: %s" % _on_off(InterestPoint.show_names)]
 
 
 func _panel_control_pressed(index: int) -> void:
@@ -32,11 +32,12 @@ func _panel_lines() -> Array[String]:
 
 
 func _describe(point: InterestPoint) -> String:
+	var count := point.tracks().size()
+	var plural := "" if count == 1 else "s"
 	var station := point as Station
 	if station != null:
 		var cargo: String = Station.Cargo.keys()[station.cargo].to_lower()
 		return "O %-16s station, %d track%s, stops %.0f s, cargo %s   %s" % [point.label(),
-				point.tracks().size(), "" if point.tracks().size() == 1 else "s",
-				station.dwell_time, cargo, point.color().to_html(false)]
-	return "[] %-16s connection, %d track%s   %s" % [point.label(), point.tracks().size(),
-			"" if point.tracks().size() == 1 else "s", point.color().to_html(false)]
+				count, plural, station.dwell_time, cargo, point.color().to_html(false)]
+	return "[] %-16s connection, %d track%s   %s" % [point.label(), count, plural,
+			point.color().to_html(false)]

@@ -57,11 +57,9 @@ signal occupancy_changed
 
 var _occupants: Array[Train] = []
 var _debug_mesh: MeshInstance3D
-static var _debug_material: StandardMaterial3D
 
 
 func _ready() -> void:
-	_attach_to_rails()
 	if locate_on_ready and not Engine.is_editor_hint():
 		locate()
 	_place()
@@ -126,8 +124,8 @@ func crossing_position() -> Vector3:
 func crossing_angle_degrees() -> float:
 	if not is_usable():
 		return 0.0
-	var a := _flat(rail_a.sample_forward(rail_a.clamp_distance(distance_a)))
-	var b := _flat(rail_b.sample_forward(rail_b.clamp_distance(distance_b)))
+	var a := Rail.flat_heading(rail_a.sample_forward(rail_a.clamp_distance(distance_a)))
+	var b := Rail.flat_heading(rail_b.sample_forward(rail_b.clamp_distance(distance_b)))
 	var angle := rad_to_deg(a.angle_to(b))
 	return 180.0 - angle if angle > 90.0 else angle
 #endregion
@@ -256,11 +254,7 @@ func _get_configuration_warnings() -> PackedStringArray:
 func _refresh_debug_mesh() -> void:
 	if not is_inside_tree():
 		return
-	if _debug_mesh == null:
-		_debug_mesh = MeshInstance3D.new()
-		_debug_mesh.name = "CrossingDebugDraw"
-		_debug_mesh.top_level = true
-		add_child(_debug_mesh, false, Node.INTERNAL_MODE_BACK)
+	_debug_mesh = DebugLines.ensure_instance(self, _debug_mesh, "CrossingDebugDraw", true)
 	var mesh := ImmediateMesh.new()
 	_debug_mesh.mesh = mesh
 	if not debug_draw or not is_usable():
@@ -278,34 +272,16 @@ func _refresh_debug_mesh() -> void:
 	# Alternating between the rails keeps the two diagonals on the two tracks,
 	# whatever the angle, so the outline is always a diamond and never a bow tie.
 	var centre := crossing_position() + lift
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES, _get_debug_material())
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES, DebugLines.material(true))
 	for i in corners.size():
-		_line(mesh, corners[i], corners[(i + 1) % corners.size()], color)
+		DebugLines.line(mesh, corners[i], corners[(i + 1) % corners.size()], color)
 	# Inner outline, so the marker survives being a few pixels wide.
 	for i in corners.size():
 		var inner_from := centre.lerp(corners[i], 0.8)
 		var inner_to := centre.lerp(corners[(i + 1) % corners.size()], 0.8)
-		_line(mesh, inner_from, inner_to, color)
-	_line(mesh, centre, centre + Vector3.UP * 1.4, color)
+		DebugLines.line(mesh, inner_from, inner_to, color)
+	DebugLines.line(mesh, centre, centre + Vector3.UP * 1.4, color)
 	mesh.surface_end()
-
-
-func _line(mesh: ImmediateMesh, from: Vector3, to: Vector3, color: Color) -> void:
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(from)
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(to)
-
-
-static func _get_debug_material() -> StandardMaterial3D:
-	if _debug_material == null:
-		_debug_material = StandardMaterial3D.new()
-		_debug_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_debug_material.vertex_color_use_as_albedo = true
-		_debug_material.vertex_color_is_srgb = true
-		_debug_material.disable_receive_shadows = true
-		_debug_material.no_depth_test = true
-	return _debug_material
 #endregion
 
 
@@ -330,51 +306,49 @@ func _place() -> void:
 		global_position = crossing_position()
 
 
-static func _flat(v: Vector3) -> Vector3:
-	var flat := Vector3(v.x, 0.0, v.z)
-	return flat.normalized() if flat.length_squared() > 1e-9 else Vector3.FORWARD
-
-
 func _set_rail_a(value: Rail) -> void:
-	if rail_a != null:
-		rail_a.detach(self)
+	var old := rail_a
 	rail_a = value
-	# Only once in the tree: a crossing that never enters it would never leave
-	# it either, and would stay on the rail's list after being freed.
-	if is_inside_tree():
-		_attach_to_rails()
-	_place()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_swap_rail(old)
 
 
 func _set_rail_b(value: Rail) -> void:
-	if rail_b != null:
-		rail_b.detach(self)
+	var old := rail_b
 	rail_b = value
-	# Only once in the tree: a crossing that never enters it would never leave
-	# it either, and would stay on the rail's list after being freed.
+	_swap_rail(old)
+
+
+## Moves the registration off [param old] onto the rails now set - only once in
+## the tree: a crossing that never enters it would never leave it either, and
+## would stay on the rail's list after being freed.
+func _swap_rail(old: Rail) -> void:
+	if old != null:
+		old.detach(self)
 	if is_inside_tree():
 		_attach_to_rails()
 	_place()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_distance_a(value: float) -> void:
 	distance_a = value
 	_place()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_distance_b(value: float) -> void:
 	distance_b = value
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_debug_draw(value: bool) -> void:
+	if debug_draw == value:
+		return
 	debug_draw = value
 	_refresh_debug_mesh()
+
+
+func _geometry_changed() -> void:
+	_refresh_debug_mesh()
+	update_configuration_warnings()
 #endregion

@@ -20,7 +20,10 @@ extends TrackStructure
 
 enum Style { STONE_ARCH, STEEL_TRUSS, WOODEN_TRESTLE }
 
-@export var style := Style.STONE_ARCH: set = _set_style
+@export var style := Style.STONE_ARCH:
+	set(value):
+		style = value
+		_changed()
 
 const _STONE := Color(0.64, 0.6, 0.53)
 const _STONE_DARK := Color(0.5, 0.47, 0.42)
@@ -134,8 +137,8 @@ func _build_viaduct(surface: MeshSurface, surfaces: Array[SurfaceSnapper.Surface
 	var inner := _VIADUCT_HALF_WIDTH - _PARAPET_THICKNESS
 	var bed := rail.surface_offset
 
-	# Per span, the springing height and rise of its arch.
-	var arches: Array[Vector3] = []  # (springing y, rise, half chord) per span
+	# Per span, its arch as (springing y, rise, half chord).
+	var arches: Array[Vector3] = []
 	for span in spans:
 		var crown := flat_frame((span.x + span.y) * 0.5).origin.y + deck_top - 0.9
 		var lowest_ground := INF
@@ -168,30 +171,24 @@ func _build_viaduct(surface: MeshSurface, surfaces: Array[SurfaceSnapper.Surface
 		decks_r.append(Vector3(middle.x, deck_y, middle.z) + right * inner)
 		rights.append(right)
 
-	var lefts := PackedVector3Array()
+	var lefts := negated(rights)
 	var downs := PackedVector3Array([Vector3.DOWN])
 	var ups := PackedVector3Array([Vector3.UP])
-	for right in rights:
-		lefts.append(-right)
 	surface.add_strip(tops_l, bottoms_l, lefts, _STONE)
 	surface.add_strip(tops_r, bottoms_r, rights, _STONE)
 	surface.add_strip(bottoms_l, bottoms_r, downs, _STONE_DARK)
 	surface.add_strip(decks_l, decks_r, ups, _STONE_DARK)
 	# Parapets: inner faces down to the deck, and a coping along the top.
-	var coping_l := PackedVector3Array()
-	var coping_r := PackedVector3Array()
 	var lip_l := PackedVector3Array()
 	var lip_r := PackedVector3Array()
+	var lift := Vector3.UP * _PARAPET_HEIGHT
 	for i in stations.size():
-		var lift := Vector3.UP * _PARAPET_HEIGHT
 		lip_l.append(decks_l[i] + lift)
 		lip_r.append(decks_r[i] + lift)
-		coping_l.append(tops_l[i])
-		coping_r.append(tops_r[i])
 	surface.add_strip(lip_l, decks_l, rights, _STONE)
 	surface.add_strip(lip_r, decks_r, lefts, _STONE)
-	surface.add_strip(coping_l, lip_l, ups, _COPING)
-	surface.add_strip(lip_r, coping_r, ups, _COPING)
+	surface.add_strip(tops_l, lip_l, ups, _COPING)
+	surface.add_strip(lip_r, tops_r, ups, _COPING)
 	# End walls, where the abutments meet the bank.
 	for end: int in [0, stations.size() - 1]:
 		var along := flat_frame(stations[end]).basis.z * (1.0 if end == 0 else -1.0)
@@ -393,20 +390,12 @@ func _add_deck(surface: MeshSurface, half_width: float, color: Color) -> void:
 		bottom_l.append(bottom - right)
 		bottom_r.append(bottom + right)
 		rights.append(frame.basis.x)
-	var lefts := PackedVector3Array()
-	for right in rights:
-		lefts.append(-right)
 	surface.add_strip(top_l, top_r, PackedVector3Array([Vector3.UP]), color)
 	surface.add_strip(bottom_l, bottom_r, PackedVector3Array([Vector3.DOWN]), color)
-	surface.add_strip(top_l, bottom_l, lefts, color)
+	surface.add_strip(top_l, bottom_l, negated(rights), color)
 	surface.add_strip(top_r, bottom_r, rights, color)
 	for end: int in [0, top_l.size() - 1]:
 		var along := (top_l[mini(end + 1, top_l.size() - 1)] - top_l[maxi(end - 1, 0)]) \
 				* (-1.0 if end == 0 else 1.0)
 		surface.add_quad_facing(top_l[end], top_r[end], bottom_r[end], bottom_l[end], along,
 				color)
-
-
-func _set_style(value: Style) -> void:
-	style = value
-	_changed()

@@ -16,11 +16,9 @@ extends DebugPanel
 var _signals: Array[RailSignal] = []
 
 
-func _ready() -> void:
-	super._ready()
+func _missing_warning() -> String:
 	_collect()
-	if _signals.is_empty():
-		push_warning("No signals in group '%s'." % signal_group)
+	return "No signals in group '%s'." % signal_group if _signals.is_empty() else ""
 
 
 func _panel_title() -> String:
@@ -31,8 +29,8 @@ func _panel_controls() -> Array[String]:
 	if overlay == null:
 		return []
 	return [
-		"signal widget: %s   ▸" % overlay.signal_style_label(),
-		"collapse: %s   ▸" % overlay.collapse_label(),
+		_cycle_row("signal widget", overlay.signal_style_label()),
+		_cycle_row("collapse", overlay.collapse_label()),
 	]
 
 
@@ -77,22 +75,14 @@ func _panel_lines() -> Array[String]:
 ## travel it governs, and who is waiting at it.
 func _describe(rail_signal: RailSignal, is_hovered: bool) -> String:
 	if not rail_signal.is_usable():
-		return "%s %s  <not configured>" % [">" if is_hovered else " ", rail_signal.name]
+		return _unconfigured(rail_signal, is_hovered)
 	var line := "%s %s  %s  on %s @ %.1f m  governs %s" % [
-		">" if is_hovered else " ",
+		_mark(is_hovered),
 		rail_signal.name,
 		"CLEAR " if rail_signal.is_clear() else "DANGER",
 		rail_signal.rail.name,
 		rail_signal.signal_distance(),
 		"towards end" if rail_signal.governed_direction() > 0 else "towards start",
 	]
-	var held := _held_train(rail_signal)
-	return line if held.is_empty() else "%s  <- holding %s" % [line, held]
-
-
-func _held_train(rail_signal: RailSignal) -> String:
-	for node in get_tree().get_nodes_in_group(train_group):
-		var train := node as Train
-		if train != null and train.blocking_signal == rail_signal:
-			return str(train.name)
-	return ""
+	return _with_held(line, _train_held_by(train_group,
+			func(train: Train) -> bool: return train.blocking_signal == rail_signal))

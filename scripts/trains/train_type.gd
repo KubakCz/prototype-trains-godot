@@ -38,10 +38,11 @@ func roll_load(rng: RandomNumberGenerator) -> float:
 
 ## The longest train this type can make, in metres: for a connection's room.
 func longest_length() -> float:
-	var length := locomotive.length if locomotive != null else 16.0
+	var types: Array[CarType] = [locomotive if locomotive != null else LocomotiveType.stand_in()]
 	if wagon != null:
-		length += float(maxi(min_wagons, max_wagons)) * (wagon.length + Train.COUPLING_GAP)
-	return length
+		for i in maxi(min_wagons, max_wagons):
+			types.append(wagon)
+	return CarType.consist_length(types)
 
 
 func _get_configuration_warnings() -> PackedStringArray:

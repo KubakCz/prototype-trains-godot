@@ -39,10 +39,7 @@ const _GLYPH := 12.0
 const _SCHEMATIC_SIZE := Vector2(86.0, 46.0)
 const _LABEL_HEIGHT := 15.0
 
-const _COLOR_CLEAR := Color(0.25, 1.0, 0.35)
-const _COLOR_DANGER := Color(0.85, 0.2, 0.18)
 const _COLOR_TRACK := Color(0.62, 0.64, 0.68)
-const _COLOR_LABEL := Color(0.93, 0.94, 0.96)
 
 var rail_signal: RailSignal
 var style := Style.ARROW: set = _set_style
@@ -60,7 +57,7 @@ func marker_anchor() -> Vector3:
 
 
 func accent_color() -> Color:
-	return _COLOR_CLEAR if rail_signal.is_clear() else _COLOR_DANGER
+	return _COLOR_GO if rail_signal.is_clear() else _COLOR_STOP
 
 
 func activate() -> void:
@@ -73,11 +70,9 @@ func is_alive() -> bool:
 
 
 func expanded_size() -> Vector2:
-	var font := get_theme_default_font()
-	var font_size := get_theme_default_font_size()
-	var text_width := font.get_string_size(str(rail_signal.name), HORIZONTAL_ALIGNMENT_LEFT,
-			-1.0, font_size).x
-	var line := maxf(font.get_height(font_size), _LAMP_RADIUS * 2.0)
+	var text_width := _text_width(str(rail_signal.name))
+	var line := maxf(get_theme_default_font().get_height(get_theme_default_font_size()),
+			_LAMP_RADIUS * 2.0)
 	match style:
 		Style.ARROW:
 			return Vector2(text_width + _LAMP_RADIUS * 2.0 + _TIP + _PADDING.x * 3.0,
@@ -98,11 +93,8 @@ func _draw_frame(accent: Color) -> void:
 	if style != Style.ARROW:
 		super._draw_frame(accent)
 		return
-	var background := _COLOR_BACKGROUND
-	if is_pointer_over():
-		background = background.lightened(0.3)
 	var outline := _arrow_polygon()
-	draw_colored_polygon(outline, background)
+	draw_colored_polygon(outline, _background_color())
 	# Closed, so the point is drawn rather than left open.
 	var closed := outline.duplicate()
 	closed.append(outline[0])
@@ -147,7 +139,7 @@ func _draw_arrow_contents(accent: Color) -> void:
 	var lamp_x: float = size.x - inset if left else inset
 	var far_edge: float = _TIP * 0.5 if left else size.x - _TIP * 0.5
 	draw_circle(Vector2(lamp_x, size.y * 0.5), _LAMP_RADIUS, accent)
-	_draw_centred_name((lamp_x + far_edge) * 0.5, size.y * 0.5, _COLOR_LABEL)
+	_draw_centred_name((lamp_x + far_edge) * 0.5, size.y * 0.5)
 
 
 ## Lamp, name, and a small triangle at the trailing edge pointing the governed
@@ -162,7 +154,7 @@ func _draw_pill_contents(accent: Color) -> void:
 		glyph_centre + Vector2(-direction * _GLYPH * 0.4, _GLYPH * 0.42),
 	]), accent)
 	var from := _PADDING.x + _LAMP_RADIUS * 2.0
-	_draw_centred_name((from + size.x - _PADDING.x - _GLYPH) * 0.5, size.y * 0.5, _COLOR_LABEL)
+	_draw_centred_name((from + size.x - _PADDING.x - _GLYPH) * 0.5, size.y * 0.5)
 
 
 ## A piece of track with an arrowhead at the governed end and the lamp standing
@@ -183,7 +175,7 @@ func _draw_schematic_contents(accent: Color) -> void:
 	# travelling the governed way, which on screen is the heading turned right.
 	draw_circle(centre + Vector2(-heading.y, heading.x) * (_LAMP_RADIUS + 4.0),
 			_LAMP_RADIUS, accent)
-	_draw_centred_name(size.x * 0.5, size.y - _PADDING.y, _COLOR_LABEL)
+	_draw_centred_name(size.x * 0.5, size.y - _PADDING.y)
 
 
 ## An arrowhead rather than a dot, so a collapsed arrow-style widget still says
@@ -203,14 +195,14 @@ func _draw_collapsed(accent: Color) -> void:
 	]), accent)
 
 
-func _draw_centred_name(centre_x: float, baseline_y: float, color: Color) -> void:
+## The signal's name, centred on [param centre_x] and, by its height, on [param middle_y].
+func _draw_centred_name(centre_x: float, middle_y: float) -> void:
 	var font := get_theme_default_font()
 	var font_size := get_theme_default_font_size()
 	var text := str(rail_signal.name)
 	var extent := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size)
-	draw_string(font, Vector2(centre_x - extent.x * 0.5,
-			baseline_y + extent.y * 0.5 - font.get_descent(font_size)),
-			text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, color)
+	_draw_text(Vector2(centre_x - extent.x * 0.5,
+			middle_y + extent.y * 0.5 - font.get_descent(font_size)), text, _COLOR_TEXT)
 #endregion
 
 
@@ -240,5 +232,4 @@ func _set_style(value: Style) -> void:
 	if style == value:
 		return
 	style = value
-	refresh_size()
-	queue_redraw()
+	_restyle()

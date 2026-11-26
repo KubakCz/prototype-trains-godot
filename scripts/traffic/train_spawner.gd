@@ -198,12 +198,14 @@ func _pose(route: TrainRoute, entry: InterestPoint, track: InterestTrack,
 ## first one that only one way reaches, the points as they are set now. Either, at the
 ## dice, when nothing decides it.
 func _facing_towards(route: TrainRoute, rail: Rail, distance: float) -> int:
+	var walks: Dictionary[int, TrackWalker.Step] = {}
+	for facing: int in [1, -1]:
+		walks[facing] = TrackWalker.walk(rail, distance, facing, 3000.0)
 	for stop in route.stops:
 		var ways: Array[int] = []
 		for facing: int in [1, -1]:
-			var walk := TrackWalker.walk(rail, distance, facing, 3000.0)
 			for track in stop.tracks():
-				if walk.covers(track.rail, track.distance):
+				if walks[facing].covers(track.rail, track.distance):
 					ways.append(facing)
 					break
 		if ways.size() == 1:
@@ -241,10 +243,9 @@ static func sector_ahead(rail: Rail, distance: float, facing: int,
 
 ## Nose to tail of a train of [param type] with [param wagons], couplings included.
 static func consist_length(type: TrainType, wagons: Array[WagonType]) -> float:
-	var length := type.locomotive.length
-	for wagon in wagons:
-		length += Train.COUPLING_GAP + wagon.length
-	return length
+	var types: Array[CarType] = [type.locomotive]
+	types.append_array(wagons)
+	return CarType.consist_length(types)
 
 
 func _shuffled(items: Array) -> Array:

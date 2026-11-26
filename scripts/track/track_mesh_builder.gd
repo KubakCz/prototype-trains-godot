@@ -17,6 +17,8 @@ extends RefCounted
 ## ballast away (an open deck) or hold it in (a filled deck).
 
 const CHUNK_SIZE := 64.0
+## The ground's colour where there is no [Ground] to ask.
+const GRASS := Color(0.33, 0.42, 0.25)
 
 enum Ballast {
 	## A full bed, its sides running down to the ground.
@@ -41,7 +43,7 @@ const _SHOULDER := 1.6
 const _BLADE_STEP := 0.25
 
 var ground_height: Callable = func(_point: Vector3) -> Variant: return null
-var ground_color: Callable = func(_point: Vector3) -> Color: return Color(0.33, 0.42, 0.25)
+var ground_color: Callable = func(_point: Vector3) -> Color: return GRASS
 var ballast_mode: Callable = func(_rail: Rail, _distance: float) -> Ballast: return Ballast.BED
 
 ## Per chunk, one [MeshSurface] per material.
@@ -100,17 +102,8 @@ static func build_blades(layout: TrackLayout) -> Dictionary[Turnout, ArrayMesh]:
 		var mesh := ArrayMesh.new()
 		mesh.blend_shape_mode = Mesh.BLEND_SHAPE_MODE_NORMALIZED
 		mesh.add_blend_shape(&"reverse")
-		var arrays := []
-		arrays.resize(Mesh.ARRAY_MAX)
-		arrays[Mesh.ARRAY_VERTEX] = normal.vertices
-		arrays[Mesh.ARRAY_NORMAL] = normal.normals
-		arrays[Mesh.ARRAY_COLOR] = normal.colors
-		arrays[Mesh.ARRAY_INDEX] = normal.indices
-		var shape := []
-		shape.resize(Mesh.ARRAY_MAX)
-		shape[Mesh.ARRAY_VERTEX] = reverse.vertices
-		shape[Mesh.ARRAY_NORMAL] = reverse.normals
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [shape])
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, normal.arrays(),
+				[reverse.arrays(true)])
 		mesh.surface_set_material(0, TrackMaterials.metal())
 		meshes[turnout] = mesh
 	return meshes
@@ -155,7 +148,7 @@ static func _flare_at(piece: TrackLayout.Piece, at: float) -> float:
 		into = at - piece.from
 	if piece.flare_to:
 		into = minf(into, piece.to - at)
-	return piece.flare * clampf(1.0 - into / TrackLayout.CHECK_FLARE, 0.0, 1.0)
+	return TrackLayout.check_flare(piece.flare, into)
 
 
 static func _with_flare_stations(all: PackedFloat64Array,
@@ -292,8 +285,8 @@ func _add_sleeper(sleeper: TrackLayout.Sleeper) -> void:
 	var middle := frame.origin + frame.basis.x * ((sleeper.lo + sleeper.hi) * 0.5) \
 			- frame.basis.y * (TrackLayout.SLEEPER_HEIGHT * 0.5)
 	# Not every sleeper the same brown.
-	var shade := 0.88 + 0.24 * fposmod(sin(sleeper.distance * 12.9898) * 43758.5453, 1.0)
-	var color := Color(_TIMBER.r * shade, _TIMBER.g * shade, _TIMBER.b * shade)
+	var color := MeshSurface.shade(_TIMBER,
+			0.88 + 0.24 * fposmod(sin(sleeper.distance * 12.9898) * 43758.5453, 1.0))
 	_surface(_wood, middle).add_box(Transform3D(frame.basis, middle),
 			Vector3(sleeper.hi - sleeper.lo, TrackLayout.SLEEPER_HEIGHT,
 			TrackLayout.SLEEPER_WIDTH), color, false)
@@ -330,7 +323,7 @@ func _add_ballast(layout: TrackLayout, rail: Rail) -> void:
 		if not previous.is_empty() and mode != Ballast.NONE and previous_mode != Ballast.NONE:
 			var surface := _surface(_ballast, top)
 			for k in 3:
-				_ballast_quad(surface, previous[k], previous[k + 1], row[k + 1], row[k],
+				surface.add_quad_up(previous[k], previous[k + 1], row[k + 1], row[k],
 						previous_colors[k], previous_colors[k + 1], colors[k + 1], colors[k])
 		previous = row
 		previous_colors = colors
@@ -352,25 +345,6 @@ func _toe(top: Vector3, shoulder: Vector3, outward: Vector3, mode: Ballast) -> V
 	var toe := shoulder + outward * (drop * 1.5)
 	toe.y = top.y - drop
 	return toe
-
-
-static func _ballast_quad(surface: MeshSurface, a: Vector3, b: Vector3, c: Vector3, d: Vector3,
-		ca: Color, cb: Color, cc: Color, cd: Color) -> void:
-	var normal := (b - a).cross(d - a)
-	if normal.y < 0.0:
-		normal = -normal
-	normal = normal.normalized() if normal.length_squared() > 1e-12 else Vector3.UP
-	var base := surface.vertices.size()
-	surface.vertices.append_array(PackedVector3Array([a, b, c, d]))
-	surface.normals.append_array(PackedVector3Array([normal, normal, normal, normal]))
-	surface.colors.append_array(PackedColorArray([ca, cb, cc, cd]))
-	# Whichever way the quad was wound, the face that looks up is the front.
-	if (b - a).cross(c - a).dot(normal) > 0.0:
-		surface.indices.append_array(PackedInt32Array([base, base + 2, base + 1,
-				base, base + 3, base + 2]))
-	else:
-		surface.indices.append_array(PackedInt32Array([base, base + 1, base + 2,
-				base, base + 2, base + 3]))
 #endregion
 
 
@@ -397,12 +371,12 @@ func _add_buffer_stop(stop: TrackLayout.BufferStop) -> void:
 #endregion
 
 
-static func cell_of(point: Vector3) -> Vector2i:
+static func _cell_of(point: Vector3) -> Vector2i:
 	return Vector2i(floori(point.x / CHUNK_SIZE), floori(point.z / CHUNK_SIZE))
 
 
 static func _surface(table: Dictionary[Vector2i, MeshSurface], point: Vector3) -> MeshSurface:
-	var cell := cell_of(point)
+	var cell := _cell_of(point)
 	if not table.has(cell):
 		table[cell] = MeshSurface.new()
 	return table[cell]

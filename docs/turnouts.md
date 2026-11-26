@@ -70,7 +70,7 @@ A fourth, `LEGS_AND_BADGE` — the legs plus a name and `N`/`R` pill instead of 
 tried and dropped: it did not work.
 
 What is written under the miniature is a second open question, cycled by the panel's
-**schematic text row** (`MarkerOverlay.turnout_caption`, a `TurnoutWidget.Caption`): `NO_TEXT`,
+**schematic text row** (`MarkerOverlay.turnout_caption`, a `SchematicMarkerWidget.Caption`): `NO_TEXT`,
 `TURNOUT_NAME`, `TURNOUT_POSITION` (`NORMAL`/`REVERSE`) or `ALL`, the default. The position is
 drawn in the widget's accent colour — white for normal, orange for reverse — and the widget is
 sized for `REVERSE` whatever the points are set to, so throwing them does not make it jump.

@@ -19,10 +19,6 @@ func is_empty() -> bool:
 	return indices.is_empty()
 
 
-func vertex_count() -> int:
-	return vertices.size()
-
-
 ## A flat quad, corners in order round its edge. Godot's front face is the
 ## clockwise one, so the quad is visible from the side opposite
 ## [code](b - a).cross(c - a)[/code]; [method add_quad_facing] works that out
@@ -69,6 +65,27 @@ func add_triangle_facing(a: Vector3, b: Vector3, c: Vector3, outward: Vector3,
 	indices.append_array(PackedInt32Array([base, base + 1, base + 2]))
 
 
+## A quad seen from above, a colour per corner - the ballast's bed, shading
+## into the ground. Lit as its corners [param a], [param b], [param d] lie,
+## turned upward whichever way they were wound.
+func add_quad_up(a: Vector3, b: Vector3, c: Vector3, d: Vector3,
+		ca: Color, cb: Color, cc: Color, cd: Color) -> void:
+	var normal := (b - a).cross(d - a)
+	if normal.y < 0.0:
+		normal = -normal
+	normal = normal.normalized() if normal.length_squared() > 1e-12 else Vector3.UP
+	var base := vertices.size()
+	vertices.append_array(PackedVector3Array([a, b, c, d]))
+	normals.append_array(PackedVector3Array([normal, normal, normal, normal]))
+	colors.append_array(PackedColorArray([ca, cb, cc, cd]))
+	if (b - a).cross(c - a).dot(normal) > 0.0:
+		indices.append_array(PackedInt32Array([base, base + 2, base + 1,
+				base, base + 3, base + 2]))
+	else:
+		indices.append_array(PackedInt32Array([base, base + 1, base + 2,
+				base, base + 2, base + 3]))
+
+
 ## A box in [param frame]: centred on its origin, [param size] along its own
 ## axes. The bottom face is left out when [param bottom] is false, for things
 ## that sit on something and are never seen from below.
@@ -111,7 +128,7 @@ func add_beam(from: Vector3, to: Vector3, width: float, height: float, color: Co
 	var forward := along / length
 	if absf(forward.dot(up.normalized())) > 0.98:
 		up = Vector3.FORWARD if absf(forward.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
-	var basis := Rail.basis_from_forward_up(forward, up)
+	var basis := basis_from_forward_up(forward, up)
 	add_box(Transform3D(basis, (from + to) * 0.5), Vector3(width, height, length), color)
 
 
@@ -129,21 +146,40 @@ func add_strip(left: PackedVector3Array, right: PackedVector3Array,
 func commit(mesh: ArrayMesh, material: Material) -> void:
 	if is_empty():
 		return
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_COLOR] = colors
-	arrays[Mesh.ARRAY_INDEX] = indices
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays())
 	mesh.surface_set_material(mesh.get_surface_count() - 1, material)
 
 
-## The bounding box of everything collected, for the culling AABB of a chunk.
-func aabb() -> AABB:
-	if vertices.is_empty():
-		return AABB()
-	var box := AABB(vertices[0], Vector3.ZERO)
-	for v in vertices:
-		box = box.expand(v)
-	return box
+## Everything collected, laid out for [method ArrayMesh.add_surface_from_arrays].
+## A blend shape takes positions and normals only.
+func arrays(blend_shape := false) -> Array:
+	var result := []
+	result.resize(Mesh.ARRAY_MAX)
+	result[Mesh.ARRAY_VERTEX] = vertices
+	result[Mesh.ARRAY_NORMAL] = normals
+	if not blend_shape:
+		result[Mesh.ARRAY_COLOR] = colors
+		result[Mesh.ARRAY_INDEX] = indices
+	return result
+
+
+## [param color] darkened by [param amount], alpha left opaque.
+static func shade(color: Color, amount: float) -> Color:
+	return Color(color.r * amount, color.g * amount, color.b * amount)
+
+
+## Orthonormal basis whose -Z looks along [param forward] (Godot's convention for
+## which way a node faces) and whose +Y is as close to [param up] as the forward
+## direction allows.
+## Lives here rather than on [Rail] (which forwards to it) so that [MeshSurface],
+## which [Ground] uses, names no class that leads back to [Ground].
+static func basis_from_forward_up(forward: Vector3, up: Vector3) -> Basis:
+	var back := -forward.normalized()
+	var right := up.cross(back)
+	if right.length_squared() < 1e-9:
+		# Looking straight along `up`; any perpendicular axis will do.
+		right = Vector3.RIGHT.cross(back)
+	if right.length_squared() < 1e-9:
+		right = Vector3.FORWARD.cross(back)
+	right = right.normalized()
+	return Basis(right, back.cross(right), back)

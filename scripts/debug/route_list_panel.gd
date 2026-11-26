@@ -23,7 +23,7 @@ func _build_chrome() -> void:
 func _apply_expanded() -> void:
 	super._apply_expanded()
 	if _view != null:
-		_view.visible = expanded and RouteIcons.mode == RouteIcons.Mode.LIST
+		_view.visible = _list_showing()
 
 
 func _panel_controls() -> Array[String]:
@@ -53,15 +53,18 @@ func _refresh() -> void:
 	super._refresh()
 	if _view == null:
 		return
-	var showing := expanded and RouteIcons.mode == RouteIcons.Mode.LIST
-	_view.visible = showing
-	if showing:
+	_view.visible = _list_showing()
+	if _view.visible:
 		var trains: Array[Train] = []
 		for node in get_tree().get_nodes_in_group(Train.GROUP):
 			var train := node as Train
 			if train != null and not train.is_queued_for_deletion():
 				trains.append(train)
 		_view.show_trains(trains)
+
+
+func _list_showing() -> bool:
+	return expanded and RouteIcons.mode == RouteIcons.Mode.LIST
 
 
 ## The list as it is drawing, for tests.

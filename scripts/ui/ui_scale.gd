@@ -37,6 +37,6 @@ func _apply() -> void:
 		window.content_scale_factor = factor
 
 
-## The rule itself, kept static so a test can ask it about a height without a window.
+## The rule itself, static because it needs nothing but a height.
 static func scale_for_height(height: int) -> float:
 	return clampf(snappedf(height / REFERENCE_HEIGHT, STEP), MIN_SCALE, MAX_SCALE)

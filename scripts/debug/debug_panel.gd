@@ -3,9 +3,8 @@ extends PanelContainer
 ## A collapsible section of the debug HUD: a header you can click and a body of
 ## text the subclass writes.
 ##
-## The three debug panels had grown to the point where three expanded readouts
-## covered a good part of the screen, so every one of them folds down to its
-## header. They start folded: a scene opens showing the track, and you open the
+## Expanded, a handful of readouts cover a good part of the screen, so every
+## panel folds down to its header. They start folded: a scene opens showing the track, and you open the
 ## section you are working on.
 ##
 ## A subclass supplies a title, the lines of its readout and any cycle rows it
@@ -44,6 +43,9 @@ func _ready() -> void:
 	_build_chrome()
 	_apply_expanded()
 	_refresh()
+	var warning := _missing_warning()
+	if not warning.is_empty():
+		push_warning(warning)
 
 
 func _process(_delta: float) -> void:
@@ -82,6 +84,48 @@ func _panel_control_pressed(_index: int) -> void:
 	pass
 
 
+## Checked once, when the panel is ready: a warning when the level has nothing for
+## this panel to show, or empty.
+func _missing_warning() -> String:
+	return ""
+
+
+# --- readout helpers ----------------------------------------------------------
+
+
+## The column that marks the line for what the pointer is on, or the selected train.
+static func _mark(marked: bool) -> String:
+	return ">" if marked else " "
+
+
+static func _on_off(value: bool) -> String:
+	return "on" if value else "off"
+
+
+## A row that steps through a presentation question's answers.
+static func _cycle_row(label: String, value: String) -> String:
+	return "%s: %s   ▸" % [label, value]
+
+
+## The whole line for something whose wiring is incomplete.
+static func _unconfigured(subject: Node, marked: bool) -> String:
+	return "%s %s  <not configured>" % [_mark(marked), subject.name]
+
+
+## The name of the first train in [param group] that [param holds] says is held, or empty.
+func _train_held_by(group: StringName, holds: Callable) -> String:
+	for node in get_tree().get_nodes_in_group(group):
+		var train := node as Train
+		if train != null and holds.call(train):
+			return str(train.name)
+	return ""
+
+
+## [param line], with who it is holding after it if anyone.
+static func _with_held(line: String, held: String) -> String:
+	return line if held.is_empty() else "%s  <- holding %s" % [line, held]
+
+
 # --- chrome -------------------------------------------------------------------
 
 
@@ -99,12 +143,7 @@ func _build_chrome() -> void:
 	rows.add_theme_constant_override("separation", 6)
 	margin.add_child(rows)
 
-	_header = Button.new()
-	_header.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	# Without this the header joins the GUI focus chain, and Tab - the train
-	# panel's select key - would move focus between headers instead.
-	_header.focus_mode = Control.FOCUS_NONE
-	_header.add_theme_font_size_override("font_size", FONT_SIZE)
+	_header = _new_button()
 	_style_header(_header)
 	_header.pressed.connect(_on_header_pressed)
 	rows.add_child(_header)
@@ -158,16 +197,24 @@ func _rebuild_controls(count: int) -> void:
 		button.queue_free()
 	_control_buttons.clear()
 	for i in count:
-		var button := Button.new()
-		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		button.focus_mode = Control.FOCUS_NONE
-		button.add_theme_font_size_override("font_size", FONT_SIZE)
+		var button := _new_button()
 		_style_row(button)
 		# A `Button` consumes its click, which is what keeps a press on a cycle
 		# row from also reaching the 3D picking behind the panel.
 		button.pressed.connect(_on_control_pressed.bind(i))
 		_controls.add_child(button)
 		_control_buttons.append(button)
+
+
+## A left-aligned button in the panel's font, for the header and the cycle rows.
+static func _new_button() -> Button:
+	var button := Button.new()
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	# Out of the GUI focus chain, or Tab - the train panel's select key - would
+	# move focus between the buttons instead.
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_size_override("font_size", FONT_SIZE)
+	return button
 
 
 ## Not `flat`: a flat `Button` draws no stylebox in any state, hover included,

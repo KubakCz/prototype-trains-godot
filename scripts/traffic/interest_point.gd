@@ -22,8 +22,6 @@ const GROUP := &"interest_points"
 
 ## How high the badge floats over the tracks: where the poles meet.
 const MARKER_HEIGHT := 14.0
-## Hues at least this far apart, out of a whole turn, for the points that pick one.
-const MIN_AUTO_HUE_GAP := 0.05
 
 const _SATURATION := 0.78
 const _VALUE := 0.95
@@ -35,9 +33,7 @@ static var _colors_pending := false
 static var _line_material: StandardMaterial3D
 
 ## What the readouts and the label call it. The node's name when empty.
-@export var display_name := "":
-	set(value):
-		display_name = value
+@export var display_name := ""
 ## Set the colour by hand instead of having one picked.
 @export var use_custom_color := false:
 	set(value):
@@ -108,7 +104,7 @@ func anchor() -> Vector3:
 	var total := Vector3.ZERO
 	var count := 0
 	for track in tracks():
-		if track.rail.rail_length() > 0.0 and track.rail.is_inside_tree():
+		if track.is_usable():
 			total += track.position()
 			count += 1
 	return total / float(count) if count > 0 else Vector3.ZERO
@@ -196,13 +192,13 @@ func refresh() -> void:
 	_ensure_marker()
 	_marker.global_position = middle + Vector3.UP * MARKER_HEIGHT
 	_rebuild_lines(middle, marks)
-	_marker_moved()
+	place_scenery()
 	update_configuration_warnings()
 
 
-## The tracks under the point moved, or the point entered the tree. A subclass with
-## something standing by its tracks places it again here.
-func _marker_moved() -> void:
+## The tracks under the point moved or changed, or the point entered the tree. A
+## subclass with something standing by its tracks places it again here.
+func place_scenery() -> void:
 	pass
 
 

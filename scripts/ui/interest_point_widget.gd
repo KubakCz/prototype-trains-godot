@@ -64,11 +64,8 @@ func collapsible() -> bool:
 
 
 ## Centred on the top of the poles.
-func desired_rect(viewport: Vector2) -> Rect2:
-	var extent := size * scale
-	var top_left := anchor_screen - extent * 0.5
-	return Rect2(top_left.clamp(Vector2.ZERO, Vector2(
-			maxf(viewport.x - extent.x, 0.0), maxf(viewport.y - extent.y, 0.0))), extent)
+func _anchor_offset(extent: Vector2) -> Vector2:
+	return extent * 0.5
 
 
 ## The badge's own centre: no leader line unless the layout had to push it aside.

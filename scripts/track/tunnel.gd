@@ -88,11 +88,8 @@ func ground_holes(_ground: Ground) -> Array[Dictionary]:
 
 func _build_mesh(surfaces: Array[SurfaceSnapper.Surface]) -> ArrayMesh:
 	# The ground first: the portal is sized to the hillside it is cut into.
-	var ground: Ground = null
-	for surface in surfaces:
-		if surface.ground != null:
-			surface.ground.refresh_shapes()
-			ground = surface.ground
+	var grounds := refresh_grounds(surfaces)
+	var ground: Ground = null if grounds.is_empty() else grounds[-1]
 	var cell := ground.cell_diagonal() if ground != null else 3.0
 	var apron := ground.apron_length() if ground != null else 2.0 * cell
 	var stone := MeshSurface.new()
@@ -235,10 +232,7 @@ func _build_shell(surface: MeshSurface, mouth: Vector2) -> void:
 		lefts_foot.append(foot - right * SHELL_HALF)
 		rights_foot.append(foot + right * SHELL_HALF)
 		outsides.append(right)
-	var insides := PackedVector3Array()
-	for right in outsides:
-		insides.append(-right)
-	surface.add_strip(lefts_top, lefts_foot, insides, _RING)
+	surface.add_strip(lefts_top, lefts_foot, negated(outsides), _RING)
 	surface.add_strip(rights_top, rights_foot, outsides, _RING)
 	surface.add_strip(lefts_top, rights_top, PackedVector3Array([Vector3.UP]), _RING)
 	var last := lefts_top.size() - 1
@@ -285,8 +279,8 @@ func _build_bore(surface: MeshSurface, mouth: Vector2) -> void:
 	for i in all.size() - 1:
 		var t0 := absf(all[i] - all[0]) / maxf(depth, 1e-3)
 		var t1 := absf(all[i + 1] - all[0]) / maxf(depth, 1e-3)
-		var c0 := TrackStructure.shade(_STONE, 0.45 * (1.0 - smoothstep(0.0, 0.55, t0)))
-		var c1 := TrackStructure.shade(_STONE, 0.45 * (1.0 - smoothstep(0.0, 0.55, t1)))
+		var c0 := MeshSurface.shade(_STONE, 0.45 * (1.0 - smoothstep(0.0, 0.55, t0)))
+		var c1 := MeshSurface.shade(_STONE, 0.45 * (1.0 - smoothstep(0.0, 0.55, t1)))
 		var color := c0.lerp(c1, 0.5)
 		var a := frames[i]
 		var b := frames[i + 1]
@@ -306,7 +300,7 @@ func _build_bore(surface: MeshSurface, mouth: Vector2) -> void:
 		var floor_b := b.origin + Vector3.UP * (bed - 0.02)
 		surface.add_quad_facing(floor_a - a.basis.x * OPEN_HALF, floor_a + a.basis.x * OPEN_HALF,
 				floor_b + b.basis.x * OPEN_HALF, floor_b - b.basis.x * OPEN_HALF,
-				Vector3.UP, TrackStructure.shade(color, 0.7))
+				Vector3.UP, MeshSurface.shade(color, 0.7))
 	# Black end wall, facing back out of the tunnel: a fan round the whole
 	# section, the floor edge included.
 	var end := frames[-1]

@@ -32,13 +32,14 @@ enum Role {
 @export_range(10.0, 300.0, 1.0, "suffix:m") var platform_length := 80.0: set = _set_platform_length
 
 
-func location() -> TrackWalker.Location:
-	return TrackWalker.Location.new(rail, distance)
+## Whether the mark is on a rail that is in the level and has a length.
+func is_usable() -> bool:
+	return rail != null and rail.rail_length() > 0.0 and rail.is_inside_tree()
 
 
-## Where the mark is in the world, or the origin with no rail.
+## Where the mark is in the world, or the origin with no usable rail.
 func position() -> Vector3:
-	if rail == null or rail.rail_length() <= 0.0 or not rail.is_inside_tree():
+	if not is_usable():
 		return Vector3.ZERO
 	return rail.sample_position(distance)
 
@@ -48,7 +49,7 @@ func position() -> Vector3:
 ## there is none: a station track without its exit signal that way, a connection
 ## track without its entry signal.
 func guarding_signal(direction: int) -> RailSignal:
-	if rail == null or not rail.is_inside_tree() or rail.rail_length() <= 0.0:
+	if not is_usable():
 		return null
 	var walk := TrackWalker.walk(rail, distance, direction, rail.rail_length(),
 			TrackWalker.OBEY_ALL_SIGNALS, [], true)
@@ -87,7 +88,7 @@ func _set_platform_length(value: float) -> void:
 	if point != null:
 		point.update_configuration_warnings()
 		# A station's platforms are as long as this.
-		point._marker_moved()
+		point.place_scenery()
 
 
 func _changed() -> void:

@@ -65,6 +65,14 @@ class Exit:
 		distance = p_distance
 		direction = p_direction
 
+	## The distance [param along] metres on from here in [member direction], kept
+	## on the rail.
+	func distance_at(along: float) -> float:
+		return rail.clamp_distance(distance + float(direction) * along)
+
+
+## Every leg, toe first.
+const LEGS: Array[Leg] = [Leg.TOE, Leg.THROUGH, Leg.DIVERGING]
 
 ## How close to the points a train has to be for this turnout to claim it. Also
 ## the tolerance on telling two legs of a self-connecting rail apart.
@@ -79,9 +87,6 @@ const _MAX_DIVERGE_DEGREES := 45.0
 ## be unambiguous, short enough that the leg has not started curving back.
 const _LEG_PROBE := 14.0
 
-const _COLOR_SET := Color(0.25, 1.0, 0.35)
-const _COLOR_UNSET := Color(0.85, 0.2, 0.18)
-const _COLOR_POINTS := Color(1.0, 1.0, 1.0)
 const _COLOR_POST := Color(0.30, 0.31, 0.33)
 const _COLOR_NORMAL := Color(0.92, 0.93, 0.95)
 const _COLOR_REVERSE := Color(1.0, 0.65, 0.08)
@@ -147,32 +152,19 @@ signal clicked
 @export var overlay_lift := 0.55
 
 var _debug_mesh: MeshInstance3D
-## Upright, ground-anchored root the marker hangs off. See [method marker_frame].
-var _marker: Node3D
-var _marker_frame := Transform3D.IDENTITY
-var _marker_lift := 0.0
-var _post: MeshInstance3D
+## The post and banner beside the track, standing on the ground.
+var _marker := TracksideModel.new()
 var _banner_pivot: Node3D
 var _banner: MeshInstance3D
-var _picker: StaticBody3D
-## Whether the mouse is over the 3D marker. Only a readout uses it, but it is the
-## model's own business: the floating widget has the same for its own rect.
-var _pointer_over := false
 ## The [CompoundTurnout] this turnout is a member of, or null. Set by the
 ## assembly, never authored. Typed as [Node3D] so this script does not have to
 ## name that one back - the same reason [Rail] keeps its attachments untyped.
 var assembly: Node3D: set = _set_assembly
-static var _debug_material: StandardMaterial3D
 
 
 func _ready() -> void:
-	_attach_to_rails()
 	if align_branch_on_ready and not Engine.is_editor_hint():
 		align_branch_to_turnout()
-	if not Engine.is_editor_hint():
-		# Physics object picking is what turns a left click into an
-		# `input_event` on `_picker`. Cheap, and off by default.
-		get_viewport().physics_object_picking = true
 	_place_on_rail()
 	_rebuild_marker()
 	_refresh_debug_mesh()
@@ -278,33 +270,22 @@ func points_position() -> Vector3:
 	return main_rail.sample_position(points_distance())
 
 
-## The frame the marker is built in: standing on the ground beside the track, on
-## the side the branch leaves, upright, looking along the through leg.
-##
-## Deliberately not the turnout node's own transform. That one is the rail's, so
-## it pitches with the gradient, banks with the curve's tilt and is anchored to
-## the railhead - a post built in it leans over and hangs in the air wherever the
-## ground falls away beside the track.
-func marker_frame() -> Transform3D:
-	return _marker_frame
-
-
 ## Where the marker post stands, in global space: on the ground beside the track.
 func marker_position() -> Vector3:
-	return _marker_frame.origin
+	return _marker.frame.origin
 
 
 ## How far the railhead is above the ground at the marker. The banner is hung
 ## this much higher than its nominal height, so it stays level with the track
 ## rather than with the ground the post happens to stand on.
 func marker_lift() -> float:
-	return _marker_lift
+	return _marker.lift
 
 
 ## Centre of the click collider, in global space. Where the marker stands depends
 ## on the ground under it, so anything aiming at it asks rather than guesses.
 func click_target_position() -> Vector3:
-	return _marker_frame * Vector3(0.0, _marker_lift + _PICKER_HEIGHT, 0.0)
+	return _marker.frame * Vector3(0.0, _marker.lift + _PICKER_HEIGHT, 0.0)
 
 
 ## Where the floating overlay widget's leader line lands, in global space. Just
@@ -373,12 +354,8 @@ func branch_side() -> int:
 func leg_position(leg: Leg, along: float) -> Vector3:
 	if not is_usable():
 		return global_position
-	if leg == Leg.DIVERGING:
-		return branch_rail.sample_position(branch_rail.clamp_distance(
-				branch_distance() + float(branch_exit_sign()) * along))
-	var sign := diverge_sign() if leg == Leg.THROUGH else -diverge_sign()
-	return main_rail.sample_position(main_rail.clamp_distance(
-			points_distance() + float(sign) * along))
+	var exit := leg_exit(leg)
+	return exit.rail.sample_position(exit.distance_at(along))
 
 
 ## Which way [param leg] visibly heads: the chord from the points out to
@@ -422,30 +399,24 @@ func diverge_angle_degrees() -> float:
 ## Puts the node itself on the rail, -Z along the through leg, so the marker
 ## boxes can be positioned in plain local space.
 func _place_on_rail() -> void:
-	if main_rail == null or not main_rail.is_inside_tree() or not is_inside_tree():
-		return
-	if main_rail.rail_length() <= 0.0:
+	if not _on_rail():
 		return
 	var up := main_rail.sample_up(points_distance())
 	global_transform = Transform3D(
 			Rail.basis_from_forward_up(through_direction(), up), points_position())
-	_update_marker_frame()
 
 
-## Recomputes where the marker stands and how far the railhead is above it, and
-## moves the marker there. The ground query behind [method Rail.ground_frame] is
-## the one expensive part, which is why the answer is kept rather than worked out
-## again by every caller that wants to know where the marker is.
+## Stands the marker on the ground beside the track, on the side the branch
+## leaves, looking along the through leg.
 func _update_marker_frame() -> void:
-	if main_rail == null or not main_rail.is_inside_tree() or not is_inside_tree():
-		return
-	if main_rail.rail_length() <= 0.0:
-		return
-	_marker_frame = main_rail.ground_frame(points_distance(), through_direction(),
-			float(branch_side()) * _MARKER_OFFSET)
-	_marker_lift = points_position().y - _marker_frame.origin.y
-	if _marker != null:
-		_marker.global_transform = _marker_frame
+	if _on_rail():
+		_marker.place(main_rail, points_distance(), through_direction(),
+				float(branch_side()) * _MARKER_OFFSET)
+
+
+func _on_rail() -> bool:
+	return (main_rail != null and main_rail.is_inside_tree() and is_inside_tree()
+			and main_rail.rail_length() > 0.0)
 #endregion
 
 
@@ -457,10 +428,7 @@ func throw_points() -> void:
 			else Position.REVERSE)
 
 
-func _on_picker_input(_camera: Node, event: InputEvent, _at: Vector3,
-		_normal: Vector3, _shape: int) -> void:
-	if not event.is_action_pressed(&"interact"):
-		return
+func _on_marker_pressed() -> void:
 	clicked.emit()
 	if player_operable:
 		throw_points()
@@ -470,11 +438,7 @@ func _on_picker_input(_camera: Node, event: InputEvent, _at: Vector3,
 ## itself ([method TrackMarkerWidget.is_pointer_over]); between the two, a
 ## readout can say which turnout the player is pointing at.
 func is_pointer_over() -> bool:
-	return _pointer_over
-
-
-func _set_pointer_over(value: bool) -> void:
-	_pointer_over = value
+	return _marker.pointer_over
 #endregion
 
 
@@ -516,6 +480,7 @@ func align_branch_to_turnout() -> void:
 		curve.set_point_in(index, handle)
 		curve.set_point_out(index, -handle)
 	_place_on_rail()
+	_update_marker_frame()
 	_refresh_debug_mesh()
 	update_configuration_warnings()
 
@@ -567,58 +532,27 @@ func _get_configuration_warnings() -> PackedStringArray:
 ## something to hit. The blades themselves are part of the generated track
 ## ([TrackMesher]) and swing across when the points are thrown; this is still
 ## what the player clicks.
-## Everything hangs off [member _marker], which stands on the ground rather than
-## on the track, so the post is as long as it has to be to get from that ground
-## up to its nominal height above the railhead.
 func _rebuild_marker() -> void:
 	if not is_inside_tree():
 		return
 	_update_marker_frame()
-	if _marker == null:
-		_marker = Node3D.new()
-		_marker.name = "Marker"
-		# Not built in the turnout's own frame: that one leans with the track.
-		# This one is written straight into global space by _update_marker_frame.
-		_marker.top_level = true
-		add_child(_marker, false, Node.INTERNAL_MODE_BACK)
-		_marker.global_transform = _marker_frame
-	if _post == null:
-		_post = _add_box("Post", _COLOR_POST, Vector3(0.26, 1.0, 0.26))
-	if _banner_pivot == null:
+	if _marker.root == null:
+		var root := _marker.build(self, "Marker", _COLOR_POST, 0.26)
 		_banner_pivot = Node3D.new()
 		_banner_pivot.name = "BannerPivot"
-		_marker.add_child(_banner_pivot)
-		_banner = MeshInstance3D.new()
-		_banner.name = "Banner"
-		_banner.mesh = BoxMesh.new()
-		_banner.material_override = StandardMaterial3D.new()
-		_banner_pivot.add_child(_banner)
-		(_banner.mesh as BoxMesh).size = Vector3(0.2, 0.2, 1.9)
+		root.add_child(_banner_pivot)
+		# White until _refresh_banner colours it, as a fresh material is.
+		_banner = TracksideModel.add_box(_banner_pivot, "Banner", Color.WHITE,
+				Vector3(0.2, 0.2, 1.9))
 		# Offset along the pivot's own -Z, so the banner reads as an arm pointing
 		# at the route rather than a bar sitting across it.
 		_banner.position = Vector3(0.0, 0.0, -0.95)
-	if _picker == null:
-		_picker = StaticBody3D.new()
-		_picker.name = "ClickTarget"
-		_picker.input_ray_pickable = true
-		var shape := CollisionShape3D.new()
 		var sphere := SphereShape3D.new()
 		sphere.radius = 2.2
-		shape.shape = sphere
-		_picker.add_child(shape)
-		_marker.add_child(_picker)
-		if not _picker.input_event.is_connected(_on_picker_input):
-			_picker.input_event.connect(_on_picker_input)
-		_picker.mouse_entered.connect(_set_pointer_over.bind(true))
-		_picker.mouse_exited.connect(_set_pointer_over.bind(false))
-
-	# The marker's own origin is already beside the track on the branch side and
-	# on the ground, so the only thing left to work out is how far the post has
-	# to reach up to keep the banner level with the track.
-	var post_height := maxf(_marker_lift + _POST_TOP, _POST_MIN_HEIGHT)
-	(_post.mesh as BoxMesh).size = Vector3(0.26, post_height, 0.26)
-	_post.position = Vector3(0.0, post_height * 0.5, 0.0)
-	_picker.position = Vector3(0.0, _marker_lift + _PICKER_HEIGHT, 0.0)
+		_marker.add_click_target(sphere)
+		_marker.pressed.connect(_on_marker_pressed)
+	_marker.stretch_post(_POST_TOP, _POST_MIN_HEIGHT)
+	_marker.click_target.position = Vector3(0.0, _marker.lift + _PICKER_HEIGHT, 0.0)
 	_refresh_banner()
 
 
@@ -628,45 +562,26 @@ func _rebuild_marker() -> void:
 func _refresh_banner() -> void:
 	if _banner_pivot == null or _banner == null or not is_usable():
 		return
-	var local := (_marker.global_basis.inverse() * leg_heading(set_leg())).normalized()
+	var local := (_marker.root.global_basis.inverse() * leg_heading(set_leg())).normalized()
 	# A yaw of theta sends local -Z to (-sin, 0, -cos), so match that to `local`.
 	var yaw := atan2(-local.x, -local.z)
 	_banner_pivot.transform = Transform3D(
-			Basis(Vector3.UP, yaw), Vector3(0.0, _marker_lift + _BANNER_HEIGHT, 0.0))
+			Basis(Vector3.UP, yaw), Vector3(0.0, _marker.lift + _BANNER_HEIGHT, 0.0))
 	var material := _banner.material_override as StandardMaterial3D
 	material.albedo_color = (_COLOR_REVERSE if turnout_position == Position.REVERSE
 			else _COLOR_NORMAL)
-
-
-func _add_box(node_name: String, color: Color, size: Vector3) -> MeshInstance3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	var instance := MeshInstance3D.new()
-	instance.name = node_name
-	var box := BoxMesh.new()
-	box.size = size
-	instance.mesh = box
-	instance.material_override = material
-	_marker.add_child(instance)
-	return instance
 #endregion
 
 
 #region Debug draw
 ## Three stubs sampled along the real rails: the toe and the set route in green,
-## the dead leg in red. Sampling rather than drawing straight lines means the
-## overlay curves with the track and so shows the actual connection.
+## the dead leg in red, which gets a cross at its far end.
 func _refresh_debug_mesh() -> void:
 	if not is_inside_tree():
 		return
-	if _debug_mesh == null:
-		_debug_mesh = MeshInstance3D.new()
-		_debug_mesh.name = "TurnoutDebugDraw"
-		# Drawn in global space: the node's own transform is derived from the
-		# rail, so ignoring it keeps the leg maths free of round trips.
-		_debug_mesh.top_level = true
-		add_child(_debug_mesh, false, Node.INTERNAL_MODE_BACK)
-
+	# Drawn in global space: the node's own transform is derived from the rail,
+	# so ignoring it keeps the leg maths free of round trips.
+	_debug_mesh = DebugLines.ensure_instance(self, _debug_mesh, "TurnoutDebugDraw", true)
 	var mesh := ImmediateMesh.new()
 	_debug_mesh.mesh = mesh
 	# A member of a compound turnout leaves its legs to the assembly, which draws
@@ -676,71 +591,24 @@ func _refresh_debug_mesh() -> void:
 	if not debug_draw or not is_usable() or assembly != null:
 		return
 
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES, _get_debug_material())
-	for leg: Leg in [Leg.TOE, Leg.THROUGH, Leg.DIVERGING]:
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES, DebugLines.material(true))
+	for leg in LEGS:
 		_draw_leg(mesh, leg)
-	var base := points_position()
-	_line(mesh, base, base + Vector3.UP * (overlay_lift + 1.4), _COLOR_POINTS)
+	TrackOverlay.points_post(mesh, points_position(), overlay_lift)
 	mesh.surface_end()
 
 
-## One leg, sampled outwards from the points along the real rail and drawn as a
-## band of three lines so it reads as a highlighted route from a distance rather
-## than disappearing into the track below it. A leg the points are set against
-## gets a cross at its far end.
 func _draw_leg(mesh: ImmediateMesh, leg: Leg) -> void:
-	const STEP := 0.75
-	const HALF_WIDTH := 0.45
-	var is_set := leg_is_set(leg)
-	var color := _COLOR_SET if is_set else _COLOR_UNSET
-	var rail: Rail = branch_rail if leg == Leg.DIVERGING else main_rail
-	var from := branch_distance() if leg == Leg.DIVERGING else points_distance()
-	var direction: int
-	match leg:
-		Leg.DIVERGING:
-			direction = branch_exit_sign()
-		Leg.THROUGH:
-			direction = diverge_sign()
-		_:
-			direction = -diverge_sign()
-
-	var steps := maxi(1, ceili(leg_length / STEP))
-	var previous := Vector3.ZERO
-	var previous_side := Vector3.ZERO
+	var exit := leg_exit(leg)
+	var steps := TrackOverlay.sample_count(leg_length)
+	var distances := PackedFloat64Array()
 	for i in steps + 1:
-		var at := rail.clamp_distance(from + float(direction) * leg_length
-				* float(i) / float(steps))
-		var point := rail.sample_position(at) + Vector3.UP * overlay_lift
-		var side := rail.sample_transform(at).basis.x * HALF_WIDTH
-		if i > 0:
-			for offset: float in [-1.0, 0.0, 1.0]:
-				_line(mesh, previous + previous_side * offset, point + side * offset, color)
-		previous = point
-		previous_side = side
+		distances.append(exit.distance_at(leg_length * float(i) / float(steps)))
+	var is_set := leg_is_set(leg)
+	var color := TrackOverlay.COLOR_SET if is_set else TrackOverlay.COLOR_UNSET
+	TrackOverlay.band(mesh, exit.rail, distances, overlay_lift, color)
 	if not is_set:
-		# A cross on the dead end, so "this way is closed" survives being a few
-		# pixels of red on a zoomed-out screen.
-		var up := Vector3.UP * HALF_WIDTH * 1.6
-		_line(mesh, previous - previous_side - up, previous + previous_side + up, color)
-		_line(mesh, previous - previous_side + up, previous + previous_side - up, color)
-
-
-func _line(mesh: ImmediateMesh, from: Vector3, to: Vector3, color: Color) -> void:
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(from)
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(to)
-
-
-static func _get_debug_material() -> StandardMaterial3D:
-	if _debug_material == null:
-		_debug_material = StandardMaterial3D.new()
-		_debug_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_debug_material.vertex_color_use_as_albedo = true
-		_debug_material.vertex_color_is_srgb = true
-		_debug_material.disable_receive_shadows = true
-		_debug_material.no_depth_test = true
-	return _debug_material
+		TrackOverlay.dead_end(mesh, exit.rail, distances[steps], overlay_lift, color)
 #endregion
 
 
@@ -753,55 +621,46 @@ func _attach_to_rails() -> void:
 
 
 func _detach_from_rails() -> void:
-	if main_rail != null:
-		main_rail.detach(self)
-	if branch_rail != null:
-		branch_rail.detach(self)
+	_detach(main_rail)
+	_detach(branch_rail)
+
+
+func _detach(rail: Rail) -> void:
+	if rail != null:
+		rail.detach(self)
 
 
 func _set_main_rail(value: Rail) -> void:
-	if main_rail != null:
-		main_rail.detach(self)
+	_detach(main_rail)
 	main_rail = value
 	_attach_to_rails()
 	_place_on_rail()
-	_rebuild_marker()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_branch_rail(value: Rail) -> void:
-	if branch_rail != null:
-		branch_rail.detach(self)
+	_detach(branch_rail)
 	branch_rail = value
 	_attach_to_rails()
 	# Which side the marker stands on is read off the branch, so it moves too.
-	_rebuild_marker()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_main_distance(value: float) -> void:
 	main_distance = value
 	_place_on_rail()
-	_rebuild_marker()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_diverge_towards(value: DivergeTowards) -> void:
 	diverge_towards = value
 	_place_on_rail()
-	_rebuild_marker()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_branch_end(value: RailEnd) -> void:
 	branch_end = value
-	_rebuild_marker()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_turnout_position(value: Position) -> void:
@@ -814,8 +673,7 @@ func _set_turnout_position(value: Position) -> void:
 
 
 func _set_debug_draw(value: bool) -> void:
-	# The overlay pushes its mode onto every turnout every frame, so an unchanged
-	# value must not rebuild the mesh.
+	# The overlay pushes its mode onto every turnout every frame.
 	if debug_draw == value:
 		return
 	debug_draw = value
@@ -825,4 +683,10 @@ func _set_debug_draw(value: bool) -> void:
 func _set_assembly(value: Node3D) -> void:
 	assembly = value
 	_refresh_debug_mesh()
+
+
+func _geometry_changed() -> void:
+	_rebuild_marker()
+	_refresh_debug_mesh()
+	update_configuration_warnings()
 #endregion

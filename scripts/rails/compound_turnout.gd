@@ -51,10 +51,6 @@ enum Kind {
 ## none of the positions describes - someone threw one of them directly.
 const MIXED := -1
 
-const _COLOR_SET := Color(0.25, 1.0, 0.35)
-const _COLOR_UNSET := Color(0.85, 0.2, 0.18)
-const _COLOR_POINTS := Color(1.0, 1.0, 1.0)
-
 ## Emitted whenever the assembly's position changes, however it was changed -
 ## including a member being thrown on its own.
 signal position_changed
@@ -88,7 +84,6 @@ var _bound: Array[Turnout] = []
 ## someone else moving them.
 var _applying := false
 var _debug_mesh: MeshInstance3D
-static var _debug_material: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -217,9 +212,7 @@ func overlay_anchor() -> Vector3:
 func heading() -> Vector3:
 	if members.is_empty() or members[0] == null or not members[0].is_usable():
 		return Vector3.FORWARD
-	var through := members[0].through_direction()
-	var flat := Vector3(through.x, 0.0, through.z)
-	return flat.normalized() if flat.length_squared() > 1e-9 else Vector3.FORWARD
+	return Rail.flat_heading(members[0].through_direction())
 
 
 ## True while the mouse is over any member's 3D marker.
@@ -255,12 +248,12 @@ func track_pieces() -> Array[TrackWalker.Span]:
 	if not is_usable():
 		return pieces
 	for member in members:
-		for leg: Turnout.Leg in [Turnout.Leg.TOE, Turnout.Leg.THROUGH, Turnout.Leg.DIVERGING]:
+		for leg in Turnout.LEGS:
 			var exit := member.leg_exit(leg)
 			var inner := _next_member_on(exit, member)
 			if is_nan(inner):
 				pieces.append(TrackWalker.Span.new(exit.rail, exit.distance,
-						exit.rail.clamp_distance(exit.distance + float(exit.direction) * leg_length)))
+						exit.distance_at(leg_length)))
 				continue
 			# Found from both ends; kept from the end whose member comes first.
 			var other := _member_at(exit.rail, inner)
@@ -275,7 +268,7 @@ func outer_legs() -> Array[Dictionary]:
 	if not is_usable():
 		return legs
 	for member in members:
-		for leg: Turnout.Leg in [Turnout.Leg.TOE, Turnout.Leg.THROUGH, Turnout.Leg.DIVERGING]:
+		for leg in Turnout.LEGS:
 			if is_nan(_next_member_on(member.leg_exit(leg), member)):
 				legs.append({"member": member, "leg": leg})
 	return legs
@@ -292,13 +285,12 @@ func outer_legs() -> Array[Dictionary]:
 ## reach it.
 func route_spans() -> Array[TrackWalker.Span]:
 	var routes: Array[TrackWalker.Span] = []
-	var outer := outer_legs()
+	var outer := _outer_exits()
 	var inner_length := 0.0
 	for piece in track_pieces():
 		inner_length += absf(piece.to - piece.from)
-	for entry in outer:
-		var exit := (entry["member"] as Turnout).leg_exit(entry["leg"] as Turnout.Leg)
-		var start := exit.rail.clamp_distance(exit.distance + float(exit.direction) * leg_length)
+	for exit in outer:
+		var start := exit.distance_at(leg_length)
 		var reach := absf(start - exit.distance)
 		var walk := TrackWalker.walk(exit.rail, start, -exit.direction,
 				reach + inner_length + leg_length)
@@ -311,15 +303,14 @@ func route_spans() -> Array[TrackWalker.Span]:
 ## Cuts a walk off once it is [member leg_length] down an outer leg - the walk
 ## through the assembly carries on past it, and the drawing does not.
 func _clip_route(spans: Array[TrackWalker.Span],
-		outer: Array[Dictionary]) -> Array[TrackWalker.Span]:
+		outer: Array[Turnout.Exit]) -> Array[TrackWalker.Span]:
 	var kept: Array[TrackWalker.Span] = []
 	for i in spans.size():
 		var span := spans[i]
 		kept.append(span)
 		if i == 0:
 			continue
-		for entry in outer:
-			var exit := (entry["member"] as Turnout).leg_exit(entry["leg"] as Turnout.Leg)
+		for exit in outer:
 			var direction := signf(span.to - span.from)
 			if (exit.rail == span.rail and absf(exit.distance - span.from) <= Turnout.AT_POINTS
 					and (direction == 0.0 or direction == float(exit.direction))):
@@ -327,6 +318,14 @@ func _clip_route(spans: Array[TrackWalker.Span],
 				span.to = span.from + float(exit.direction) * run
 				return kept
 	return kept
+
+
+## [method outer_legs], each as where a walk out along it starts.
+func _outer_exits() -> Array[Turnout.Exit]:
+	var exits: Array[Turnout.Exit] = []
+	for entry in outer_legs():
+		exits.append((entry["member"] as Turnout).leg_exit(entry["leg"] as Turnout.Leg))
+	return exits
 
 
 func _member_at(rail: Rail, at: float) -> Turnout:
@@ -510,87 +509,45 @@ func _warn_connecting_rails(warnings: PackedStringArray, connections: int) -> vo
 func _refresh_debug_mesh() -> void:
 	if not is_inside_tree():
 		return
-	if _debug_mesh == null:
-		_debug_mesh = MeshInstance3D.new()
-		_debug_mesh.name = "CompoundDebugDraw"
-		_debug_mesh.top_level = true
-		add_child(_debug_mesh, false, Node.INTERNAL_MODE_BACK)
+	_debug_mesh = DebugLines.ensure_instance(self, _debug_mesh, "CompoundDebugDraw", true)
 	var mesh := ImmediateMesh.new()
 	_debug_mesh.mesh = mesh
 	if not debug_draw or not is_usable():
 		return
 
 	var routes := route_spans()
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES, _get_debug_material())
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES, DebugLines.material(true))
 	for piece in track_pieces():
-		_draw_span(mesh, piece, _COLOR_UNSET)
+		_draw_span(mesh, piece, TrackOverlay.COLOR_UNSET)
 	for route in routes:
-		_draw_span(mesh, route, _COLOR_SET)
-	for entry in outer_legs():
-		var exit := (entry["member"] as Turnout).leg_exit(entry["leg"] as Turnout.Leg)
+		_draw_span(mesh, route, TrackOverlay.COLOR_SET)
+	for exit in _outer_exits():
 		if not _is_routed(exit, routes):
-			_draw_dead_end(mesh, exit)
+			TrackOverlay.dead_end(mesh, exit.rail, exit.distance_at(leg_length), overlay_lift,
+					TrackOverlay.COLOR_UNSET)
 	for member in members:
-		var base := member.points_position()
-		_line(mesh, base, base + Vector3.UP * (overlay_lift + 1.4), _COLOR_POINTS)
+		TrackOverlay.points_post(mesh, member.points_position(), overlay_lift)
 	mesh.surface_end()
 
 
 func _is_routed(exit: Turnout.Exit, routes: Array[TrackWalker.Span]) -> bool:
-	var probe := exit.rail.clamp_distance(exit.distance + float(exit.direction) * 1.0)
+	var probe := exit.distance_at(1.0)
 	for route in routes:
 		if route.covers(exit.rail, probe):
 			return true
 	return false
 
 
-## One span as a band of three lines, the same way [Turnout] draws its legs.
 func _draw_span(mesh: ImmediateMesh, span: TrackWalker.Span, color: Color) -> void:
-	const STEP := 0.75
-	const HALF_WIDTH := 0.45
 	var length := absf(span.to - span.from)
 	if length <= TrackWalker.EPSILON:
 		return
-	var steps := maxi(1, ceili(length / STEP))
-	var previous := Vector3.ZERO
-	var previous_side := Vector3.ZERO
+	var steps := TrackOverlay.sample_count(length)
+	var distances := PackedFloat64Array()
 	for i in steps + 1:
-		var at := span.rail.clamp_distance(lerpf(span.from, span.to, float(i) / float(steps)))
-		var point := span.rail.sample_position(at) + Vector3.UP * overlay_lift
-		var side := span.rail.sample_transform(at).basis.x * HALF_WIDTH
-		if i > 0:
-			for offset: float in [-1.0, 0.0, 1.0]:
-				_line(mesh, previous + previous_side * offset, point + side * offset, color)
-		previous = point
-		previous_side = side
-
-
-func _draw_dead_end(mesh: ImmediateMesh, exit: Turnout.Exit) -> void:
-	const HALF_WIDTH := 0.45
-	var at := exit.rail.clamp_distance(exit.distance + float(exit.direction) * leg_length)
-	var point := exit.rail.sample_position(at) + Vector3.UP * overlay_lift
-	var side := exit.rail.sample_transform(at).basis.x * HALF_WIDTH
-	var up := Vector3.UP * HALF_WIDTH * 1.6
-	_line(mesh, point - side - up, point + side + up, _COLOR_UNSET)
-	_line(mesh, point - side + up, point + side - up, _COLOR_UNSET)
-
-
-func _line(mesh: ImmediateMesh, from: Vector3, to: Vector3, color: Color) -> void:
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(from)
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(to)
-
-
-static func _get_debug_material() -> StandardMaterial3D:
-	if _debug_material == null:
-		_debug_material = StandardMaterial3D.new()
-		_debug_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_debug_material.vertex_color_use_as_albedo = true
-		_debug_material.vertex_color_is_srgb = true
-		_debug_material.disable_receive_shadows = true
-		_debug_material.no_depth_test = true
-	return _debug_material
+		distances.append(span.rail.clamp_distance(lerpf(span.from, span.to,
+				float(i) / float(steps))))
+	TrackOverlay.band(mesh, span.rail, distances, overlay_lift, color)
 #endregion
 
 
@@ -598,16 +555,14 @@ func _set_kind(value: Kind) -> void:
 	kind = value
 	compound_position = clampi(compound_position, MIXED, position_count() - 1)
 	notify_property_list_changed()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_members(value: Array[Turnout]) -> void:
 	members = value
 	if is_inside_tree():
 		_bind_members()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_compound_position(value: int) -> void:
@@ -621,8 +576,7 @@ func _set_compound_position(value: int) -> void:
 
 
 func _set_debug_draw(value: bool) -> void:
-	# The overlay pushes its mode onto every turnout every frame, so an unchanged
-	# value must not rebuild the mesh.
+	# The overlay pushes its mode onto every assembly every frame.
 	if debug_draw == value:
 		return
 	debug_draw = value
@@ -632,3 +586,8 @@ func _set_debug_draw(value: bool) -> void:
 func _set_leg_length(value: float) -> void:
 	leg_length = value
 	_refresh_debug_mesh()
+
+
+func _geometry_changed() -> void:
+	_refresh_debug_mesh()
+	update_configuration_warnings()

@@ -10,28 +10,52 @@ extends MeshInstance3D
 ## triangles like any other mesh's - but it asks [method surface_height_at]
 ## instead, which answers for exactly the same triangles without walking them.
 
-@export var size := Vector2(220.0, 180.0): set = _set_size
+@export var size := Vector2(220.0, 180.0):
+	set(value):
+		size = Vector2(maxf(value.x, 1.0), maxf(value.y, 1.0))
+		_changed()
 ## Quads along each axis. Higher is smoother but slows snapping down, since
 ## snapping walks the triangles. Ignored with a [member heightmap], whose
 ## resolution is the grid.
-@export_range(2, 400, 1) var subdivisions := 90: set = _set_subdivisions
-@export var hill_height := 2.2: set = _set_hill_height
+@export_range(2, 400, 1) var subdivisions := 90:
+	set(value):
+		subdivisions = maxi(value, 2)
+		_changed()
+@export var hill_height := 2.2:
+	set(value):
+		hill_height = value
+		_changed()
 ## Baked heights in metres, one per grid vertex, spread over [member size]:
 ## [constant Image.FORMAT_RF], the first row at -Z, the first column at -X.
 ## Replaces the analytic hills when set.
-@export var heightmap: Image: set = _set_heightmap
+@export var heightmap: Image:
+	set(value):
+		heightmap = value
+		_changed()
 @export_tool_button("Rebuild") var _rebuild_button := rebuild
 
 @export_group("Colour")
 ## Colour of the lowest ground, blending into [member high_color] with height.
-@export var low_color := Color(0.30, 0.42, 0.24): set = _set_low_color
-@export var high_color := Color(0.55, 0.52, 0.35): set = _set_high_color
+@export var low_color := Color(0.30, 0.42, 0.24):
+	set(value):
+		low_color = value
+		_changed()
+@export var high_color := Color(0.55, 0.52, 0.35):
+	set(value):
+		high_color = value
+		_changed()
 ## Colour of bare faces, blended in by slope - rock where the ground is too
 ## steep to hold grass or sand.
-@export var steep_color := Color(0.55, 0.52, 0.35): set = _set_steep_color
+@export var steep_color := Color(0.55, 0.52, 0.35):
+	set(value):
+		steep_color = value
+		_changed()
 ## How much of [member steep_color] a vertical face gets. Zero leaves slope out
 ## of the colouring altogether.
-@export_range(0.0, 1.0) var steep_amount := 0.0: set = _set_steep_amount
+@export_range(0.0, 1.0) var steep_amount := 0.0:
+	set(value):
+		steep_amount = value
+		_changed()
 
 ## Heights of the grid as authored - the terrain itself - row by row. Snapping
 ## reads these ([method terrain_height_at]), so that nothing the track does to
@@ -41,7 +65,7 @@ var _heights := PackedFloat32Array()
 ## it: what the mesh is built from and [method surface_height_at] answers.
 var _surface := PackedFloat32Array()
 ## [member _surface] lowered further round each tunnel mouth, used inside the
-## mouth's apron only - see [method _lower_aprons].
+## mouth's apron only - see [method _lower_apron].
 var _apron_surface := PackedFloat32Array()
 var _columns := 0
 var _rows := 0
@@ -50,15 +74,10 @@ var _step := Vector2.ONE
 ## [method surface_color_at].
 var _lowest := 0.0
 var _highest := 0.0
-## The tunnel mouths the mesh is opened for, in local space (see
-## [method _local_hole]).
-var _holes: Array[Dictionary] = []
+## The tunnel mouths the mesh is opened for.
+var _holes: Array[Hole] = []
 ## What [constant SHAPER_GROUP] asked for at the last build.
 var _shapes: Array = []
-## The cut-up triangles round tunnel mouths, collected while building.
-var _cut_vertices := PackedVector3Array()
-var _cut_normals := PackedVector3Array()
-var _cut_colors := PackedColorArray()
 
 ## Nodes in this group shape the mesh round themselves. Each answers either or
 ## both of these, given this ground:
@@ -95,6 +114,28 @@ const _ROOF_GAP := 0.02
 const _SHAPE_TOLERANCE := 0.05
 
 
+
+## A tunnel mouth's [code]ground_holes[/code] entry in local space, with what
+## cutting it needs (see [method _local_hole]).
+class Hole:
+	## The bore's centre line at bed level, from the face inward.
+	var line: PackedVector3Array
+	## The bore's footprint in plan, and its bounds.
+	var polygon: PackedVector2Array
+	var bounds: Rect2
+	## The levelled ground in front of the face, and its bounds.
+	var apron: PackedVector2Array
+	var apron_bounds: Rect2
+	## The bore's outside above [member line].
+	var roof: float
+	var half_width: float
+	## The face's own frame in plan, and its height.
+	var face: Vector2
+	var outward: Vector2
+	var across: Vector2
+	var bed: float
+
+
 func _ready() -> void:
 	if mesh == null:
 		rebuild()
@@ -111,7 +152,7 @@ func _validate_property(property: Dictionary) -> void:
 
 
 ## Height of the analytic terrain at a local XZ position.
-static func height_at(x: float, z: float, amplitude: float) -> float:
+static func _hill_height_at(x: float, z: float, amplitude: float) -> float:
 	return amplitude * (sin(x * 0.06) * cos(z * 0.05) + 0.4 * sin(x * 0.13 + 1.3))
 
 
@@ -120,64 +161,82 @@ func rebuild() -> void:
 	if _columns < 2 or _rows < 2:
 		mesh = null
 		return
-	var lowest := -hill_height
-	var highest := hill_height
-	if heightmap != null:
-		lowest = INF
-		highest = -INF
-		for height in _heights:
-			lowest = minf(lowest, height)
-			highest = maxf(highest, height)
-	_lowest = lowest
-	_highest = highest
-	var shapes := _collect_shapes()
-	_shapes = shapes
-	_apply_shapes(shapes)
+	_find_height_range()
+	_shapes = _collect_shapes()
+	_apply_shapes(_shapes)
+	var grid := _grid_vertices()
+	var cut := MeshSurface.new()
+	grid.indices = _grid_indices(grid, cut)
+	# The cut-up triangles go on the end, three fresh vertices each.
+	var count := grid.vertices.size()
+	for i in cut.vertices.size():
+		grid.indices.append(count + i)
+	grid.vertices.append_array(cut.vertices)
+	grid.normals.append_array(cut.normals)
+	grid.colors.append_array(cut.colors)
+	var built := ArrayMesh.new()
+	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, grid.arrays())
+	mesh = built
+	if material_override == null:
+		material_override = TrackMaterials.vertex_coloured(0.95)
 
-	var half := size * 0.5
-	var count := _columns * _rows
+
+## The height range the colours blend over: the analytic hills' amplitude, or
+## whatever a heightmap spans.
+func _find_height_range() -> void:
+	_lowest = -hill_height
+	_highest = hill_height
+	if heightmap != null:
+		_lowest = INF
+		_highest = -INF
+		for height in _heights:
+			_lowest = minf(_lowest, height)
+			_highest = maxf(_highest, height)
+
+
+## One vertex per grid point of [member _surface], coloured by height and slope.
+func _grid_vertices() -> MeshSurface:
+	var normals := _normals_in(_surface)
 	var vertices := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var apron_normals := PackedVector3Array()
 	var colors := PackedColorArray()
-	vertices.resize(count)
-	normals.resize(count)
-	colors.resize(count)
-	if not _holes.is_empty():
-		apron_normals.resize(count)
+	vertices.resize(_columns * _rows)
+	colors.resize(_columns * _rows)
 	for row in _rows:
 		for column in _columns:
 			var index := row * _columns + column
 			var height := _surface[index]
-			var normal := _normal_in(_surface, column, row)
-			vertices[index] = Vector3(-half.x + float(column) * _step.x, height,
-					-half.y + float(row) * _step.y)
-			normals[index] = normal
-			colors[index] = _color_for(height, lowest, highest, normal)
-			if not _holes.is_empty():
-				apron_normals[index] = _normal_in(_apron_surface, column, row)
+			var xz := _grid_xz(column, row)
+			vertices[index] = Vector3(xz.x, height, xz.y)
+			colors[index] = _color_for(height, _lowest, _highest, normals[index])
+	var grid := MeshSurface.new()
+	grid.vertices = vertices
+	grid.normals = normals
+	grid.colors = colors
+	return grid
 
-	# Two triangles per quad, wound so their normals point up, split along the
-	# diagonal from the quad's -X-Z corner to its +X+Z one - surface_height_at
-	# relies on that split. Get the winding backwards and the terrain is
-	# invisible from above: still solid to the snapper, but culled as backfaces.
-	# Quads near a tunnel mouth are cut up exactly instead (_add_clipped).
+
+## Two triangles per quad, wound so their normals point up, split along the
+## diagonal from the quad's -X-Z corner to its +X+Z one - surface_height_at
+## relies on that split. Get the winding backwards and the terrain is invisible
+## from above: still solid to the snapper, but culled as backfaces. Quads near a
+## tunnel mouth are cut up exactly instead, onto [param cut] (see
+## [method _add_clipped]).
+func _grid_indices(grid: MeshSurface, cut: MeshSurface) -> PackedInt32Array:
+	var apron_normals := _normals_in(_apron_surface) if not _holes.is_empty() \
+			else PackedVector3Array()
 	var indices := PackedInt32Array()
 	indices.resize((_columns - 1) * (_rows - 1) * 6)
 	var at := 0
-	_cut_vertices = PackedVector3Array()
-	_cut_normals = PackedVector3Array()
-	_cut_colors = PackedColorArray()
 	for row in _rows - 1:
 		for column in _columns - 1:
 			var a := row * _columns + column
 			var b := a + 1
 			var c := a + _columns
 			var d := c + 1
-			if not _holes.is_empty() and _near_hole(Rect2(vertices[a].x, vertices[a].z,
+			if not _holes.is_empty() and _near_hole(Rect2(grid.vertices[a].x, grid.vertices[a].z,
 					_step.x, _step.y)):
-				_add_clipped(PackedInt32Array([a, d, c]), vertices, normals, apron_normals, colors)
-				_add_clipped(PackedInt32Array([a, b, d]), vertices, normals, apron_normals, colors)
+				_add_clipped(PackedInt32Array([a, d, c]), grid, apron_normals, cut)
+				_add_clipped(PackedInt32Array([a, b, d]), grid, apron_normals, cut)
 				continue
 			indices[at] = a
 			indices[at + 1] = d
@@ -187,27 +246,7 @@ func rebuild() -> void:
 			indices[at + 5] = d
 			at += 6
 	indices.resize(at)
-	# The cut-up triangles go on the end, three fresh vertices each.
-	for i in _cut_vertices.size():
-		indices.append(count + i)
-	vertices.append_array(_cut_vertices)
-	normals.append_array(_cut_normals)
-	colors.append_array(_cut_colors)
-	_cut_vertices = PackedVector3Array()
-	_cut_normals = PackedVector3Array()
-	_cut_colors = PackedColorArray()
-
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_COLOR] = colors
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var built := ArrayMesh.new()
-	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	mesh = built
-	if material_override == null:
-		material_override = _make_material()
+	return indices
 
 
 ## Rebuilds if what [constant SHAPER_GROUP] asks for has changed since the last
@@ -282,8 +321,8 @@ func surface_height_at(x: float, z: float) -> Variant:
 	var field := _surface
 	var point := Vector2(local.x, local.z)
 	for hole in _holes:
-		if (hole["apron_bounds"] as Rect2).has_point(point) \
-				and Geometry2D.is_point_in_polygon(point, hole["apron"] as PackedVector2Array):
+		if hole.apron_bounds.has_point(point) \
+				and Geometry2D.is_point_in_polygon(point, hole.apron):
 			field = _apron_surface
 			break
 	return _height_in(field, local)
@@ -373,7 +412,7 @@ func _apply_shapes(shapes: Array) -> void:
 		_carve(cut, to_local)
 	for hole: Dictionary in shapes[1]:
 		var local := _local_hole(hole, to_local)
-		if not local.is_empty():
+		if local != null:
 			_holes.append(local)
 	_apron_surface = _surface.duplicate() if not _holes.is_empty() else PackedFloat32Array()
 	for hole in _holes:
@@ -414,8 +453,7 @@ func _carve(cut: Dictionary, to_local: Transform3D) -> void:
 				var index := row * _columns + column
 				if _surface[index] <= lowest:
 					continue
-				var vertex := Vector2(-half.x + float(column) * _step.x,
-						-half.y + float(row) * _step.y)
+				var vertex := _grid_xz(column, row)
 				var offset := vertex - starts[i]
 				var along := offset.dot(directions[i])
 				# Off this segment's ends a vertex is only this segment's to cut
@@ -442,12 +480,12 @@ static func _grid_span(from: float, to: float, half: float, step: float, count: 
 ## A [code]ground_holes[/code] entry in local space, with what cutting it needs:
 ## the bore's footprint as a polygon, its apron in front of the face, and the
 ## face's own frame in plan.
-func _local_hole(hole: Dictionary, to_local: Transform3D) -> Dictionary:
+func _local_hole(hole: Dictionary, to_local: Transform3D) -> Hole:
 	var line := PackedVector3Array()
 	for point: Vector3 in hole["line"]:
 		line.append(to_local * point)
 	if line.size() < 2:
-		return {}
+		return null
 	var half_width := float(hole["half_width"])
 	var lefts := PackedVector2Array()
 	var rights := PackedVector2Array()
@@ -463,16 +501,23 @@ func _local_hole(hole: Dictionary, to_local: Transform3D) -> Dictionary:
 	var polygon := lefts.duplicate()
 	polygon.append_array(rights)
 
-	var face := Vector2(line[0].x, line[0].z)
-	var outward := -Vector2(line[1].x - line[0].x, line[1].z - line[0].z).normalized()
-	var across := Vector2(-outward.y, outward.x)
-	var ahead := outward * apron_length()
-	var apron := PackedVector2Array([face - across * half_width, face + across * half_width,
+	var local := Hole.new()
+	local.line = line
+	local.polygon = polygon
+	local.bounds = _bounds_of(polygon)
+	local.roof = float(hole["roof"])
+	local.half_width = half_width
+	local.bed = line[0].y
+	local.face = Vector2(line[0].x, line[0].z)
+	local.outward = -Vector2(line[1].x - line[0].x, line[1].z - line[0].z).normalized()
+	local.across = Vector2(-local.outward.y, local.outward.x)
+	var face := local.face
+	var across := local.across
+	var ahead := local.outward * apron_length()
+	local.apron = PackedVector2Array([face - across * half_width, face + across * half_width,
 			face + ahead + across * half_width, face + ahead - across * half_width])
-	return {"line": line, "polygon": polygon, "bounds": _bounds_of(polygon),
-			"apron": apron, "apron_bounds": _bounds_of(apron), "roof": float(hole["roof"]),
-			"half_width": half_width, "face": face, "outward": outward, "across": across,
-			"bed": line[0].y}
+	local.apron_bounds = _bounds_of(local.apron)
+	return local
 
 
 ## The apron in front of a mouth's face lies on the bed: inside it the mesh is
@@ -482,20 +527,19 @@ func _local_hole(hole: Dictionary, to_local: Transform3D) -> Dictionary:
 ## the opening. Two cells out it is the ordinary surface again, so the apron's
 ## far edge meets the ground outside it; its sides and the face are where the
 ## portal's walls stand.
-func _lower_apron(hole: Dictionary) -> void:
+func _lower_apron(hole: Hole) -> void:
 	var diagonal := cell_diagonal()
-	var face: Vector2 = hole["face"]
-	var outward: Vector2 = hole["outward"]
-	var across: Vector2 = hole["across"]
-	var reach := float(hole["half_width"]) + diagonal
-	var bed := float(hole["bed"])
+	var face := hole.face
+	var outward := hole.outward
+	var across := hole.across
+	var reach := hole.half_width + diagonal
+	var bed := hole.bed
 	var half := size * 0.5
 	var columns := _grid_span(face.x - reach - diagonal, face.x + reach + diagonal, half.x, _step.x, _columns)
 	var rows := _grid_span(face.y - reach - diagonal, face.y + reach + diagonal, half.y, _step.y, _rows)
 	for row in range(rows.x, rows.y + 1):
 		for column in range(columns.x, columns.y + 1):
-			var offset := Vector2(-half.x + float(column) * _step.x,
-					-half.y + float(row) * _step.y) - face
+			var offset := _grid_xz(column, row) - face
 			if absf(offset.dot(outward)) >= diagonal or absf(offset.dot(across)) > reach:
 				continue
 			var index := row * _columns + column
@@ -504,8 +548,8 @@ func _lower_apron(hole: Dictionary) -> void:
 
 ## Height of a hole's roof over local [param point]: its line's height at the
 ## nearest point along it, plus the roof.
-static func _roof_at(hole: Dictionary, point: Vector2) -> float:
-	var line: PackedVector3Array = hole["line"]
+static func _roof_at(hole: Hole, point: Vector2) -> float:
+	var line := hole.line
 	var best := INF
 	var height := line[0].y
 	for i in line.size() - 1:
@@ -517,12 +561,12 @@ static func _roof_at(hole: Dictionary, point: Vector2) -> float:
 		if distance < best:
 			best = distance
 			height = lerpf(line[i].y, line[i + 1].y, t)
-	return height + float(hole["roof"])
+	return height + hole.roof
 
 
 func _near_hole(rect: Rect2) -> bool:
 	for hole in _holes:
-		if (hole["bounds"] as Rect2).intersects(rect) or (hole["apron_bounds"] as Rect2).intersects(rect):
+		if hole.bounds.intersects(rect) or hole.apron_bounds.intersects(rect):
 			return true
 	return false
 
@@ -532,19 +576,18 @@ func _near_hole(rect: Rect2) -> bool:
 ## bore's footprint and under its roof is left out, and the rest is the
 ## ordinary surface. Each part is a piece of the triangle's own plane in its
 ## field, so it meets the uncut triangles round it seamlessly.
-func _add_clipped(corners: PackedInt32Array, vertices: PackedVector3Array,
-		normals: PackedVector3Array, apron_normals: PackedVector3Array,
-		colors: PackedColorArray) -> void:
+func _add_clipped(corners: PackedInt32Array, grid: MeshSurface,
+		apron_normals: PackedVector3Array, cut: MeshSurface) -> void:
 	var triangle := PackedVector2Array()
 	for corner in corners:
-		triangle.append(Vector2(vertices[corner].x, vertices[corner].z))
+		triangle.append(Vector2(grid.vertices[corner].x, grid.vertices[corner].z))
 	var bounds := _bounds_of(triangle)
 	var plain: Array[PackedVector2Array] = [triangle]
 	var aproned: Array[PackedVector2Array] = []
 	for hole in _holes:
-		if not (hole["apron_bounds"] as Rect2).intersects(bounds):
+		if not hole.apron_bounds.intersects(bounds):
 			continue
-		var apron: PackedVector2Array = hole["apron"]
+		var apron := hole.apron
 		var outside: Array[PackedVector2Array] = []
 		for piece in plain:
 			for inside in Geometry2D.intersect_polygons(piece, apron):
@@ -552,7 +595,7 @@ func _add_clipped(corners: PackedInt32Array, vertices: PackedVector3Array,
 			outside.append_array(_subtract(piece, apron))
 		plain = outside
 	for hole in _holes:
-		if not (hole["bounds"] as Rect2).intersects(bounds):
+		if not hole.bounds.intersects(bounds):
 			continue
 		# Where the triangle is under the roof: its height less the roof's is
 		# linear across it, so that part is the triangle clipped to a line.
@@ -568,13 +611,13 @@ func _add_clipped(corners: PackedInt32Array, vertices: PackedVector3Array,
 				below.append(triangle[k].lerp(triangle[next], depth[k] / (depth[k] - depth[next])))
 		if below.size() < 3:
 			continue
-		for cut in Geometry2D.intersect_polygons(below, hole["polygon"] as PackedVector2Array):
+		for footprint in Geometry2D.intersect_polygons(below, hole.polygon):
 			var kept: Array[PackedVector2Array] = []
 			for piece in plain:
-				kept.append_array(_subtract(piece, cut))
+				kept.append_array(_subtract(piece, footprint))
 			plain = kept
-	_emit(plain, triangle, corners, _surface, normals, colors)
-	_emit(aproned, triangle, corners, _apron_surface, apron_normals, colors)
+	_emit(plain, triangle, corners, _surface, grid.normals, grid.colors, cut)
+	_emit(aproned, triangle, corners, _apron_surface, apron_normals, grid.colors, cut)
 
 
 ## [param from] less [param cut]. Should [param cut] lie wholly inside it -
@@ -599,11 +642,11 @@ static func _subtract(from: PackedVector2Array, cut: PackedVector2Array) -> Arra
 	return result
 
 
-## Triangulates [param pieces] of [param triangle] onto the cut-up triangles, heights,
+## Triangulates [param pieces] of [param triangle] onto [param cut], heights,
 ## normals and colours interpolated across the triangle from [param field].
 func _emit(pieces: Array[PackedVector2Array], triangle: PackedVector2Array,
 		corners: PackedInt32Array, field: PackedFloat32Array, field_normals: PackedVector3Array,
-		colors: PackedColorArray) -> void:
+		colors: PackedColorArray, cut: MeshSurface) -> void:
 	for piece in pieces:
 		if piece.size() < 3:
 			continue
@@ -623,10 +666,10 @@ func _emit(pieces: Array[PackedVector2Array], triangle: PackedVector2Array,
 				var w := _barycentric(q, triangle)
 				var height := w.x * field[corners[0]] + w.y * field[corners[1]] \
 						+ w.z * field[corners[2]]
-				_cut_vertices.append(Vector3(q.x, height, q.y))
-				_cut_normals.append((field_normals[corners[0]] * w.x
+				cut.vertices.append(Vector3(q.x, height, q.y))
+				cut.normals.append((field_normals[corners[0]] * w.x
 						+ field_normals[corners[1]] * w.y + field_normals[corners[2]] * w.z).normalized())
-				_cut_colors.append(colors[corners[0]] * w.x + colors[corners[1]] * w.y
+				cut.colors.append(colors[corners[0]] * w.x + colors[corners[1]] * w.y
 						+ colors[corners[2]] * w.z)
 
 
@@ -670,13 +713,29 @@ func _fill_heights() -> void:
 			if source != null:
 				height = source.get_pixel(column, row).r
 			else:
-				height = height_at(-half.x + float(column) * _step.x,
+				height = _hill_height_at(-half.x + float(column) * _step.x,
 						-half.y + float(row) * _step.y, hill_height)
 			_heights[row * _columns + column] = height
 
 
+## Local XZ of a grid vertex.
+func _grid_xz(column: int, row: int) -> Vector2:
+	var half := size * 0.5
+	return Vector2(-half.x + float(column) * _step.x, -half.y + float(row) * _step.y)
+
+
 func _grid_height(field: PackedFloat32Array, column: int, row: int) -> float:
 	return field[clampi(row, 0, _rows - 1) * _columns + clampi(column, 0, _columns - 1)]
+
+
+## [method _normal_in] at every grid point.
+func _normals_in(field: PackedFloat32Array) -> PackedVector3Array:
+	var normals := PackedVector3Array()
+	normals.resize(_columns * _rows)
+	for row in _rows:
+		for column in _columns:
+			normals[row * _columns + column] = _normal_in(field, column, row)
+	return normals
 
 
 func _normal_in(field: PackedFloat32Array, column: int, row: int) -> Vector3:
@@ -699,16 +758,6 @@ func _color_for(height: float, lowest: float, highest: float, normal: Vector3) -
 	return color
 
 
-func _make_material() -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.vertex_color_use_as_albedo = true
-	# Vertex colours are consumed as linear unless this is set, which renders
-	# anything authored by eye far darker and greyer than intended.
-	material.vertex_color_is_srgb = true
-	material.roughness = 0.95
-	return material
-
-
 ## Setters rebuild only inside the tree. Loading a scene assigns every exported
 ## property in turn, and rebuilding on each would build a baked terrain several
 ## times over before [method _ready] builds it once more anyway.
@@ -716,42 +765,3 @@ func _changed() -> void:
 	if is_inside_tree():
 		rebuild()
 
-
-func _set_size(value: Vector2) -> void:
-	size = Vector2(maxf(value.x, 1.0), maxf(value.y, 1.0))
-	_changed()
-
-
-func _set_subdivisions(value: int) -> void:
-	subdivisions = maxi(value, 2)
-	_changed()
-
-
-func _set_hill_height(value: float) -> void:
-	hill_height = value
-	_changed()
-
-
-func _set_heightmap(value: Image) -> void:
-	heightmap = value
-	_changed()
-
-
-func _set_low_color(value: Color) -> void:
-	low_color = value
-	_changed()
-
-
-func _set_high_color(value: Color) -> void:
-	high_color = value
-	_changed()
-
-
-func _set_steep_color(value: Color) -> void:
-	steep_color = value
-	_changed()
-
-
-func _set_steep_amount(value: float) -> void:
-	steep_amount = value
-	_changed()

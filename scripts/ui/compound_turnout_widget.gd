@@ -1,10 +1,10 @@
 class_name CompoundTurnoutWidget
-extends TrackMarkerWidget
+extends SchematicMarkerWidget
 ## The one floating control for a [CompoundTurnout]: a click cycles the whole
 ## assembly, however many sets of points it is made of.
 ##
 ## A miniature of the assembly's whole track with its set routes in green, and
-## under it the same [enum TurnoutWidget.Caption] a single turnout's widget
+## under it the same [enum SchematicMarkerWidget.Caption] a single turnout's widget
 ## carries - the position being the assembly's own ([code]STRAIGHT[/code],
 ## [code]CROSS[/code], ...), not its members'.
 ##
@@ -15,9 +15,27 @@ extends TrackMarkerWidget
 ## an independent stretch is only possible in a frame where "across" means
 ## something.
 
+## How the world maps onto the widget: the assembly's along- and across-track
+## axes, how much each is scaled, and which way each points on screen.
+class SchematicFrame:
+	var centre: Vector3
+	var along: Vector3
+	var across: Vector3
+	var along_scale: float
+	var across_scale: float
+	var screen_along: Vector2
+	var screen_across: Vector2
+	## The middle of the miniature's box, in widget coordinates.
+	var middle: Vector2
+
+	func to_widget(point: Vector3) -> Vector2:
+		var offset := point - centre
+		var a := offset.dot(along) * along_scale
+		var c := offset.dot(across) * across_scale
+		return middle + screen_along * a + screen_across * c
+
+
 const _SCHEMATIC_BOX := Vector2(78.0, 50.0)
-const _LABEL_HEIGHT := 15.0
-const _PADDING := Vector2(9.0, 4.0)
 ## Room left around the drawing inside the box.
 const _INSET := 7.0
 ## The most the across-track direction is stretched relative to the along-track
@@ -27,20 +45,14 @@ const _MAX_STRETCH := 6.0
 ## How many samples a piece of track is drawn with.
 const _SAMPLES := 8
 
-const _COLOR_SET := Color(0.25, 1.0, 0.35)
-const _COLOR_UNSET := Color(0.85, 0.2, 0.18)
-const _COLOR_LABEL := Color(0.93, 0.94, 0.96)
-const _COLOR_NORMAL := Color(0.92, 0.93, 0.95)
-const _COLOR_REVERSE := Color(1.0, 0.65, 0.08)
-
 var compound: CompoundTurnout
-var caption := TurnoutWidget.Caption.ALL: set = _set_caption
 
 
 func _ready() -> void:
 	super._ready()
-	if compound != null and not compound.position_changed.is_connected(_on_position_changed):
-		compound.position_changed.connect(_on_position_changed)
+	# The caption names the position, and position names differ in length.
+	if compound != null and not compound.position_changed.is_connected(_restyle):
+		compound.position_changed.connect(_restyle)
 
 
 #region Widget contract
@@ -55,7 +67,7 @@ func accent_color() -> Color:
 		0:
 			return _COLOR_NORMAL
 		CompoundTurnout.MIXED:
-			return _COLOR_UNSET
+			return _COLOR_STOP
 		_:
 			return _COLOR_REVERSE
 
@@ -70,20 +82,15 @@ func is_alive() -> bool:
 
 
 func expanded_size() -> Vector2:
-	if caption == TurnoutWidget.Caption.NO_TEXT:
-		return _SCHEMATIC_BOX
-	var font := get_theme_default_font()
-	var font_size := get_theme_default_font_size()
-	var text_width := font.get_string_size(_caption_text(), HORIZONTAL_ALIGNMENT_LEFT,
-			-1.0, font_size).x
-	return Vector2(maxf(text_width + _PADDING.x * 2.0, _SCHEMATIC_BOX.x),
-			_SCHEMATIC_BOX.y + _LABEL_HEIGHT)
+	return _size_with_caption(_SCHEMATIC_BOX, _position_word())
 
 
-func _draw_expanded(accent: Color) -> void:
-	_draw_schematic()
-	if caption != TurnoutWidget.Caption.NO_TEXT:
-		_draw_caption(accent)
+func _subject_name() -> String:
+	return str(compound.name)
+
+
+func _position_word() -> String:
+	return compound.position_label(compound.compound_position)
 #endregion
 
 
@@ -92,28 +99,36 @@ func _draw_expanded(accent: Color) -> void:
 ## in green.
 func _draw_schematic() -> void:
 	var frame := _schematic_frame()
-	if frame.is_empty():
+	if frame == null:
 		return
 	for piece in compound.track_pieces():
-		_draw_span(piece, frame, _COLOR_UNSET, 2.0)
+		_draw_span(piece, frame, _COLOR_STOP, 2.0)
 	for route in compound.route_spans():
-		_draw_span(route, frame, _COLOR_SET, 3.0)
+		_draw_span(route, frame, _COLOR_GO, 3.0)
 	for member in compound.members:
-		draw_circle(_to_widget(member.points_position(), frame), 2.0, _COLOR_LABEL)
+		draw_circle(frame.to_widget(member.points_position()), 2.0, _COLOR_TEXT)
 
 
-func _draw_span(span: TrackWalker.Span, frame: Dictionary, color: Color, width: float) -> void:
+func _draw_span(span: TrackWalker.Span, frame: SchematicFrame, color: Color,
+		width: float) -> void:
 	var points := PackedVector2Array()
-	for i in _SAMPLES + 1:
-		var at := span.rail.clamp_distance(lerpf(span.from, span.to, float(i) / float(_SAMPLES)))
-		points.append(_to_widget(span.rail.sample_position(at), frame))
+	for point in _span_points(span):
+		points.append(frame.to_widget(point))
 	draw_polyline(points, color, width)
 
 
-## How the world maps onto the widget: the assembly's along- and across-track
-## axes, how much each is scaled, and which way each points on screen. Empty
-## when the camera cannot see the assembly well enough to say.
-func _schematic_frame() -> Dictionary:
+## [constant _SAMPLES] points along [param span], both ends included.
+func _span_points(span: TrackWalker.Span) -> PackedVector3Array:
+	var points := PackedVector3Array()
+	for i in _SAMPLES + 1:
+		var at := span.rail.clamp_distance(lerpf(span.from, span.to, float(i) / float(_SAMPLES)))
+		points.append(span.rail.sample_position(at))
+	return points
+
+
+## How the world maps onto the widget, or null when the camera cannot see the
+## assembly well enough to say.
+func _schematic_frame() -> SchematicFrame:
 	var centre := compound.centre()
 	var along := compound.heading()
 	var across := along.cross(Vector3.UP).normalized()
@@ -121,14 +136,12 @@ func _schematic_frame() -> Dictionary:
 	var reach_along := 0.0
 	var reach_across := 0.0
 	for piece in compound.track_pieces():
-		for i in _SAMPLES + 1:
-			var at := piece.rail.clamp_distance(lerpf(piece.from, piece.to,
-					float(i) / float(_SAMPLES)))
-			var offset := piece.rail.sample_position(at) - centre
+		for point in _span_points(piece):
+			var offset := point - centre
 			reach_along = maxf(reach_along, absf(offset.dot(along)))
 			reach_across = maxf(reach_across, absf(offset.dot(across)))
 	if reach_along <= 0.0 or camera.is_position_behind(centre):
-		return {}
+		return null
 
 	# Which way the track runs on screen, and the across direction as the
 	# perpendicular to it on the side the real across axis lands - so a
@@ -145,8 +158,7 @@ func _schematic_frame() -> Dictionary:
 
 	# The drawing is turned to follow the track, so it has to fit the box's
 	# smaller half in every direction.
-	var box := Vector2(size.x, size.y if caption == TurnoutWidget.Caption.NO_TEXT
-			else size.y - _LABEL_HEIGHT)
+	var box := _schematic_box()
 	var radius := minf(box.x, box.y) * 0.5 - _INSET
 	var along_scale := (maxf(box.x, box.y) * 0.5 - _INSET) / reach_along
 	var across_scale := along_scale
@@ -161,70 +173,19 @@ func _schematic_frame() -> Dictionary:
 	if fit < 1.0:
 		along_scale *= fit
 		across_scale *= fit
-	return {
-		"centre": centre,
-		"along": along,
-		"across": across,
-		"along_scale": along_scale,
-		"across_scale": across_scale,
-		"screen_along": screen_along,
-		"screen_across": screen_across,
-		"middle": box * 0.5,
-	}
 
-
-func _to_widget(point: Vector3, frame: Dictionary) -> Vector2:
-	var offset := point - (frame["centre"] as Vector3)
-	var a := offset.dot(frame["along"] as Vector3) * float(frame["along_scale"])
-	var c := offset.dot(frame["across"] as Vector3) * float(frame["across_scale"])
-	return (frame["middle"] as Vector2) + (frame["screen_along"] as Vector2) * a \
-			+ (frame["screen_across"] as Vector2) * c
-
-
-## Laid out like [TurnoutWidget]'s: the name in the label colour, the position in
-## the accent colour.
-func _draw_caption(accent: Color) -> void:
-	var font := get_theme_default_font()
-	var font_size := get_theme_default_font_size()
-	var position_text := _position_text()
-	var whole := font.get_string_size(_caption_text(), HORIZONTAL_ALIGNMENT_LEFT,
-			-1.0, font_size).x
-	var at := Vector2((size.x - whole) * 0.5, size.y - _PADDING.y)
-	if _shows_name():
-		draw_string(font, at, str(compound.name), HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size,
-				_COLOR_LABEL)
-	if not position_text.is_empty():
-		at.x += whole - font.get_string_size(position_text, HORIZONTAL_ALIGNMENT_LEFT,
-				-1.0, font_size).x
-		draw_string(font, at, position_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, accent)
-
-
-func _caption_text() -> String:
-	return TurnoutWidget.join_caption(str(compound.name) if _shows_name() else "",
-			_position_text())
-
-
-func _shows_name() -> bool:
-	return caption == TurnoutWidget.Caption.TURNOUT_NAME or caption == TurnoutWidget.Caption.ALL
-
-
-## Empty when the caption leaves the position out.
-func _position_text() -> String:
-	if caption != TurnoutWidget.Caption.TURNOUT_POSITION and caption != TurnoutWidget.Caption.ALL:
-		return ""
-	return compound.position_label(compound.compound_position)
+	var frame := SchematicFrame.new()
+	frame.centre = centre
+	frame.along = along
+	frame.across = across
+	frame.along_scale = along_scale
+	frame.across_scale = across_scale
+	frame.screen_along = screen_along
+	frame.screen_across = screen_across
+	frame.middle = box * 0.5
+	return frame
 #endregion
 
 
-## The label names the position, and position names differ in length.
-func _on_position_changed() -> void:
-	refresh_size()
-	queue_redraw()
-
-
-func _set_caption(value: TurnoutWidget.Caption) -> void:
-	if caption == value:
-		return
-	caption = value
-	refresh_size()
-	queue_redraw()
+func _caption_text() -> String:
+	return _caption_for(_position_word())

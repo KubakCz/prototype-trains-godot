@@ -101,26 +101,15 @@ signal aspect_changed
 @export var overlay_lift := 0.35
 
 var _debug_mesh: MeshInstance3D
-## Upright, ground-anchored root the whole model hangs off. See [method mast_frame].
-var _mast: Node3D
-var _mast_frame := Transform3D.IDENTITY
-var _mast_lift := 0.0
-var _post: MeshInstance3D
+## The mast, head and lamps beside the track, standing on the ground.
+var _mast := TracksideModel.new()
 var _head: MeshInstance3D
 var _lamp_danger: MeshInstance3D
 var _lamp_clear: MeshInstance3D
-var _picker: StaticBody3D
 var _picker_box: BoxShape3D
-## Whether the mouse is over the 3D mast. See [method is_pointer_over].
-var _pointer_over := false
-static var _debug_material: StandardMaterial3D
 
 
 func _ready() -> void:
-	_attach_to_rail()
-	if not Engine.is_editor_hint():
-		# Same as [Turnout]: without this a CollisionObject3D never sees a click.
-		get_viewport().physics_object_picking = true
 	_place_on_rail()
 	_rebuild_model()
 	_refresh_debug_mesh()
@@ -132,8 +121,7 @@ func _enter_tree() -> void:
 
 
 func _exit_tree() -> void:
-	if rail != null:
-		rail.detach(self)
+	_detach_from_rail()
 	remove_from_group(Ground.STANDING_GROUP)
 
 
@@ -196,41 +184,29 @@ func signal_position() -> Vector3:
 	return rail.sample_position(signal_distance())
 
 
-## The frame the mast is built in: standing on the ground beside the track,
-## upright, looking along the governed direction so that +X is still the right
-## hand of the trains it stops.
-##
-## Deliberately not the signal node's own transform. That one is the rail's, so
-## it pitches with the gradient, banks with the curve's tilt and is anchored to
-## the railhead - a mast built in it leans over and hangs in the air wherever the
-## ground falls away beside the track.
-func mast_frame() -> Transform3D:
-	return _mast_frame
-
-
 ## Where the mast stands, in global space: on the ground beside the track, which
 ## on a slope is neither under the rail nor at the rail's height.
 func mast_position() -> Vector3:
-	return _mast_frame.origin
+	return _mast.frame.origin
 
 
 ## How far the railhead is above the ground at the mast. Everything on the mast
 ## is positioned this much higher than its nominal height above the track, which
 ## is what keeps the lamps at a constant height above the rails.
 func mast_lift() -> float:
-	return _mast_lift
+	return _mast.lift
 
 
 ## Centre of the click collider, in global space. The mast is a moving target -
 ## how tall it is depends on the ground under it - so anything aiming at it asks.
 func click_target_position() -> Vector3:
-	return _mast_frame * Vector3(0.0, _picker_height() * 0.5, 0.0)
+	return _mast.frame * Vector3(0.0, _picker_height() * 0.5, 0.0)
 
 
 ## Where the floating widget's leader line lands: above the head, so the widget
 ## is visibly tied to its own mast rather than to the track it applies to.
 func overlay_anchor() -> Vector3:
-	return mast_position() + Vector3.UP * (_mast_lift + 5.2)
+	return mast_position() + Vector3.UP * (_mast.lift + 5.2)
 
 
 ## Unit vector along the direction this signal governs, in global space.
@@ -253,29 +229,23 @@ func ahead_position(along := _HEADING_PROBE) -> Vector3:
 ## Puts the node on the rail with its -Z along the governed direction, so the
 ## mast can be positioned in plain local space and +X is the train's right.
 func _place_on_rail() -> void:
-	if rail == null or not rail.is_inside_tree() or not is_inside_tree():
-		return
-	if rail.rail_length() <= 0.0:
+	if not _on_rail():
 		return
 	var up := rail.sample_up(signal_distance())
 	global_transform = Transform3D(
 			Rail.basis_from_forward_up(governed_heading(), up), signal_position())
-	_update_mast_frame()
 
 
-## Recomputes where the mast stands and how far the railhead is above it, and
-## moves the model there. The ground query behind [method Rail.ground_frame] is
-## the one expensive part, which is why the answer is kept rather than worked out
-## again by every caller that wants to know where the mast is.
+## Stands the mast on the ground beside the track, looking along the governed
+## direction so that +X is still the right hand of the trains it stops.
 func _update_mast_frame() -> void:
-	if rail == null or not rail.is_inside_tree() or not is_inside_tree():
-		return
-	if rail.rail_length() <= 0.0:
-		return
-	_mast_frame = rail.ground_frame(signal_distance(), governed_heading(), side_offset)
-	_mast_lift = signal_position().y - _mast_frame.origin.y
-	if _mast != null:
-		_mast.global_transform = _mast_frame
+	if _on_rail():
+		_mast.place(rail, signal_distance(), governed_heading(), side_offset)
+
+
+func _on_rail() -> bool:
+	return (rail != null and rail.is_inside_tree() and is_inside_tree()
+			and rail.rail_length() > 0.0)
 #endregion
 
 
@@ -295,20 +265,15 @@ func toggle_aspect() -> void:
 	aspect = Aspect.DANGER if aspect == Aspect.CLEAR else Aspect.CLEAR
 
 
-func _on_picker_input(_camera: Node, event: InputEvent, _at: Vector3,
-		_normal: Vector3, _shape: int) -> void:
-	if player_operable and event.is_action_pressed(&"interact"):
+func _on_mast_pressed() -> void:
+	if player_operable:
 		toggle_aspect()
 
 
 ## True while the mouse is over the 3D mast. Same as [method Turnout.is_pointer_over]:
 ## the floating widget answers for its own rect, and a readout wants either.
 func is_pointer_over() -> bool:
-	return _pointer_over
-
-
-func _set_pointer_over(value: bool) -> void:
-	_pointer_over = value
+	return _mast.pointer_over
 #endregion
 
 
@@ -341,59 +306,38 @@ func _get_configuration_warnings() -> PackedStringArray:
 ## survives being a few pixels on a zoomed-out screen. The head faces back down
 ## the track at the trains the signal governs, which is the side the lamps are
 ## on.
-## Everything hangs off [member _mast], which stands on the ground rather than on
-## the track, so the post is as long as it has to be to get from that ground up
-## to its nominal height above the railhead.
 func _rebuild_model() -> void:
 	if not is_inside_tree():
 		return
 	_update_mast_frame()
-	if _mast == null:
-		_mast = Node3D.new()
-		_mast.name = "Mast"
-		# Not built in the signal's own frame: that one leans with the track.
-		# This one is written straight into global space by _update_mast_frame.
-		_mast.top_level = true
-		add_child(_mast, false, Node.INTERNAL_MODE_BACK)
-		_mast.global_transform = _mast_frame
-	if _post == null:
-		_post = _add_box("Post", _COLOR_POST, Vector3(0.22, 1.0, 0.22))
-		_head = _add_box("Head", _COLOR_HEAD, Vector3(0.95, 2.0, 0.22))
-		_lamp_danger = _add_box("LampDanger", _COLOR_DANGER, Vector3(0.6, 0.6, 0.12))
-		_lamp_clear = _add_box("LampClear", _COLOR_CLEAR, Vector3(0.6, 0.6, 0.12))
-	if _picker == null:
-		_picker = StaticBody3D.new()
-		_picker.name = "ClickTarget"
-		_picker.input_ray_pickable = true
-		var shape := CollisionShape3D.new()
+	if _mast.root == null:
+		var root := _mast.build(self, "Mast", _COLOR_POST, 0.22)
+		_head = TracksideModel.add_box(root, "Head", _COLOR_HEAD, Vector3(0.95, 2.0, 0.22))
+		_lamp_danger = TracksideModel.add_box(root, "LampDanger", _COLOR_DANGER,
+				Vector3(0.6, 0.6, 0.12))
+		_lamp_clear = TracksideModel.add_box(root, "LampClear", _COLOR_CLEAR,
+				Vector3(0.6, 0.6, 0.12))
 		_picker_box = BoxShape3D.new()
-		shape.shape = _picker_box
-		_picker.add_child(shape)
-		_mast.add_child(_picker)
-		if not _picker.input_event.is_connected(_on_picker_input):
-			_picker.input_event.connect(_on_picker_input)
-		_picker.mouse_entered.connect(_set_pointer_over.bind(true))
-		_picker.mouse_exited.connect(_set_pointer_over.bind(false))
+		_mast.add_click_target(_picker_box)
+		_mast.pressed.connect(_on_mast_pressed)
 
-	# The mast's origin is on the ground, and +Z is back down the track towards
-	# the trains the signal governs, so the lamps face the drivers they stop.
-	# Every height is measured from the railhead, hence the lift.
-	var post_height := maxf(_mast_lift + _MAST_TOP, _MAST_MIN_HEIGHT)
-	(_post.mesh as BoxMesh).size = Vector3(0.22, post_height, 0.22)
-	_post.position = Vector3(0.0, post_height * 0.5, 0.0)
-	_head.position = Vector3(0.0, _mast_lift + _HEAD_CENTRE, 0.0)
-	_lamp_danger.position = Vector3(0.0, _mast_lift + _LAMP_DANGER_HEIGHT, 0.14)
-	_lamp_clear.position = Vector3(0.0, _mast_lift + _LAMP_CLEAR_HEIGHT, 0.14)
+	# +Z is back down the track towards the trains the signal governs, so the
+	# lamps face the drivers they stop.
+	var lift := _mast.lift
+	_mast.stretch_post(_MAST_TOP, _MAST_MIN_HEIGHT)
+	_head.position = Vector3(0.0, lift + _HEAD_CENTRE, 0.0)
+	_lamp_danger.position = Vector3(0.0, lift + _LAMP_DANGER_HEIGHT, 0.14)
+	_lamp_clear.position = Vector3(0.0, lift + _LAMP_CLEAR_HEIGHT, 0.14)
 	var picker_height := _picker_height()
 	_picker_box.size = Vector3(1.7, picker_height, 1.7)
-	_picker.position = Vector3(0.0, picker_height * 0.5, 0.0)
+	_mast.click_target.position = Vector3(0.0, picker_height * 0.5, 0.0)
 	_refresh_lamps()
 
 
 ## The click collider runs the whole way from the ground to the top of the head,
 ## so a signal on a bank is no harder to hit than one on the flat.
 func _picker_height() -> float:
-	return maxf(_mast_lift + _HEAD_TOP, _MAST_MIN_HEIGHT)
+	return maxf(_mast.lift + _HEAD_TOP, _MAST_MIN_HEIGHT)
 
 
 ## Lights the lamp the signal is showing and dims the other one.
@@ -410,19 +354,6 @@ func _set_lamp(lamp: MeshInstance3D, color: Color, lit: bool) -> void:
 	material.emission_enabled = lit
 	material.emission = color
 	material.emission_energy_multiplier = 1.6 if lit else 0.0
-
-
-func _add_box(node_name: String, color: Color, size: Vector3) -> MeshInstance3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	var instance := MeshInstance3D.new()
-	instance.name = node_name
-	var box := BoxMesh.new()
-	box.size = size
-	instance.mesh = box
-	instance.material_override = material
-	_mast.add_child(instance)
-	return instance
 #endregion
 
 
@@ -433,14 +364,8 @@ func _add_box(node_name: String, color: Color, size: Vector3) -> MeshInstance3D:
 func _refresh_debug_mesh() -> void:
 	if not is_inside_tree():
 		return
-	if _debug_mesh == null:
-		_debug_mesh = MeshInstance3D.new()
-		_debug_mesh.name = "SignalDebugDraw"
-		# Drawn in global space, like the turnout's: the node's own transform is
-		# derived from the rail, so ignoring it keeps the maths free of round trips.
-		_debug_mesh.top_level = true
-		add_child(_debug_mesh, false, Node.INTERNAL_MODE_BACK)
-
+	# Drawn in global space, like the turnout's.
+	_debug_mesh = DebugLines.ensure_instance(self, _debug_mesh, "SignalDebugDraw", true)
 	var mesh := ImmediateMesh.new()
 	_debug_mesh.mesh = mesh
 	if not debug_draw or not is_usable():
@@ -452,42 +377,24 @@ func _refresh_debug_mesh() -> void:
 	var lift := Vector3.UP * overlay_lift
 	var across := frame.basis.x * 1.9
 	var base := frame.origin + lift
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES, _get_debug_material())
-	_line(mesh, base - across, base + across, color)
-	_line(mesh, base + across,
-			mast_position() + Vector3.UP * (_mast_lift + overlay_lift), color)
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES, DebugLines.material(true))
+	DebugLines.line(mesh, base - across, base + across, color)
+	DebugLines.line(mesh, base + across,
+			mast_position() + Vector3.UP * (_mast.lift + overlay_lift), color)
 
 	# The arrow runs along the real track, so on a curve it still points where a
 	# train would actually go.
 	var previous := base
 	for i in range(1, STEPS + 1):
 		var point := ahead_position(_HEADING_PROBE * float(i) / float(STEPS)) + lift
-		_line(mesh, previous, point, color)
+		DebugLines.line(mesh, previous, point, color)
 		previous = point
 	var back := ahead_position(_HEADING_PROBE * 0.75) + lift - previous
 	if back.length_squared() > 1e-9 and across.length_squared() > 1e-9:
 		var side := across.normalized() * 0.55
-		_line(mesh, previous, previous + back + side, color)
-		_line(mesh, previous, previous + back - side, color)
+		DebugLines.line(mesh, previous, previous + back + side, color)
+		DebugLines.line(mesh, previous, previous + back - side, color)
 	mesh.surface_end()
-
-
-func _line(mesh: ImmediateMesh, from: Vector3, to: Vector3, color: Color) -> void:
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(from)
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(to)
-
-
-static func _get_debug_material() -> StandardMaterial3D:
-	if _debug_material == null:
-		_debug_material = StandardMaterial3D.new()
-		_debug_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_debug_material.vertex_color_use_as_albedo = true
-		_debug_material.vertex_color_is_srgb = true
-		_debug_material.disable_receive_shadows = true
-		_debug_material.no_depth_test = true
-	return _debug_material
 #endregion
 
 
@@ -497,41 +404,43 @@ func _attach_to_rail() -> void:
 		rail.attach(self)
 
 
-func _set_rail(value: Rail) -> void:
+func _detach_from_rail() -> void:
 	if rail != null:
 		rail.detach(self)
+
+
+func _set_rail(value: Rail) -> void:
+	_detach_from_rail()
 	rail = value
 	_attach_to_rail()
-	_place_on_rail()
-	_rebuild_model()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_distance(value: float) -> void:
 	distance = value
-	_place_on_rail()
-	_rebuild_model()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_governs(value: Governs) -> void:
 	governs = value
-	_place_on_rail()
-	_rebuild_model()
-	_refresh_debug_mesh()
-	update_configuration_warnings()
+	_geometry_changed()
 
 
 func _set_side_offset(value: float) -> void:
 	side_offset = value
-	_place_on_rail()
-	_rebuild_model()
-	_refresh_debug_mesh()
+	_geometry_changed()
 
 
 func _set_debug_draw(value: bool) -> void:
+	if debug_draw == value:
+		return
 	debug_draw = value
 	_refresh_debug_mesh()
+
+
+func _geometry_changed() -> void:
+	_place_on_rail()
+	_rebuild_model()
+	_refresh_debug_mesh()
+	update_configuration_warnings()
 #endregion

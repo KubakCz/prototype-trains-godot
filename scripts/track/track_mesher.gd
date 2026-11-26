@@ -28,11 +28,14 @@ signal rebuilt
 ## How long the blades take to swing across.
 @export_range(0.05, 3.0, 0.05, "suffix:s") var blade_throw_time := 0.6
 
-## How high over the ground the railhead has to be for Find to call it a bridge,
-## and how far under it for a tunnel.
-const BRIDGE_CLEARANCE := 3.0
-const TUNNEL_COVER := 4.0
 const _POLL := 0.25
+## How far either side of the centre line [Ground] has to keep below the bed:
+## the ballast's top and the least of its sides. Past that the ground is left
+## as authored - a level's carving shapes its own cuttings.
+const _BED_CLEAR := 1.8
+## How far past a rail's end the bed carries on: the track runs on 1.4 m to a
+## buffer stop.
+const _END_RUN := 2.0
 
 ## The layout the current meshes were built from.
 var layout: TrackLayout
@@ -47,15 +50,6 @@ var _built_signature := 0
 var _seen_signature := 0
 var _unchanged_for := 0.0
 var _poll_timer := 0.0
-
-
-## How far either side of the centre line [Ground] has to keep below the bed:
-## the ballast's top and the least of its sides. Past that the ground is left
-## as authored - a level's carving shapes its own cuttings.
-const _BED_CLEAR := 1.8
-## How far past a rail's end the bed carries on: the track runs on 1.4 m to a
-## buffer stop.
-const _END_RUN := 2.0
 
 
 func _enter_tree() -> void:
@@ -110,14 +104,9 @@ func rebuild() -> void:
 	var surfaces: Array[SurfaceSnapper.Surface] = []
 	if not rails.is_empty():
 		surfaces = rails[0].ground_surfaces()
-	var grounds: Array[Ground] = []
-	for surface in surfaces:
-		if surface.ground != null:
-			grounds.append(surface.ground)
-			# The track cuts its bed into the ground: if it has moved since the
-			# ground was built, the ground has to be cut again - before the
-			# ballast is laid on it.
-			surface.ground.refresh_shapes()
+	# The track cuts its bed into the ground: if it has moved since the ground
+	# was built, the ground has to be cut again - before the ballast is laid on it.
+	var grounds := TrackStructure.refresh_grounds(surfaces)
 	builder.ground_height = func(point: Vector3) -> Variant:
 		return SurfaceSnapper.height_at(surfaces, point.x, point.z)
 	builder.ground_color = func(point: Vector3) -> Color:
@@ -125,7 +114,7 @@ func rebuild() -> void:
 			var color = ground.surface_color_at(point.x, point.z)
 			if color != null:
 				return color
-		return Color(0.33, 0.42, 0.25)
+		return TrackMeshBuilder.GRASS
 	builder.ballast_mode = func(rail: Rail, at: float) -> TrackMeshBuilder.Ballast:
 		for structure in _structures:
 			if structure.covers(rail, at):
@@ -340,95 +329,11 @@ static func _cut(line: PackedVector3Array) -> Dictionary:
 
 
 #region Find bridges and tunnels
-## See [member _find_button].
+## See [member _find_button]; the work is [StructureFinder]'s.
 func find_structures() -> void:
-	var root := _scene_root()
 	var rails := _scene_rails()
 	if rails.is_empty():
 		return
-	var surfaces := rails[0].ground_surfaces()
-	var existing := _scene_structures()
-	var parent := root.get_node_or_null(^"Structures")
-	if parent == null:
-		parent = Node3D.new()
-		parent.name = "Structures"
-		root.add_child(parent)
-		parent.owner = root
-	for rail in rails:
-		for found: Vector3 in _classify(rail, surfaces):
-			var from := found.x
-			var to := found.y
-			var already := false
-			for structure in existing:
-				if structure.rail == rail and structure.start_distance() < to \
-						and structure.end_distance() > from:
-					already = true
-			if already:
-				continue
-			var structure: TrackStructure
-			if found.z > 0.0:
-				var bridge := Bridge.new()
-				bridge.style = Bridge.Style.STONE_ARCH if to - from < 40.0 \
-						else Bridge.Style.STEEL_TRUSS
-				structure = bridge
-			else:
-				structure = Tunnel.new()
-			structure.name = "%s%s" % ["Bridge" if found.z > 0.0 else "Tunnel", rail.name]
-			parent.add_child(structure, true)
-			structure.owner = root
-			structure.rail = rail
-			structure.from_distance = snappedf(from, 0.1)
-			structure.to_distance = snappedf(to, 0.1)
+	StructureFinder.propose(_scene_root(), rails, _scene_structures())
 	rebuild()
-
-
-## Stretches of [param rail] that look like a bridge or a tunnel, as
-## (from, to, +1 for a bridge / -1 for a tunnel).
-static func _classify(rail: Rail, surfaces: Array[SurfaceSnapper.Surface]) -> Array[Vector3]:
-	var found: Array[Vector3] = []
-	var length := rail.rail_length()
-	var kind := 0
-	var run_start := 0.0
-	var at := 0.0
-	while true:
-		var point := rail.sample_position(minf(at, length))
-		# The terrain as authored: the mesh has the track's own cutting in it.
-		var height = SurfaceSnapper.height_at(surfaces, point.x, point.z, true)
-		var now := 0
-		if height != null:
-			var ground := float(height)
-			if point.y - ground > BRIDGE_CLEARANCE:
-				now = 1
-			elif ground - point.y > TUNNEL_COVER:
-				now = -1
-		if now != kind or at >= length:
-			if kind != 0 and at - run_start >= 4.0:
-				found.append(Vector3(_widen(rail, surfaces, run_start, -1, kind),
-						_widen(rail, surfaces, minf(at, length), 1, kind), float(kind)))
-			kind = now
-			run_start = at
-		if at >= length:
-			break
-		at += 1.0
-	return found
-
-
-## Carries an end of a found stretch on outward until it meets the ground: a
-## bridge until the bank is close under the track, so the abutments sit on it; a
-## tunnel back to where the hillside starts to rise, so the portal stands
-## against it.
-static func _widen(rail: Rail, surfaces: Array[SurfaceSnapper.Surface], at: float,
-		outward: int, kind: int) -> float:
-	var length := rail.rail_length()
-	while at > 0.0 and at < length:
-		var next := clampf(at + 0.5 * float(outward), 0.0, length)
-		var point := rail.sample_position(next)
-		var height = SurfaceSnapper.height_at(surfaces, point.x, point.z, true)
-		if height == null:
-			break
-		var rise := float(height) - point.y
-		if (kind > 0 and rise > -1.0) or (kind < 0 and rise < 0.5):
-			break
-		at = next
-	return at
 #endregion

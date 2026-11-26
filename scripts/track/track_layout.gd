@@ -21,7 +21,7 @@ extends RefCounted
 ##   Small crossing angles also get check rails on the opposite rail.
 ##
 ## Sleepers follow one rule too: where two tracks are too close for each to have
-## its own, the higher-ranked one ([method _rank] - a main rail before a branch)
+## its own, the higher-ranked one ([method _rank_rails] - a main rail before a branch)
 ## lays long timbers under both, and the other lays none. That is the "cross ties
 ## adjusted until the tracks are really split away" of the plan, and again it
 ## covers a diamond as well as a turnout.
@@ -183,6 +183,57 @@ class Blade:
 	## The points position in which this blade lies closed against its stock rail.
 	var closed_when: Turnout.Position
 
+	func _init(p_turnout: Turnout, p_line: Line, p_start: float, p_direction: int,
+			p_stock: Line, p_stock_start: float, p_stock_direction: int, p_heel: float,
+			p_closed_when: Turnout.Position) -> void:
+		turnout = p_turnout
+		line = p_line
+		start = p_start
+		direction = p_direction
+		stock = p_stock
+		stock_start = p_stock_start
+		stock_direction = p_stock_direction
+		heel = p_heel
+		closed_when = p_closed_when
+
+
+## Straight segments in plan, filed by the [constant _CELL]-metre cells they
+## pass through, so that what lies near a point is found without testing every
+## segment. [member tag] is the caller's own: which line or rail each is on.
+class SegmentIndex:
+	var a := PackedVector3Array()
+	var b := PackedVector3Array()
+	var from := PackedFloat64Array()
+	var to := PackedFloat64Array()
+	var tag := PackedInt32Array()
+	var grid: Dictionary[Vector2i, PackedInt32Array] = {}
+
+	func add(p_a: Vector3, p_b: Vector3, p_from: float, p_to: float, p_tag: int) -> void:
+		var id := a.size()
+		a.append(p_a)
+		b.append(p_b)
+		from.append(p_from)
+		to.append(p_to)
+		tag.append(p_tag)
+		for cell in TrackLayout._cells_between(p_a, p_b):
+			if not grid.has(cell):
+				grid[cell] = PackedInt32Array()
+			grid[cell].append(id)
+
+	## Every segment filed in a cell [param p]-[param q] covers, once each, in
+	## the order the cells are visited.
+	func near(p: Vector3, q: Vector3) -> PackedInt32Array:
+		var found := PackedInt32Array()
+		var seen := {}
+		for cell in TrackLayout._cells_between(p, q):
+			if not grid.has(cell):
+				continue
+			for id in grid[cell]:
+				if not seen.has(id):
+					seen[id] = true
+					found.append(id)
+		return found
+
 
 ## A sleeper: [member frame] sits on the rail's centre line at sleeper-top
 ## height, X across the track. It spans [member lo] to [member hi] along X -
@@ -254,8 +305,14 @@ static func frame_at(rail: Rail, distance: float) -> Transform3D:
 
 ## Where [param line] is at [param distance]: railhead height, centre of the head.
 static func line_point(line: Line, distance: float) -> Vector3:
-	var frame := frame_at(line.rail, distance)
-	return frame.origin + frame.basis.x * line.lateral
+	return line_point_at(line.rail, line.lateral, distance)
+
+
+## Where a line [param lateral] metres right of [param rail]'s centre line is at
+## [param distance].
+static func line_point_at(rail: Rail, lateral: float, distance: float) -> Vector3:
+	var frame := frame_at(rail, distance)
+	return frame.origin + frame.basis.x * lateral
 
 
 func line_for(rail: Rail, side: int) -> Line:
@@ -380,28 +437,12 @@ func _cut_blades() -> void:
 		var branch_at := turnout.branch_distance()
 		var heel := _heel_length(turnout)
 
-		var straight := Blade.new()
-		straight.turnout = turnout
-		straight.line = line_for(main, side * main_dir)
-		straight.start = points
-		straight.direction = main_dir
-		straight.stock = line_for(branch, side * branch_dir)
-		straight.stock_start = branch_at
-		straight.stock_direction = branch_dir
-		straight.heel = heel
-		straight.closed_when = Turnout.Position.NORMAL
-
-		var curved := Blade.new()
-		curved.turnout = turnout
-		curved.line = line_for(branch, -side * branch_dir)
-		curved.start = branch_at
-		curved.direction = branch_dir
-		curved.stock = line_for(main, -side * main_dir)
-		curved.stock_start = points
-		curved.stock_direction = main_dir
-		curved.heel = heel
-		curved.closed_when = Turnout.Position.REVERSE
-
+		var straight := Blade.new(turnout, line_for(main, side * main_dir), points, main_dir,
+				line_for(branch, side * branch_dir), branch_at, branch_dir, heel,
+				Turnout.Position.NORMAL)
+		var curved := Blade.new(turnout, line_for(branch, -side * branch_dir), branch_at,
+				branch_dir, line_for(main, -side * main_dir), points, main_dir, heel,
+				Turnout.Position.REVERSE)
 		for blade: Blade in [straight, curved]:
 			var a := blade.start
 			var b := blade.start + float(blade.direction) * blade.heel
@@ -457,69 +498,57 @@ static func blade_head_width(along: float) -> float:
 ## is not looked at there, which is what keeps a stock rail and its blade -
 ## which touch at the points - from counting as a crossing.
 func _cut_crossings() -> void:
-	var seg_a := PackedVector3Array()
-	var seg_b := PackedVector3Array()
-	var seg_line := PackedInt32Array()
-	var seg_from := PackedFloat64Array()
-	var seg_to := PackedFloat64Array()
-	var grid: Dictionary[Vector2i, PackedInt32Array] = {}
-
-	for index in lines.size():
-		var line := lines[index]
+	var index := SegmentIndex.new()
+	for line_index in lines.size():
+		var line := lines[line_index]
 		var all := stations[line.rail]
 		for i in all.size() - 1:
 			var from := all[i]
 			var to := all[i + 1]
-			if line.is_cut((from + to) * 0.5):
-				continue
-			var id := seg_a.size()
-			var a := line_point(line, from)
-			var b := line_point(line, to)
-			seg_a.append(a)
-			seg_b.append(b)
-			seg_line.append(index)
-			seg_from.append(from)
-			seg_to.append(to)
-			for cell in _cells_between(a, b):
-				if not grid.has(cell):
-					grid[cell] = PackedInt32Array()
-				grid[cell].append(id)
+			if not line.is_cut((from + to) * 0.5):
+				index.add(line_point(line, from), line_point(line, to), from, to, line_index)
 
 	var seen := {}
-	for cell in grid:
-		var ids := grid[cell]
+	for cell in index.grid:
+		var ids := index.grid[cell]
 		for i in ids.size():
 			for j in range(i + 1, ids.size()):
 				var p := ids[i]
 				var q := ids[j]
-				var line_p := lines[seg_line[p]]
-				var line_q := lines[seg_line[q]]
-				if line_p.rail == line_q.rail and absf(seg_from[p] - seg_from[q]) < 20.0:
-					continue
 				var key := Vector2i(mini(p, q), maxi(p, q))
 				if seen.has(key):
 					continue
+				var line_p := lines[index.tag[p]]
+				var line_q := lines[index.tag[q]]
+				if line_p.rail == line_q.rail and absf(index.from[p] - index.from[q]) < 20.0:
+					continue
 				seen[key] = true
-				var hit := _intersect_xz(seg_a[p], seg_b[p], seg_a[q], seg_b[q])
-				if hit == Vector2(-1.0, -1.0):
-					continue
-				var on_p := seg_a[p].lerp(seg_b[p], hit.x)
-				var on_q := seg_a[q].lerp(seg_b[q], hit.y)
-				if absf(on_p.y - on_q.y) > MAX_CROSSING_RISE:
-					continue
-				var dir_p := _flat(seg_b[p] - seg_a[p])
-				var dir_q := _flat(seg_b[q] - seg_a[q])
-				# angle_to is signed; which way round they cross does not matter.
-				var angle := rad_to_deg(absf(dir_p.angle_to(dir_q)))
-				angle = minf(angle, 180.0 - angle)
-				if angle < MIN_CROSSING_DEGREES:
-					continue
-				var at_p := lerpf(seg_from[p], seg_to[p], hit.x)
-				var at_q := lerpf(seg_from[q], seg_to[q], hit.y)
-				var gap_p := _add_gap(line_p, at_p, line_q, at_q, angle)
-				var gap_q := _add_gap(line_q, at_q, line_p, at_p, angle)
-				gap_p.partner = gap_q
-				gap_q.partner = gap_p
+				_cross(index, p, q, line_p, line_q)
+
+
+## Cuts segments [param p] and [param q] of [param index] - lying on
+## [param line_p] and [param line_q] - where they cross, if they do.
+func _cross(index: SegmentIndex, p: int, q: int, line_p: Line, line_q: Line) -> void:
+	var hit := _intersect_xz(index.a[p], index.b[p], index.a[q], index.b[q])
+	if hit == Vector2(-1.0, -1.0):
+		return
+	var on_p := index.a[p].lerp(index.b[p], hit.x)
+	var on_q := index.a[q].lerp(index.b[q], hit.y)
+	if absf(on_p.y - on_q.y) > MAX_CROSSING_RISE:
+		return
+	var dir_p := _flat(index.b[p] - index.a[p])
+	var dir_q := _flat(index.b[q] - index.a[q])
+	# angle_to is signed; which way round they cross does not matter.
+	var angle := rad_to_deg(absf(dir_p.angle_to(dir_q)))
+	angle = minf(angle, 180.0 - angle)
+	if angle < MIN_CROSSING_DEGREES:
+		return
+	var at_p := lerpf(index.from[p], index.to[p], hit.x)
+	var at_q := lerpf(index.from[q], index.to[q], hit.y)
+	var gap_p := _add_gap(line_p, at_p, line_q, at_q, angle)
+	var gap_q := _add_gap(line_q, at_q, line_p, at_p, angle)
+	gap_p.partner = gap_q
+	gap_q.partner = gap_p
 
 
 ## A wheel on [param other] carries its flange beside the railhead, on the
@@ -581,13 +610,11 @@ func _add_wing(gap: Gap, running: Dictionary) -> void:
 	var nose_from := gap.other_at + float(toward_nose) * (partner.nose + 0.01)
 	if other.cut_between(minf(nose_from, finish), maxf(nose_from, finish)):
 		return
-	var lateral := other.lateral - signf(other.lateral) * CHECK_OFFSET
+	var lateral := _check_lateral(other)
 	if _fouls_another_track(other.rail, lateral, from, to, running, gap.line.rail):
 		return
-	var piece := _add_piece(other.rail, lateral, from, to)
+	var piece := _add_check(other.rail, lateral, from, to)
 	if piece != null:
-		piece.is_check = true
-		piece.flare = CHECK_FLARE_OUT
 		piece.wing_of = gap.line
 		if toward_nose > 0:
 			piece.flare_from = false
@@ -671,15 +698,12 @@ func _make_pieces() -> void:
 		# blades - so there is nothing for a check rail to stand beside.
 		if opposite.cut_between(from, to):
 			continue
-		var lateral := opposite.lateral - signf(opposite.lateral) * CHECK_OFFSET
+		var lateral := _check_lateral(opposite)
 		# Inside a double slip the next set of points can be right there, with
 		# another track's rail where the check rail would go.
 		if _fouls_another_track(gap.line.rail, lateral, from, to, running):
 			continue
-		var piece := _add_piece(gap.line.rail, lateral, from, to)
-		if piece != null:
-			piece.is_check = true
-			piece.flare = CHECK_FLARE_OUT
+		_add_check(gap.line.rail, lateral, from, to)
 
 
 ## Whether a check rail [param lateral] metres off [param rail]'s centre line,
@@ -692,8 +716,7 @@ static func _fouls_another_track(rail: Rail, lateral: float, from: float, to: fl
 	var clear := CHECK_OFFSET + 0.1
 	var at := from
 	while at <= to:
-		var into := minf(at - from, to - at)
-		var flare := CHECK_FLARE_OUT * clampf(1.0 - into / CHECK_FLARE, 0.0, 1.0)
+		var flare := check_flare(CHECK_FLARE_OUT, minf(at - from, to - at))
 		var point := line_point_at(rail, lateral - signf(lateral) * flare, at)
 		var home := Vector2i(floori(point.x), floori(point.z))
 		for dx in range(-1, 2):
@@ -706,9 +729,25 @@ static func _fouls_another_track(rail: Rail, lateral: float, from: float, to: fl
 	return false
 
 
-static func line_point_at(rail: Rail, lateral: float, distance: float) -> Vector3:
-	var frame := frame_at(rail, distance)
-	return frame.origin + frame.basis.x * lateral
+## How far a check rail's end flared by [param flare] has bent in, [param into]
+## metres from that end.
+static func check_flare(flare: float, into: float) -> float:
+	return flare * clampf(1.0 - into / CHECK_FLARE, 0.0, 1.0)
+
+
+## A check rail's offset from its rail's centre line, beside [param line]: a
+## railhead and a flangeway in from it, towards the middle of the track.
+static func _check_lateral(line: Line) -> float:
+	return line.lateral - signf(line.lateral) * CHECK_OFFSET
+
+
+## A check rail with both ends flared, or null where it would be too short.
+func _add_check(rail: Rail, lateral: float, from: float, to: float) -> Piece:
+	var piece := _add_piece(rail, lateral, from, to)
+	if piece != null:
+		piece.is_check = true
+		piece.flare = CHECK_FLARE_OUT
+	return piece
 
 
 func _add_piece(rail: Rail, lateral: float, from: float, to: float) -> Piece:
@@ -741,28 +780,14 @@ static func _merged(intervals: Array[Vector2]) -> Array[Vector2]:
 ## higher-ranked track runs close by: that one lays a long timber under both.
 func _lay_sleepers() -> void:
 	# Centre lines, for asking where another track crosses a sleeper's line.
-	var seg_a := PackedVector3Array()
-	var seg_b := PackedVector3Array()
-	var seg_rail: Array[Rail] = []
-	var seg_from := PackedFloat64Array()
-	var grid: Dictionary[Vector2i, PackedInt32Array] = {}
-	for rail in rails:
+	var index := SegmentIndex.new()
+	for rail_index in rails.size():
+		var rail := rails[rail_index]
 		var all := stations[rail]
 		for i in all.size() - 1:
-			var id := seg_a.size()
-			var a := frame_at(rail, all[i]).origin
-			var b := frame_at(rail, all[i + 1]).origin
-			seg_a.append(a)
-			seg_b.append(b)
-			seg_rail.append(rail)
-			seg_from.append(all[i])
-			for cell in _cells_between(a, b):
-				if not grid.has(cell):
-					grid[cell] = PackedInt32Array()
-				grid[cell].append(id)
+			index.add(frame_at(rail, all[i]).origin, frame_at(rail, all[i + 1]).origin,
+					all[i], all[i + 1], rail_index)
 
-	var half := SLEEPER_LENGTH * 0.5
-	var reach := SHARED_TIE_ZONE * 2.0
 	# Highest rank first, so that where two tracks' timbers would cross - the
 	# last long timbers of a turnout against the branch's first own sleepers,
 	# laid at an angle to them - the lower-ranked track is the one that gives
@@ -777,75 +802,88 @@ func _lay_sleepers() -> void:
 		while at < end:
 			var frame := frame_at(rail, at)
 			var across := Vector3(frame.basis.x.x, 0.0, frame.basis.x.z).normalized()
-			# Nearest crossing of this sleeper's line by each other track.
-			var nearest: Dictionary[Rail, float] = {}
-			var self_ahead := false
-			var probe_a := frame.origin - across * reach
-			var probe_b := frame.origin + across * reach
-			var checked := {}
-			for cell in _cells_between(probe_a, probe_b):
-				if not grid.has(cell):
-					continue
-				for id in grid[cell]:
-					if checked.has(id):
-						continue
-					checked[id] = true
-					var other := seg_rail[id]
-					if other == rail and absf(seg_from[id] - at) < 20.0:
-						continue
-					var hit := _intersect_xz(probe_a, probe_b, seg_a[id], seg_b[id])
-					if hit == Vector2(-1.0, -1.0):
-						continue
-					var point := seg_a[id].lerp(seg_b[id], hit.y)
-					if absf(point.y - frame.origin.y) > 1.0:
-						continue
-					var u := (hit.x * 2.0 - 1.0) * reach
-					if other == rail:
-						# The same rail come back round: one of the two passes keeps
-						# its sleepers, the later one along the rail gives way.
-						if absf(u) < SHARED_TIE_ZONE and seg_from[id] < at:
-							self_ahead = true
-						continue
-					if not nearest.has(other) or absf(u) < absf(nearest[other]):
-						nearest[other] = u
-			var lo := -half
-			var hi := half
-			var skip := self_ahead
-			for other in nearest:
-				var u := nearest[other]
-				if absf(u) < SHARED_TIE_ZONE:
-					if _rank[other] > _rank[rail]:
-						skip = true
-						break
-					lo = minf(lo, u - half)
-					hi = maxf(hi, u + half)
-			if not skip:
-				# Never reach more than halfway to a track this one does not
-				# cover: that one lays its own timbers from the other side.
-				for other in nearest:
-					var u := nearest[other]
-					if absf(u) >= SHARED_TIE_ZONE:
-						if u > 0.0:
-							hi = minf(hi, maxf(u * 0.5, half))
-						else:
-							lo = maxf(lo, minf(u * 0.5, -half))
-				var centre := frame.origin + across * ((lo + hi) * 0.5)
-				var footprint := [Vector2(centre.x, centre.z), Vector2(across.x, across.z),
-						(hi - lo) * 0.5, rail]
-				if not _overlaps_placed(footprint, placed):
-					var sleeper := Sleeper.new()
-					sleeper.rail = rail
-					sleeper.distance = at
-					sleeper.lo = lo
-					sleeper.hi = hi
-					sleeper.frame = Transform3D(frame.basis,
-							frame.origin + frame.basis.y * -RAIL_HEIGHT)
-					sleepers.append(sleeper)
-					var cell := _cell(centre)
-					if not placed.has(cell):
-						placed[cell] = []
-					placed[cell].append(footprint)
+			var span := _sleeper_span(rail, at, frame, across, index)
+			if not span.is_empty():
+				_place_sleeper(rail, at, frame, across, span[0], span[1], placed)
 			at += SLEEPER_SPACING
+
+
+## How far across [param rail] the sleeper at [param at] reaches, as
+## [code][lo, hi][/code] along [param across]: the usual half length either
+## side, stretched under any lower-ranked track close by and kept to halfway
+## towards one further off. Empty where a higher-ranked track - or this one,
+## come back round - lays the timber instead.
+func _sleeper_span(rail: Rail, at: float, frame: Transform3D, across: Vector3,
+		index: SegmentIndex) -> PackedFloat64Array:
+	var half := SLEEPER_LENGTH * 0.5
+	var reach := SHARED_TIE_ZONE * 2.0
+	# Nearest crossing of this sleeper's line by each other track.
+	var nearest: Dictionary[Rail, float] = {}
+	var self_ahead := false
+	var probe_a := frame.origin - across * reach
+	var probe_b := frame.origin + across * reach
+	for id in index.near(probe_a, probe_b):
+		var other := rails[index.tag[id]]
+		if other == rail and absf(index.from[id] - at) < 20.0:
+			continue
+		var hit := _intersect_xz(probe_a, probe_b, index.a[id], index.b[id])
+		if hit == Vector2(-1.0, -1.0):
+			continue
+		var point := index.a[id].lerp(index.b[id], hit.y)
+		if absf(point.y - frame.origin.y) > 1.0:
+			continue
+		var u := (hit.x * 2.0 - 1.0) * reach
+		if other == rail:
+			# The same rail come back round: one of the two passes keeps
+			# its sleepers, the later one along the rail gives way.
+			if absf(u) < SHARED_TIE_ZONE and index.from[id] < at:
+				self_ahead = true
+			continue
+		if not nearest.has(other) or absf(u) < absf(nearest[other]):
+			nearest[other] = u
+	if self_ahead:
+		return PackedFloat64Array()
+	var lo := -half
+	var hi := half
+	for other in nearest:
+		var u := nearest[other]
+		if absf(u) < SHARED_TIE_ZONE:
+			if _rank[other] > _rank[rail]:
+				return PackedFloat64Array()
+			lo = minf(lo, u - half)
+			hi = maxf(hi, u + half)
+	# Never reach more than halfway to a track this one does not cover: that
+	# one lays its own timbers from the other side.
+	for other in nearest:
+		var u := nearest[other]
+		if absf(u) >= SHARED_TIE_ZONE:
+			if u > 0.0:
+				hi = minf(hi, maxf(u * 0.5, half))
+			else:
+				lo = maxf(lo, minf(u * 0.5, -half))
+	return PackedFloat64Array([lo, hi])
+
+
+## Lays the sleeper spanning [param lo] to [param hi], unless it would cross
+## one another track has already laid.
+func _place_sleeper(rail: Rail, at: float, frame: Transform3D, across: Vector3, lo: float,
+		hi: float, placed: Dictionary[Vector2i, Array]) -> void:
+	var centre := frame.origin + across * ((lo + hi) * 0.5)
+	var footprint := [Vector2(centre.x, centre.z), Vector2(across.x, across.z),
+			(hi - lo) * 0.5, rail]
+	if _overlaps_placed(footprint, placed):
+		return
+	var sleeper := Sleeper.new()
+	sleeper.rail = rail
+	sleeper.distance = at
+	sleeper.lo = lo
+	sleeper.hi = hi
+	sleeper.frame = Transform3D(frame.basis, frame.origin + frame.basis.y * -RAIL_HEIGHT)
+	sleepers.append(sleeper)
+	var cell := _cell(centre)
+	if not placed.has(cell):
+		placed[cell] = []
+	placed[cell].append(footprint)
 
 
 ## Whether a sleeper's footprint, as (centre, across, half length, rail), would

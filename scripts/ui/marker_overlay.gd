@@ -68,7 +68,7 @@ const _MAX_COLLAPSE_ROUNDS := 6
 @export var mode := Mode.LEGS_AND_SCHEMATIC: set = _set_mode
 ## The text under a turnout's or an assembly's miniature, in every mode that
 ## shows one.
-@export var turnout_caption := TurnoutWidget.Caption.ALL
+@export var turnout_caption := SchematicMarkerWidget.Caption.ALL
 @export var signal_style := SignalWidget.Style.ARROW: set = _set_signal_style
 
 @export_group("Collapsing")
@@ -86,8 +86,9 @@ const _MAX_COLLAPSE_ROUNDS := 6
 ## Pixels left between two widgets that had to be separated.
 @export var widget_gap := 6.0
 
-## Widget per subject - a [Turnout], a [CompoundTurnout], a [RailSignal] or an [InterestPoint]. Subjects are re-read every
-## frame, since a level may add or remove them, but their widgets are kept.
+## Widget per subject - a [Turnout], a [CompoundTurnout], a [RailSignal] or an
+## [InterestPoint]. Subjects are re-read every frame, since a level may add or remove
+## them, but their widgets are kept.
 var _widgets: Dictionary[Node, TrackMarkerWidget] = {}
 
 
@@ -112,7 +113,7 @@ func cycle_mode() -> void:
 
 func cycle_turnout_caption() -> void:
 	turnout_caption = ((turnout_caption + 1)
-			% TurnoutWidget.Caption.size()) as TurnoutWidget.Caption
+			% SchematicMarkerWidget.Caption.size()) as SchematicMarkerWidget.Caption
 
 
 func cycle_signal_style() -> void:
@@ -128,7 +129,7 @@ func mode_label() -> String:
 
 
 func turnout_caption_label() -> String:
-	return TurnoutWidget.Caption.keys()[turnout_caption]
+	return SchematicMarkerWidget.Caption.keys()[turnout_caption]
 
 
 func signal_style_label() -> String:
@@ -147,15 +148,16 @@ func collapse_label() -> String:
 
 
 #region Widgets
-## The widget for one [Turnout], [CompoundTurnout] or [RailSignal], or null before the overlay has
-## caught up with a subject that was just added to the level.
+## The widget for one [Turnout], [CompoundTurnout], [RailSignal] or [InterestPoint], or
+## null before the overlay has caught up with a subject that was just added to the level.
 func widget_for(subject: Node) -> TrackMarkerWidget:
 	return _widgets.get(subject)
 
 
-## The [Turnout], [CompoundTurnout] or [RailSignal] whose floating widget the pointer is over, or
-## null. Only the widget layer is asked - the 3D marker under it answers for
-## itself, because a mode that hides the widget still has a clickable model.
+## The subject whose floating widget the pointer is over, or null. Only the widget
+## layer is asked - the 3D marker under it answers for itself, because a mode that
+## hides the widget still has a clickable model. Never an [InterestPoint]: its badge
+## lets the pointer through.
 func hovered_subject() -> Node:
 	for subject in _widgets:
 		var widget := _widgets[subject]
@@ -228,19 +230,13 @@ func _apply_styles() -> void:
 	var wants_turnout_widget := mode != Mode.LEGS_3D
 	for subject in _widgets:
 		var widget := _widgets[subject]
-		var signal_widget := widget as SignalWidget
-		if signal_widget != null:
-			signal_widget.style = signal_style
-			continue
-		if widget is InterestPointWidget:
-			continue
-		_set_legs(subject, wants_legs)
-		widget.suppressed = not wants_turnout_widget
-		var turnout_widget := widget as TurnoutWidget
-		if turnout_widget != null:
-			turnout_widget.caption = turnout_caption
-		else:
-			(widget as CompoundTurnoutWidget).caption = turnout_caption
+		var schematic := widget as SchematicMarkerWidget
+		if schematic != null:
+			_set_legs(subject, wants_legs)
+			schematic.suppressed = not wants_turnout_widget
+			schematic.caption = turnout_caption
+		elif widget is SignalWidget:
+			(widget as SignalWidget).style = signal_style
 #endregion
 
 
@@ -311,27 +307,22 @@ func _stack_tier(widget: TrackMarkerWidget) -> int:
 	return 0 if widget.collapsed else 1
 
 
+## The distance rules. [constant Collapse.WHEN_CROWDED] collapses in [method _arrange].
 func _apply_collapse(widget: TrackMarkerWidget) -> void:
-	if not widget.collapsible():
-		widget.set_widget_scale(1.0)
-		widget.collapsed = false
-		return
-	match collapse_rule:
-		Collapse.WHEN_FAR:
-			widget.set_widget_scale(1.0)
-			widget.collapsed = widget.camera_distance > collapse_distance
-		Collapse.WITH_DISTANCE:
-			var wanted := clampf(reference_distance / maxf(widget.camera_distance, 1.0),
-					0.0, 1.0)
-			widget.set_widget_scale(maxf(wanted, min_scale))
-			widget.collapsed = wanted < min_scale
-		_:
-			widget.set_widget_scale(1.0)
-			widget.collapsed = false
+	var widget_scale := 1.0
+	var collapse := false
 	# Whatever the rule says, what the mouse is on is readable.
-	if widget.is_pointer_over():
-		widget.collapsed = false
-		widget.set_widget_scale(1.0)
+	if widget.collapsible() and not widget.is_pointer_over():
+		match collapse_rule:
+			Collapse.WHEN_FAR:
+				collapse = widget.camera_distance > collapse_distance
+			Collapse.WITH_DISTANCE:
+				var wanted := clampf(reference_distance / maxf(widget.camera_distance, 1.0),
+						0.0, 1.0)
+				widget_scale = maxf(wanted, min_scale)
+				collapse = wanted < min_scale
+	widget.set_widget_scale(widget_scale)
+	widget.collapsed = collapse
 
 
 ## Stacks overlapping widgets upwards, and reports the ones that ran out of

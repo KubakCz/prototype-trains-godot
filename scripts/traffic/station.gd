@@ -70,7 +70,7 @@ const _FOOTING := 1.5
 @export var building_side := Side.RIGHT:
 	set(value):
 		building_side = value
-		_marker_moved()
+		place_scenery()
 
 var _building: Node3D
 var _platforms: Node3D
@@ -92,11 +92,7 @@ func _exit_tree() -> void:
 ## The ground under the building and the platforms has been cut anew (see
 ## [constant Ground.STANDING_GROUP]).
 func ground_changed() -> void:
-	_marker_moved()
-
-
-func is_square() -> bool:
-	return false
+	place_scenery()
 
 
 ## The mark of this station's track that lies on [param query_rail], if any.
@@ -122,7 +118,7 @@ func platforms() -> Array[Node3D]:
 	return found
 
 
-func _marker_moved() -> void:
+func place_scenery() -> void:
 	if not is_inside_tree():
 		return
 	_place_platforms()
@@ -131,8 +127,7 @@ func _marker_moved() -> void:
 
 func _place_building() -> void:
 	var found := tracks()
-	if building_side == Side.NONE or found.is_empty() \
-			or found[0].rail.rail_length() <= 0.0 or not found[0].rail.is_inside_tree():
+	if building_side == Side.NONE or found.is_empty() or not found[0].is_usable():
 		if _building != null:
 			_building.visible = false
 		return
@@ -140,11 +135,7 @@ func _place_building() -> void:
 	# Across the tracks, measured from the middle, on the building's side: the track
 	# furthest out is the one the building stands beside.
 	var first := found[0]
-	var forward := first.rail.sample_forward(first.distance)
-	forward.y = 0.0
-	if forward.length_squared() < 1e-9:
-		forward = Vector3.FORWARD
-	forward = forward.normalized()
+	var forward := _flat_forward(first)
 	var side := 1.0 if building_side == Side.RIGHT else -1.0
 	var across := forward.cross(Vector3.UP) * side
 	var outermost := first
@@ -177,7 +168,7 @@ func _refresh_colors() -> void:
 func _platform_layout() -> Array[Dictionary]:
 	var found: Array[InterestTrack] = []
 	for track in tracks():
-		if track.rail.is_inside_tree() and track.rail.rail_length() > 0.0:
+		if track.is_usable():
 			found.append(track)
 	if found.is_empty():
 		return []
@@ -226,11 +217,16 @@ func _platform_beside(track: InterestTrack, right: Vector3, offset: float,
 ## Level and square to [param track]'s rail at its mark, to the right looking towards
 ## the rail's end.
 static func _right_of(track: InterestTrack) -> Vector3:
+	return _flat_forward(track).cross(Vector3.UP)
+
+
+## [param track]'s rail at its mark, towards the rail's end, levelled to the horizontal.
+static func _flat_forward(track: InterestTrack) -> Vector3:
 	var forward := track.rail.sample_forward(track.distance)
 	forward.y = 0.0
 	if forward.length_squared() < 1e-9:
 		forward = Vector3.FORWARD
-	return forward.normalized().cross(Vector3.UP)
+	return forward.normalized()
 
 
 func _place_platforms() -> void:

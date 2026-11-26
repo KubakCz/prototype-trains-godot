@@ -53,13 +53,15 @@ static var _pairs: Array[Array] = []
 ## A random livery, plain or striped, from [param rng].
 static func random(rng: RandomNumberGenerator) -> Livery:
 	var livery := Livery.new()
-	var names: Array = PALETTE.keys()
 	if rng.randf() < STRIPED_SHARE:
-		var pair: Array = stripe_pairs()[rng.randi_range(0, stripe_pairs().size() - 1)]
+		var pairs := stripe_pairs()
+		var pair: Array = pairs[rng.randi_range(0, pairs.size() - 1)]
 		livery.body = PALETTE[pair[0]]
 		livery.stripe = _color_named(pair[1])
 		livery.striped = true
 	else:
+		var names: Array[String] = []
+		names.assign(PALETTE.keys())
 		livery.body = PALETTE[names[rng.randi_range(0, names.size() - 1)]]
 	return livery
 

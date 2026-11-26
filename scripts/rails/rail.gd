@@ -53,11 +53,9 @@ const _COLOR_END := Color(1.0, 0.25, 0.2)
 @export var arrow_spacing := 15.0
 
 var _debug_mesh: MeshInstance3D
-static var _debug_material: StandardMaterial3D
 
-## Nodes that sit on this rail and govern how trains leave it - [Turnout] now,
-## signals later. Deliberately typed as [Node] rather than a concrete class:
-## a turnout has to name [Rail], so naming it back here would make the two
+## Nodes that sit on this rail: turnouts, signals and crossings. Typed as [Node]
+## because they have to name [Rail], and naming them back here would make the
 ## scripts mutually dependent.
 var _attachments: Array[Node] = []
 
@@ -146,15 +144,14 @@ func sample_local_transform(distance: float) -> Transform3D:
 ## which way a node faces) and whose +Y is as close to [param up] as the forward
 ## direction allows.
 static func basis_from_forward_up(forward: Vector3, up: Vector3) -> Basis:
-	var back := -forward.normalized()
-	var right := up.cross(back)
-	if right.length_squared() < 1e-9:
-		# Looking straight along `up`; any perpendicular axis will do.
-		right = Vector3.RIGHT.cross(back)
-	if right.length_squared() < 1e-9:
-		right = Vector3.FORWARD.cross(back)
-	right = right.normalized()
-	return Basis(right, back.cross(right), back)
+	return MeshSurface.basis_from_forward_up(forward, up)
+
+
+## [param v] flattened onto the horizontal plane and normalised. A vector
+## pointing straight up or down has no heading, so any will do: -Z.
+static func flat_heading(v: Vector3) -> Vector3:
+	var flat := Vector3(v.x, 0.0, v.z)
+	return flat.normalized() if flat.length_squared() > 1e-9 else Vector3.FORWARD
 #endregion
 
 
@@ -235,7 +232,7 @@ func _surface_height(surfaces: Array[SurfaceSnapper.Surface], global_point: Vect
 
 ## The nodes the ground is made of: [member surface_root], or everything in
 ## [member surface_group].
-func surface_nodes() -> Array[Node]:
+func _surface_nodes() -> Array[Node]:
 	if surface_root != null:
 		return [surface_root]
 	var nodes: Array[Node] = []
@@ -267,11 +264,7 @@ func ground_height_at(global_point: Vector3) -> Variant:
 ## the side. A post built in this frame stands upright and reaches the ground.
 func ground_frame(distance: float, heading: Vector3, side_offset: float) -> Transform3D:
 	var railhead := sample_position(clamp_distance(distance))
-	var flat := Vector3(heading.x, 0.0, heading.z)
-	if flat.length_squared() < 1e-9:
-		# Track heading straight up or down: any yaw is as good as any other.
-		flat = Vector3.FORWARD
-	var basis := basis_from_forward_up(flat.normalized(), Vector3.UP)
+	var basis := basis_from_forward_up(flat_heading(heading), Vector3.UP)
 	var origin := railhead + basis.x * side_offset
 	var height = ground_height_at(origin)
 	# Nothing below the mast: assume the ground runs on at the level the track
@@ -289,9 +282,9 @@ func ground_frame(distance: float, heading: Vector3, side_offset: float) -> Tran
 ## times over in the editor should ask once and keep the answer itself.
 func ground_surfaces() -> Array[SurfaceSnapper.Surface]:
 	if Engine.is_editor_hint():
-		return SurfaceSnapper.collect(surface_nodes())
+		return SurfaceSnapper.collect(_surface_nodes())
 	if not _ground_collected:
-		_ground_cache = SurfaceSnapper.collect(surface_nodes())
+		_ground_cache = SurfaceSnapper.collect(_surface_nodes())
 		_ground_collected = true
 	return _ground_cache
 #endregion
@@ -299,6 +292,8 @@ func ground_surfaces() -> Array[SurfaceSnapper.Surface]:
 
 #region Debug draw
 func _set_debug_draw(value: bool) -> void:
+	if debug_draw == value:
+		return
 	debug_draw = value
 	_refresh_debug_mesh()
 
@@ -316,19 +311,14 @@ func _on_curve_changed() -> void:
 func _refresh_debug_mesh() -> void:
 	if not is_inside_tree():
 		return
-	if _debug_mesh == null:
-		_debug_mesh = MeshInstance3D.new()
-		_debug_mesh.name = "RailDebugDraw"
-		# Internal, so it never lands in the saved scene.
-		add_child(_debug_mesh, false, Node.INTERNAL_MODE_BACK)
-
+	_debug_mesh = DebugLines.ensure_instance(self, _debug_mesh, "RailDebugDraw", false)
 	var mesh := ImmediateMesh.new()
 	_debug_mesh.mesh = mesh
 	var length := rail_length()
 	if not debug_draw or length <= 0.0:
 		return
 
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES, _get_debug_material())
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES, DebugLines.material(false))
 	_draw_running_rails(mesh, length)
 	_draw_sleepers(mesh, length)
 	_draw_direction_arrows(mesh, length)
@@ -345,7 +335,7 @@ func _draw_running_rails(mesh: ImmediateMesh, length: float) -> void:
 	for i in range(1, steps + 1):
 		var frame := sample_local_transform(length * float(i) / float(steps))
 		for side in [-half_gauge, half_gauge]:
-			_line(mesh, previous.origin + previous.basis.x * side,
+			DebugLines.line(mesh, previous.origin + previous.basis.x * side,
 					frame.origin + frame.basis.x * side, _COLOR_RAIL)
 		previous = frame
 
@@ -357,7 +347,7 @@ func _draw_sleepers(mesh: ImmediateMesh, length: float) -> void:
 	var distance := sleeper_spacing * 0.5
 	while distance < length:
 		var frame := sample_local_transform(distance)
-		_line(mesh, frame.origin - frame.basis.x * overhang,
+		DebugLines.line(mesh, frame.origin - frame.basis.x * overhang,
 				frame.origin + frame.basis.x * overhang, _COLOR_SLEEPER)
 		distance += sleeper_spacing
 
@@ -376,8 +366,8 @@ func _draw_direction_arrows(mesh: ImmediateMesh, length: float) -> void:
 		var forward := -frame.basis.z
 		var tip := frame.origin + forward * HALF_LENGTH + lift
 		var base := frame.origin - forward * HALF_LENGTH * 0.5 + lift
-		_line(mesh, tip, base + frame.basis.x * HALF_WIDTH, _COLOR_ARROW)
-		_line(mesh, tip, base - frame.basis.x * HALF_WIDTH, _COLOR_ARROW)
+		DebugLines.line(mesh, tip, base + frame.basis.x * HALF_WIDTH, _COLOR_ARROW)
+		DebugLines.line(mesh, tip, base - frame.basis.x * HALF_WIDTH, _COLOR_ARROW)
 		distance += arrow_spacing
 
 
@@ -385,23 +375,6 @@ func _draw_end_marker(mesh: ImmediateMesh, distance: float, color: Color) -> voi
 	const HEIGHT := 2.5
 	var frame := sample_local_transform(distance)
 	var top := frame.origin + Vector3.UP * HEIGHT
-	_line(mesh, frame.origin, top, color)
-	_line(mesh, top - frame.basis.x, top + frame.basis.x, color)
-
-
-func _line(mesh: ImmediateMesh, from: Vector3, to: Vector3, color: Color) -> void:
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(from)
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(to)
-
-
-static func _get_debug_material() -> StandardMaterial3D:
-	if _debug_material == null:
-		_debug_material = StandardMaterial3D.new()
-		_debug_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_debug_material.vertex_color_use_as_albedo = true
-		_debug_material.vertex_color_is_srgb = true
-		_debug_material.disable_receive_shadows = true
-	return _debug_material
+	DebugLines.line(mesh, frame.origin, top, color)
+	DebugLines.line(mesh, top - frame.basis.x, top + frame.basis.x, color)
 #endregion

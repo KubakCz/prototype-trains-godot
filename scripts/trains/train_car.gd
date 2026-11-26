@@ -11,8 +11,7 @@ extends Node3D
 ## positions under its own two ends, which is not something a child transform of
 ## the train could express.
 ##
-## Origin on the railhead between the two ends, -Z towards the train's nose, the
-## same frame the single-box train used to have.
+## Origin on the railhead between the two ends, -Z towards the train's nose.
 ##
 ## The body rides [constant FLOOR_HEIGHT] above the rails on two bogies, whose
 ## wheelsets are set to standard gauge. The bogies are placed by the train
@@ -54,7 +53,6 @@ var _picker: StaticBody3D
 var _picker_box: BoxShape3D
 var _wire: MeshInstance3D
 var _bogies: Array[MeshInstance3D] = []
-static var _wire_material: StandardMaterial3D
 static var _bogie_mesh: ArrayMesh
 
 
@@ -70,6 +68,15 @@ func build(type: CarType, leads: bool, load_fraction: float, body: Material,
 	width = type.width
 	height = type.height
 	top_level = true
+	_build_body(body, stripe)
+	_build_bogies()
+	_build_load(type as WagonType, load_fraction, load_material)
+	_build_marker(leads, marker)
+	_rebuild_wire()
+
+
+## The body box and the click target, both the car's whole size.
+func _build_body(body: Material, stripe: Material) -> void:
 	if _body == null:
 		_body = _add_mesh("Body")
 		_picker = StaticBody3D.new()
@@ -90,6 +97,9 @@ func build(type: CarType, leads: bool, load_fraction: float, body: Material,
 	_build_stripe(stripe, body_height)
 	_picker_box.size = Vector3(width, height, length)
 	_picker.position = Vector3(0.0, height * 0.5, 0.0)
+
+
+func _build_bogies() -> void:
 	if _bogies.is_empty():
 		for i in 2:
 			var bogie := MeshInstance3D.new()
@@ -100,7 +110,10 @@ func build(type: CarType, leads: bool, load_fraction: float, body: Material,
 			add_child(bogie)
 			_bogies.append(bogie)
 
-	var wagon := type as WagonType
+
+## A block on the roof as tall as [param load_fraction] of a full load, on a wagon that
+## carries anything.
+func _build_load(wagon: WagonType, load_fraction: float, load_material: Material) -> void:
 	var carried := wagon != null and wagon.capacity > 0.0 and load_fraction > 0.0
 	if carried and _load == null:
 		_load = _add_mesh("Load")
@@ -113,6 +126,9 @@ func build(type: CarType, leads: bool, load_fraction: float, body: Material,
 			_load.position = Vector3(0.0, height + load_height * 0.5, 0.0)
 			_load.material_override = load_material
 
+
+## The front marker over the front of the roof, on the car that [param leads].
+func _build_marker(leads: bool, marker: Material) -> void:
 	if leads and _marker == null:
 		_marker = _add_mesh("NoseMarker")
 	if _marker != null:
@@ -124,7 +140,6 @@ func build(type: CarType, leads: bool, load_fraction: float, body: Material,
 		_marker.position = Vector3(0.0, height + marker_height * 0.5,
 				-length * 0.5 + marker_length * 0.5)
 		_marker.material_override = marker
-	_rebuild_wire()
 
 
 ## The band round the body: a thin box a little bigger than the body, so it shows on
@@ -278,26 +293,13 @@ func _rebuild_wire() -> void:
 	for corner in 8:
 		corners.append(centre + Vector3(h.x if (corner & 1) != 0 else -h.x,
 				h.y if (corner & 2) != 0 else -h.y, h.z if (corner & 4) != 0 else -h.z))
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES, _get_wire_material())
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES, DebugLines.material(true))
 	for corner in 8:
 		for bit: int in [1, 2, 4]:
 			# Each edge once: from the corner with the bit clear to the one with it set.
 			if (corner & bit) == 0:
-				mesh.surface_set_color(_COLOR_WIRE)
-				mesh.surface_add_vertex(corners[corner])
-				mesh.surface_set_color(_COLOR_WIRE)
-				mesh.surface_add_vertex(corners[corner | bit])
+				DebugLines.line(mesh, corners[corner], corners[corner | bit], _COLOR_WIRE)
 	mesh.surface_end()
-
-
-static func _get_wire_material() -> StandardMaterial3D:
-	if _wire_material == null:
-		_wire_material = StandardMaterial3D.new()
-		_wire_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_wire_material.vertex_color_use_as_albedo = true
-		_wire_material.vertex_color_is_srgb = true
-		_wire_material.no_depth_test = true
-	return _wire_material
 #endregion
 
 

@@ -10,9 +10,22 @@ extends Node3D
 ## saved, and tells the track mesher how the track runs through it (see
 ## [method ballast_mode]).
 
-@export var rail: Rail: set = _set_rail
-@export var from_distance := 0.0: set = _set_from_distance
-@export var to_distance := 20.0: set = _set_to_distance
+@export var rail: Rail:
+	set(value):
+		rail = value
+		_changed()
+@export var from_distance := 0.0:
+	set(value):
+		from_distance = value
+		_changed()
+@export var to_distance := 20.0:
+	set(value):
+		to_distance = value
+		_changed()
+
+## A span ending this close to its rail's end is taken to run off it: a tunnel
+## authored to "802.5" on a rail 802.51 m long still swallows the dead end.
+const END_TOLERANCE := 0.5
 
 var _instance: MeshInstance3D
 
@@ -23,11 +36,6 @@ func _ready() -> void:
 	else:
 		# After the rails have snapped and the turnouts welded their branches.
 		rebuild.call_deferred()
-
-
-## A span ending this close to its rail's end is taken to run off it: a tunnel
-## authored to "802.5" on a rail 802.51 m long still swallows the dead end.
-const END_TOLERANCE := 0.5
 
 
 ## Whether [param at] along [param query_rail] is on this structure.
@@ -125,8 +133,24 @@ static func distances(from: float, to: float, step: float) -> PackedFloat64Array
 	return found
 
 
-static func shade(color: Color, amount: float) -> Color:
-	return Color(color.r * amount, color.g * amount, color.b * amount)
+## Every [Ground] among [param surfaces], each brought up to date with
+## [method Ground.refresh_shapes] - the track and the tunnels cut into it.
+static func refresh_grounds(surfaces: Array[SurfaceSnapper.Surface]) -> Array[Ground]:
+	var grounds: Array[Ground] = []
+	for surface in surfaces:
+		if surface.ground != null:
+			surface.ground.refresh_shapes()
+			grounds.append(surface.ground)
+	return grounds
+
+
+## Each of [param vectors] turned round: the left-hand normals of a strip
+## from its right-hand ones.
+static func negated(vectors: PackedVector3Array) -> PackedVector3Array:
+	var result := PackedVector3Array()
+	for v in vectors:
+		result.append(-v)
+	return result
 #endregion
 
 
@@ -148,17 +172,3 @@ func _changed() -> void:
 	if is_inside_tree():
 		rebuild()
 
-
-func _set_rail(value: Rail) -> void:
-	rail = value
-	_changed()
-
-
-func _set_from_distance(value: float) -> void:
-	from_distance = value
-	_changed()
-
-
-func _set_to_distance(value: float) -> void:
-	to_distance = value
-	_changed()

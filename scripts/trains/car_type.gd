@@ -14,6 +14,9 @@ extends Resource
 ## Every setter emits [signal Resource.changed], so a train showing this type in
 ## the editor rebuilds when the type is edited.
 
+## Space between two cars of one train, in metres.
+const COUPLING_GAP := 1.0
+
 ## What the readouts call it.
 @export var display_name := "":
 	set(value):
@@ -48,6 +51,16 @@ extends Resource
 ## dividing a whole train's worth of these by its mass in tonnes gives m/s².
 func brake_force() -> float:
 	return mass * brake_rate
+
+
+## Nose to tail of [param types] coupled in order, couplings included, in metres.
+static func consist_length(types: Array[CarType]) -> float:
+	var length := 0.0
+	for i in types.size():
+		if i > 0:
+			length += COUPLING_GAP
+		length += types[i].length
+	return length
 
 
 func label() -> String:

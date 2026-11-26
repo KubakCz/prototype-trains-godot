@@ -19,7 +19,7 @@ static var _bore: StandardMaterial3D
 
 static func metal() -> StandardMaterial3D:
 	if _metal == null:
-		_metal = _vertex_coloured(0.45)
+		_metal = vertex_coloured(0.45)
 		_metal.metallic = 0.65
 		_metal.metallic_specular = 0.6
 	return _metal
@@ -27,28 +27,19 @@ static func metal() -> StandardMaterial3D:
 
 static func wood() -> StandardMaterial3D:
 	if _wood == null:
-		_wood = _vertex_coloured(0.9)
-		_wood.albedo_texture = _grain(0.9, 0.2, 0.25)
-		_wood.uv1_scale = Vector3(0.5, 0.5, 0.5)
-		_world_mapped(_wood)
+		_wood = _textured(0.9, _grain(0.9, 0.2, 0.25), 0.5)
 	return _wood
 
 
 static func ballast() -> StandardMaterial3D:
 	if _ballast == null:
-		_ballast = _vertex_coloured(1.0)
-		_ballast.albedo_texture = _grain(0.8, 0.45, 0.35)
-		_ballast.uv1_scale = Vector3(1.5, 1.5, 1.5)
-		_world_mapped(_ballast)
+		_ballast = _textured(1.0, _grain(0.8, 0.45, 0.35), 1.5)
 	return _ballast
 
 
 static func stone() -> StandardMaterial3D:
 	if _stone == null:
-		_stone = _vertex_coloured(0.95)
-		_stone.albedo_texture = _grain(1.0, 0.35, 0.12)
-		_stone.uv1_scale = Vector3(0.25, 0.25, 0.25)
-		_world_mapped(_stone)
+		_stone = _textured(0.95, _grain(1.0, 0.35, 0.12), 0.25)
 	return _stone
 
 
@@ -64,7 +55,8 @@ static func bore() -> StandardMaterial3D:
 	return _bore
 
 
-static func _vertex_coloured(roughness: float) -> StandardMaterial3D:
+## Coloured by its vertices alone - the [Ground] is too.
+static func vertex_coloured(roughness: float) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
 	# Authored by eye, so sRGB - linear renders them far darker (see .claude/rules/meshes-and-ground.md).
@@ -73,13 +65,19 @@ static func _vertex_coloured(roughness: float) -> StandardMaterial3D:
 	return material
 
 
-static func _world_mapped(material: StandardMaterial3D) -> void:
+## [method vertex_coloured] with [param grain] over it, mapped triplanar in
+## world space at [param scale].
+static func _textured(roughness: float, grain: NoiseTexture2D, scale: float) -> StandardMaterial3D:
+	var material := vertex_coloured(roughness)
+	material.albedo_texture = grain
+	material.uv1_scale = Vector3(scale, scale, scale)
 	material.uv1_triplanar = true
 	material.uv1_world_triplanar = true
+	return material
 
 
 ## A grey noise texture multiplied over the vertex colour, mapped triplanar in
-## world space by [method _world_mapped]: no UVs to generate, and seamless
+## world space by [method _textured]: no UVs to generate, and seamless
 ## across chunk boundaries and between overlapping beds.
 static func _grain(brightness: float, contrast: float, frequency: float) -> NoiseTexture2D:
 	var noise := FastNoiseLite.new()

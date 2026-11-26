@@ -33,6 +33,9 @@ extends SceneTree
 ## Coordinates are x east, z south; headings in degrees clockwise from +X seen from
 ## above (0 east, 90 south).
 
+const Kit := preload("res://tools/scene_kit.gd")
+const Track := Kit.Track
+
 const SCENE_PATH := "res://scenes/demos/stations.tscn"
 
 const RAILHEAD := 0.25
@@ -105,16 +108,16 @@ const PLATFORM := 90.0
 ## Checked before writing: no station mark this close to any points.
 const MARK_CLEAR_OF_POINTS := 50.0
 
-## Enum values of the scripts, written as numbers so this tool parses without them.
-const DIVERGE_START := 0
-const DIVERGE_END := 1
-const BRANCH_START := 0
-const BRANCH_END := 1
-const TOWARDS_END := 0
-const TOWARDS_START := 1
-const COMPOUND_DOUBLE_CROSSOVER := 2
-const CARGO_LOAD := 1
-const CARGO_UNLOAD := 2
+## Short names for the scripts' enum values the layout is written in.
+const DIVERGE_START := Turnout.DivergeTowards.RAIL_START
+const DIVERGE_END := Turnout.DivergeTowards.RAIL_END
+const BRANCH_START := Turnout.RailEnd.START
+const BRANCH_END := Turnout.RailEnd.END
+const TOWARDS_END := RailSignal.Governs.TOWARDS_RAIL_END
+const TOWARDS_START := RailSignal.Governs.TOWARDS_RAIL_START
+const COMPOUND_DOUBLE_CROSSOVER := CompoundTurnout.Kind.DOUBLE_CROSSOVER
+const CARGO_LOAD := Station.Cargo.LOAD
+const CARGO_UNLOAD := Station.Cargo.UNLOAD
 
 const _TRAIN_TYPES := {
 	"express": ["res://train_types/express.tres", "type_express"],
@@ -122,55 +125,6 @@ const _TRAIN_TYPES := {
 	"loaded": ["res://train_types/loaded_freight.tres", "type_loaded"],
 	"empty": ["res://train_types/empty_freight.tres", "type_empty"],
 }
-
-
-## A rail drawn as a turtle walk in plan, as in build_playground.gd: a list of poses,
-## each a point and a heading; consecutive poses become one cubic segment.
-class Track:
-	var points: Array[Vector2] = []
-	var headings: Array[float] = []
-
-	func _init(start: Vector2, toward: float) -> void:
-		points.append(start)
-		headings.append(toward)
-
-	func position() -> Vector2:
-		return points[-1]
-
-	func heading() -> float:
-		return headings[-1]
-
-	func line(length: float) -> Track:
-		return to(position() + direction(heading()) * length, heading())
-
-	func line_to_x(x: float) -> Track:
-		return line((x - position().x) / direction(heading()).x)
-
-	## Right for positive [param degrees], left for negative, in steps of at most 45.
-	func arc(radius: float, degrees: float) -> Track:
-		var steps := maxi(1, ceili(absf(degrees) / 45.0 - 1e-6))
-		var step := degrees / float(steps)
-		for _i in steps:
-			var centre := position() + direction(heading() + 90.0 * signf(degrees)) * radius
-			var arm := (position() - centre).rotated(deg_to_rad(step))
-			to(centre + arm, heading() + step)
-		return self
-
-	func to(point: Vector2, toward: float) -> Track:
-		points.append(point)
-		headings.append(toward)
-		return self
-
-	## The same walk moved [param offset] metres to the right of itself everywhere:
-	## concentric arcs, parallel straights.
-	func offset(by: float) -> Track:
-		var moved := Track.new(points[0] + direction(headings[0] + 90.0) * by, headings[0])
-		for i in range(1, points.size()):
-			moved.to(points[i] + direction(headings[i] + 90.0) * by, headings[i])
-		return moved
-
-	static func direction(degrees: float) -> Vector2:
-		return Vector2.from_angle(deg_to_rad(degrees))
 
 
 var _curves: Dictionary[String, Curve3D] = {}
@@ -196,19 +150,12 @@ func _initialize() -> void:
 			push_error(problem)
 		quit(1)
 		return
-	var file := FileAccess.open(SCENE_PATH, FileAccess.WRITE)
-	if file == null:
-		push_error("Could not write %s" % SCENE_PATH)
+	if not Kit.write_scene(SCENE_PATH, _scene_text()):
 		quit(1)
 		return
-	file.store_string(_scene_text())
-	file.close()
-	var turnouts := _turnouts.size()
-	for compound in _compounds:
-		turnouts += (compound["members"] as Array).size()
 	print("Wrote %s: %d rails, %d turnouts, %d crossings, %d signals, %d interest points, %d routes"
-			% [SCENE_PATH, _rail_order.size(), turnouts, _crossings.size(), _signals.size(),
-			_points.size(), _routes.size()])
+			% [SCENE_PATH, _rail_order.size(), Kit.all_turnouts(_turnouts, _compounds).size(),
+			_crossings.size(), _signals.size(), _points.size(), _routes.size()])
 	quit(0)
 
 
@@ -278,33 +225,13 @@ func _at_along(rail: String, along: float) -> Vector2:
 
 
 func _add(rail: String, track: Track) -> void:
-	_curves[rail] = _curve(track)
+	_curves[rail] = Kit.curve(track, RAILHEAD)
 	_rail_order.append(rail)
-
-
-## One point per pose, with handles along the headings: an arc's segment gets the
-## handles that make it follow the arc, a straight or an S-bend a third of its chord.
-func _curve(track: Track) -> Curve3D:
-	var curve := Curve3D.new()
-	for point in track.points:
-		curve.add_point(Vector3(point.x, RAILHEAD, point.y))
-	for i in track.points.size() - 1:
-		var chord := track.points[i].distance_to(track.points[i + 1])
-		var turn := deg_to_rad(absf(wrapf(track.headings[i + 1] - track.headings[i],
-				-180.0, 180.0)))
-		var handle := chord / 3.0
-		if turn > 1e-4:
-			handle = chord * 2.0 / 3.0 * tan(turn / 4.0) / sin(turn / 2.0)
-		var out := Track.direction(track.headings[i]) * handle
-		var back := Track.direction(track.headings[i + 1]) * -handle
-		curve.set_point_out(i, Vector3(out.x, 0.0, out.y))
-		curve.set_point_in(i + 1, Vector3(back.x, 0.0, back.y))
-	return curve
 
 
 ## Metres along [param rail] to the point nearest [param point].
 func _distance(rail: String, point: Vector2) -> float:
-	return _curves[rail].get_closest_offset(Vector3(point.x, RAILHEAD, point.y))
+	return _curves[rail].get_closest_offset(Kit.world(point, RAILHEAD))
 
 
 func _length(rail: String) -> float:
@@ -339,7 +266,7 @@ func _place_junctions() -> void:
 		var parent := "Compounds/%s" % name
 		var down := "%sDown" % name
 		var up := "%sUp" % name
-		_compounds.append({"name": name, "members": [
+		_compounds.append({"name": name, "kind": COMPOUND_DOUBLE_CROSSOVER, "members": [
 			_turnout("NorthWest", parent, "NorthMain", _distance("NorthMain", Vector2(x, north)),
 					DIVERGE_END, down, BRANCH_START),
 			_turnout("SouthEast", parent, "SouthMain",
@@ -361,15 +288,6 @@ func _turnout(name: String, parent: String, main: String, distance: float, diver
 	return {"name": name, "parent": parent, "main": main, "distance": distance,
 			"diverge": diverge, "branch": branch, "end": end}
 
-
-## Every turnout, compound members included.
-func _all_turnouts() -> Array[Dictionary]:
-	var all: Array[Dictionary] = []
-	all.append_array(_turnouts)
-	for compound in _compounds:
-		for member: Dictionary in compound["members"]:
-			all.append(member)
-	return all
 #endregion
 
 
@@ -478,7 +396,7 @@ func _check() -> Array[String]:
 			var rail: String = track[1]
 			var mark: float = track[2]
 			if point["kind"] == "station":
-				for turnout in _all_turnouts():
+				for turnout in Kit.all_turnouts(_turnouts, _compounds):
 					for at in _turnout_distances(turnout, rail):
 						if absf(at - mark) < MARK_CLEAR_OF_POINTS:
 							problems.append("%s/%s is %.1f m from %s" % [point["name"], track[0],
@@ -531,89 +449,25 @@ func _scene_text() -> String:
 	for type: String in _TRAIN_TYPES:
 		lines.append('[ext_resource type="Resource" path="%s" id="%s"]' % _TRAIN_TYPES[type])
 	lines.append("")
-	lines.append_array([
-		'[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]',
-		"sky_horizon_color = Color(0.66, 0.7, 0.74, 1)",
-		"ground_bottom_color = Color(0.22, 0.24, 0.24, 1)",
-		"ground_horizon_color = Color(0.66, 0.7, 0.74, 1)",
-		"",
-		'[sub_resource type="Sky" id="Sky_1"]',
-		'sky_material = SubResource("ProceduralSkyMaterial_1")',
-		"",
-		'[sub_resource type="Environment" id="Environment_1"]',
-		"background_mode = 2",
-		'sky = SubResource("Sky_1")',
-		"tonemap_mode = 2",
-		"ssao_enabled = true",
-		"",
-	])
+	lines.append_array(Kit.environment_text())
 	for rail in _rail_order:
-		lines.append_array(_curve_text(rail))
+		lines.append_array(Kit.curve_text(rail, _curves[rail]))
 
 	lines.append('[node name="StationsDemo" type="Node3D"]')
 	lines.append("")
-	lines.append('[node name="WorldEnvironment" type="WorldEnvironment" parent="."]')
-	lines.append('environment = SubResource("Environment_1")')
-	lines.append("")
-	lines.append('[node name="Sun" type="DirectionalLight3D" parent="."]')
-	lines.append("transform = Transform3D(0.6452, -0.628, 0.4352, 0, 0.5696, 0.822, -0.764, "
-			+ "-0.5303, 0.3675, 0, 60, 0)")
-	lines.append("light_energy = 1.3")
-	lines.append("shadow_enabled = true")
-	lines.append("directional_shadow_max_distance = 700.0")
-	lines.append("")
+	lines.append_array(Kit.world_environment_and_sun_text(700.0))
 	lines.append('[node name="Ground" type="MeshInstance3D" parent="." groups=["snap_surface"]]')
 	lines.append('script = ExtResource("ground")')
-	lines.append("size = Vector2(%s, %s)" % [_num(GROUND_SIZE.x), _num(GROUND_SIZE.y)])
+	lines.append("size = Vector2(%s, %s)" % [Kit.num(GROUND_SIZE.x), Kit.num(GROUND_SIZE.y)])
 	lines.append("subdivisions = 150")
 	lines.append("hill_height = 0.0")
 	lines.append("")
 
-	lines.append('[node name="Rails" type="Node3D" parent="."]')
-	lines.append("")
-	for rail in _rail_order:
-		lines.append('[node name="%s" type="Path3D" parent="Rails" ' % rail
-				+ 'node_paths=PackedStringArray("surface_root")]')
-		lines.append('curve = SubResource("Curve3D_%s")' % rail)
-		lines.append('script = ExtResource("rail")')
-		lines.append('surface_root = NodePath("../../Ground")')
-		lines.append("surface_offset = %s" % _num(BED_DEPTH))
-		lines.append("snap_on_ready = false")
-		lines.append("")
+	lines.append_array(Kit.rails_text(_rail_order, "rail", BED_DEPTH))
+	lines.append_array(Kit.turnouts_text(_turnouts, _compounds, "turnout", "compound"))
+	lines.append_array(Kit.crossings_text(_crossings, "crossing"))
 
-	lines.append('[node name="Turnouts" type="Node3D" parent="."]')
-	lines.append("")
-	for turnout in _turnouts:
-		lines.append_array(_turnout_text(turnout))
-	lines.append('[node name="Compounds" type="Node3D" parent="."]')
-	lines.append("")
-	for compound in _compounds:
-		var paths := PackedStringArray()
-		for member: Dictionary in compound["members"]:
-			paths.append('NodePath("%s")' % member["name"])
-		lines.append('[node name="%s" type="Node3D" parent="Compounds" ' % compound["name"]
-				+ 'groups=["compound_turnouts"] node_paths=PackedStringArray("members")]')
-		lines.append('script = ExtResource("compound")')
-		lines.append("kind = %d" % COMPOUND_DOUBLE_CROSSOVER)
-		lines.append("members = [%s]" % ", ".join(paths))
-		lines.append("")
-		for member: Dictionary in compound["members"]:
-			lines.append_array(_turnout_text(member))
-
-	lines.append('[node name="Crossings" type="Node3D" parent="."]')
-	lines.append("")
-	for crossing in _crossings:
-		lines.append('[node name="%s" type="Node3D" parent="Crossings" groups=["crossings"] '
-				% crossing["name"] + 'node_paths=PackedStringArray("rail_a", "rail_b")]')
-		lines.append('script = ExtResource("crossing")')
-		lines.append('rail_a = NodePath("../../Rails/%s")' % crossing["a"])
-		lines.append("distance_a = %s" % _num(crossing["distance_a"]))
-		lines.append('rail_b = NodePath("../../Rails/%s")' % crossing["b"])
-		lines.append("distance_b = %s" % _num(crossing["distance_b"]))
-		lines.append("")
-
-	lines.append('[node name="Interest" type="Node3D" parent="."]')
-	lines.append("")
+	lines.append_array(Kit.group("Interest"))
 	for point in _points:
 		lines.append('[node name="%s" type="Node3D" parent="Interest"]' % point["name"])
 		lines.append('script = ExtResource("%s")' % point["kind"])
@@ -625,24 +479,13 @@ func _scene_text() -> String:
 					point["name"]] + 'node_paths=PackedStringArray("rail")]')
 			lines.append('script = ExtResource("interest_track")')
 			lines.append('rail = NodePath("../../../Rails/%s")' % track[1])
-			lines.append("distance = %s" % _num(track[2]))
+			lines.append("distance = %s" % Kit.num(track[2]))
 			if point["kind"] == "station":
-				lines.append("platform_length = %s" % _num(point["platform"]))
+				lines.append("platform_length = %s" % Kit.num(point["platform"]))
 			lines.append("")
 
-	lines.append('[node name="Signals" type="Node3D" parent="."]')
-	lines.append("")
-	for rail_signal in _signals:
-		lines.append('[node name="%s" type="Node3D" parent="Signals" groups=["signals"] '
-				% rail_signal["name"] + 'node_paths=PackedStringArray("rail")]')
-		lines.append('script = ExtResource("signal")')
-		lines.append('rail = NodePath("../../Rails/%s")' % rail_signal["rail"])
-		lines.append("distance = %s" % _num(rail_signal["distance"]))
-		lines.append("governs = %d" % rail_signal["governs"])
-		lines.append("")
-
-	lines.append('[node name="Trains" type="Node3D" parent="."]')
-	lines.append("")
+	lines.append_array(Kit.signals_text(_signals, "signal"))
+	lines.append_array(Kit.group("Trains"))
 	lines.append('[node name="Spawner" type="Node" parent="." '
 			+ 'node_paths=PackedStringArray("trains_parent")]')
 	lines.append('script = ExtResource("spawner")')
@@ -677,100 +520,13 @@ func _scene_text() -> String:
 	return "\n".join(lines)
 
 
-## [code]in[/code], [code]out[/code], [code]position[/code] per point, handles relative
-## to their point - see .claude/rules/tscn.md.
-func _curve_text(rail: String) -> PackedStringArray:
-	var curve := _curves[rail]
-	var numbers := PackedStringArray()
-	var tilts := PackedStringArray()
-	for i in curve.point_count:
-		for v: Vector3 in [curve.get_point_in(i), curve.get_point_out(i),
-				curve.get_point_position(i)]:
-			numbers.append_array([_num(v.x), _num(v.y), _num(v.z)])
-		tilts.append("0")
-	return PackedStringArray([
-		'[sub_resource type="Curve3D" id="Curve3D_%s"]' % rail,
-		"_data = {",
-		'"points": PackedVector3Array(%s),' % ", ".join(numbers),
-		'"tilts": PackedFloat32Array(%s)' % ", ".join(tilts),
-		"}",
-		"point_count = %d" % curve.point_count,
-		"",
-	])
-
-
-func _turnout_text(turnout: Dictionary) -> PackedStringArray:
-	var parent: String = turnout["parent"]
-	var up := "../".repeat(parent.count("/") + 2)
-	return PackedStringArray([
-		'[node name="%s" type="Node3D" parent="%s" groups=["turnouts"] ' % [turnout["name"],
-				parent] + 'node_paths=PackedStringArray("main_rail", "branch_rail")]',
-		'script = ExtResource("turnout")',
-		'main_rail = NodePath("%sRails/%s")' % [up, turnout["main"]],
-		"main_distance = %s" % _num(turnout["distance"]),
-		"diverge_towards = %d" % turnout["diverge"],
-		'branch_rail = NodePath("%sRails/%s")' % [up, turnout["branch"]],
-		"branch_end = %d" % turnout["end"],
-		"",
-	])
-
-
 func _camera_and_ui_text() -> PackedStringArray:
-	var lines := PackedStringArray([
-		'[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]',
-		"transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 120, 0, 30)",
-		'script = ExtResource("camera")',
-		'camera = NodePath("Camera3D")',
-		"yaw_degrees = 0.0",
-		"pitch_degrees = -55.0",
-		"zoom = 650.0",
-		"max_zoom = 1400.0",
-		"",
-		'[node name="Camera3D" type="Camera3D" parent="CameraRig"]',
-		"far = 3000.0",
-		"",
-		'[node name="DebugUi" type="CanvasLayer" parent="."]',
-		"",
-		'[node name="Panels" type="VBoxContainer" parent="DebugUi"]',
-		"offset_left = 12.0",
-		"offset_top = 12.0",
-		"mouse_filter = 2",
-		"theme_override_constants/separation = 8",
-		"",
-	])
-	for panel: Array in [
+	return Kit.camera_and_ui_text({"script": "camera", "origin": Vector3i(120, 0, 30),
+			"yaw": 0.0, "pitch": -55.0, "zoom": 650.0, "max_zoom": 1400.0}, [
 		["TrainDebugPanel", "train_panel", false],
 		["TurnoutDebugPanel", "turnout_panel", true],
 		["SignalDebugPanel", "signal_panel", true],
 		["InterestDebugPanel", "interest_panel", false],
 		["RouteListPanel", "route_panel", false],
-	]:
-		var with_overlay: bool = panel[2]
-		lines.append('[node name="%s" type="PanelContainer" parent="DebugUi/Panels"%s]' % [
-				panel[0], ' node_paths=PackedStringArray("overlay")' if with_overlay else ""])
-		lines.append("layout_mode = 2")
-		lines.append("size_flags_horizontal = 0")
-		lines.append("mouse_filter = 2")
-		lines.append('script = ExtResource("%s")' % panel[1])
-		if with_overlay:
-			lines.append('overlay = NodePath("../../MarkerOverlay")')
-		lines.append("")
-	lines.append_array([
-		'[node name="MarkerOverlay" type="Control" parent="DebugUi" '
-				+ 'node_paths=PackedStringArray("camera")]',
-		"anchor_right = 1.0",
-		"anchor_bottom = 1.0",
-		"mouse_filter = 2",
-		'script = ExtResource("overlay")',
-		'camera = NodePath("../../CameraRig/Camera3D")',
-		"",
-	])
-	return lines
-
-
-## Four decimals, no trailing zeros, and no negative zero.
-func _num(value: float) -> String:
-	if absf(value) < 5e-5:
-		return "0"
-	return String.num(value, 4)
+	], "overlay")
 #endregion

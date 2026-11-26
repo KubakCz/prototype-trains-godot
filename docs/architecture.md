@@ -10,8 +10,12 @@ scripts/rails/crossing.gd         Crossing    : Node3D   — two rails crossing,
 scripts/rails/rail_signal.gd      RailSignal  : Node3D   — a one-directional stop signal
 scripts/rails/track_walker.gd     TrackWalker : RefCounted — arc length across the network
 scripts/rails/surface_snapper.gd  SurfaceSnapper        — ground raycasts
+scripts/rails/trackside_model.gd TracksideModel : RefCounted — a turnout's marker / a signal's mast: ground-standing root, post, click target
+scripts/rails/track_overlay.gd    TrackOverlay : RefCounted — the green/red route bands turnouts and assemblies draw on the track
 scripts/trains/train.gd           Train       : Node3D   — a locomotive and wagons driving the network
 scripts/trains/train_car.gd       TrainCar    : Node3D   — one car: its boxes, click target, collision box
+scripts/trains/train_paint.gd     TrainPaint  : RefCounted — the materials a train's cars share, and their colours
+scripts/trains/stopping_strip.gd  StoppingStrip : MeshInstance3D — the selected train's stopping distance on the track
 scripts/trains/livery.gd          Livery      : Resource — how a locomotive is painted: a colour, plain or striped
 scripts/trains/train_type.gd      TrainType   : Resource — a recipe for a train the spawner may make
 scripts/trains/route_icons.gd     RouteIcons  : Node3D   — the row of billboard icons over a train's locomotive showing its route
@@ -28,6 +32,7 @@ scripts/traffic/train_route.gd    TrainRoute  : Node     — one line of a level
 scripts/traffic/train_spawner.gd  TrainSpawner : Node    — puts trains on the level and counts them
 scripts/world/ground.gd           Ground      : MeshInstance3D — procedural or baked-heightmap terrain
 scripts/track/track_mesher.gd     TrackMesher : Node3D   — one per level: builds the track meshes, rebuilds in the editor
+scripts/track/structure_finder.gd StructureFinder       — the mesher's Find Bridges & Tunnels: proposes spans from the terrain
 scripts/track/track_layout.gd     TrackLayout : RefCounted — running lines and their cuts, blades, check rails, sleepers
 scripts/track/track_mesh_builder.gd TrackMeshBuilder     — layout to chunked meshes, the blades' blend shape
 scripts/track/mesh_surface.gd     MeshSurface : RefCounted — one surface being built: quads, boxes, beams
@@ -38,9 +43,10 @@ scripts/track/tunnel.gd           Tunnel      : TrackStructure — portals, a da
 scripts/ui/ui_scale.gd            UiScale     : Node (autoload) — picks the interface scale
 scripts/ui/marker_overlay.gd      MarkerOverlay      : Control — lays out every floating marker
 scripts/ui/track_marker_widget.gd TrackMarkerWidget  : Control — base: follow, collapse, click
-scripts/ui/turnout_widget.gd      TurnoutWidget      : TrackMarkerWidget
+scripts/ui/schematic_marker_widget.gd SchematicMarkerWidget : TrackMarkerWidget — base: miniature + caption
+scripts/ui/turnout_widget.gd      TurnoutWidget      : SchematicMarkerWidget
 scripts/ui/signal_widget.gd       SignalWidget       : TrackMarkerWidget
-scripts/ui/compound_turnout_widget.gd CompoundTurnoutWidget : TrackMarkerWidget — an assembly's one control
+scripts/ui/compound_turnout_widget.gd CompoundTurnoutWidget : SchematicMarkerWidget — an assembly's one control
 scripts/ui/interest_point_widget.gd InterestPointWidget : TrackMarkerWidget — a station's or connection's badge, name inside
 scripts/ui/route_list_view.gd     RouteListView : Control — the route list's drawn body
 scripts/debug/camera_rig.gd       CameraRig   : Node3D   — orbit camera (debug)

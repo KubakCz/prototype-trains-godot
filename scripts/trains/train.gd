@@ -4,55 +4,15 @@ extends Node3D
 ## A locomotive and the wagons behind it, driving the network under its own power
 ## and its own brakes.
 ##
-## Travel direction is deliberately split into two independent values, because a
-## train's forward is its own, not the rail's:
+## Direction is two values, never a signed speed: [member facing] is which way the nose
+## points along the rail, [member throttle] whether it drives nose-first, stands or backs
+## up; [member current_speed] is never negative. Every frame it looks ahead as far as it
+## could need to stop - for a [RailSignal] at danger, the end of the line, or the next
+## [Station] of its [member route] - and brakes for it; points set against it are run
+## into. Each car is placed by [TrackWalker] walks out from the centre.
 ##
-## - [member facing] is which way the nose points along the rail. A train facing
-##   [constant AGAINST_RAIL] on a rail drawn west-to-east is a train pointing west.
-## - [member throttle] is whether it drives nose-first, stops, or backs up.
-##
-## So driving forward always moves the nose forward, whichever way the underlying
-## curve happens to run. How fast it is actually going is a third value,
-## [member current_speed], which the throttle only ever asks to change.
-##
-## [b]Consist.[/b] [member locomotive] leads, with the nose; [member wagons] follow
-## in order, [constant COUPLING_GAP] apart. Each car is placed from the rail
-## positions under its own two ends, found by walking out from the train's centre
-## with [TrackWalker], so every wagon follows the one in front through every set of
-## points it took, and a car straddling points is the chord across them.
-##
-## [b]Physics.[/b] The locomotive's traction over the whole train's mass is how fast
-## it gets going; the brakes - each car's sized for its own empty weight - over
-## that same mass are how fast it stops. Normal stops use [constant SERVICE_BRAKE]
-## of the full brake; harder only when it has to.
-##
-## Every frame the train looks ahead of its leading end as far as it could need to
-## stop, for a [RailSignal] at danger, a [Turnout] set against it, or the end of
-## the line:
-##
-## - With room to stop normally, it brakes along the service curve and comes to
-##   rest with its leading end on the obstruction, throttle still open. It is then
-##   [i]held[/i], and rolls on by itself the moment the way clears.
-## - With room only for harder braking, it brakes as hard as it must, up to 100%,
-##   and is held the same way.
-## - Without room even at 100%, it is [member tripped]: full brakes until it
-##   stands, and it waits there for [method release]. A signal it could not stop
-##   for it runs past; points set against it, or the end of the line, derail it if
-##   it reaches them.
-##
-## [b]Derailment[/b] is final: points thrown under the train, any part of it
-## touching any part of another train, or running into points or a buffer it found
-## too late. See [method derail].
-##
-## [b]Selection.[/b] A left click on any car selects the train ([method select]); a
-## click on nothing clears it. The selected train is drawn lighter blue, and it is
-## what the debug train panel's keys act on.
-##
-## [b]Route.[/b] A train may have a [member route]: the [InterestPoint]s it has to go
-## through, in order, the last an [OutsideConnection] it leaves the level by. When the
-## next one is a [Station] it brakes to stand with its middle on the platform's mark,
-## whatever a signal says, [i]dwells[/i] there - loading or unloading its freight - and
-## goes on. A train that clears its destination connection is taken off the level.
+## The whole design - consist, braking, holding, tripping, derailment, selection - is in
+## docs/trains.md; routes and dwelling are in docs/stations.md.
 
 ## Nose points towards increasing rail distance.
 const ALONG_RAIL := 1
@@ -64,7 +24,7 @@ const AGAINST_RAIL := -1
 const GROUP := &"trains"
 
 ## Space between two cars of one train, in metres.
-const COUPLING_GAP := 1.0
+const COUPLING_GAP := CarType.COUPLING_GAP
 ## The share of the full brake a normal stop uses. Anything harder than this is
 ## the train stopping for something it found late.
 const SERVICE_BRAKE := 0.6
@@ -125,21 +85,15 @@ const _LOOK_MARGIN := 2.0
 ## held at points stands with its leading end exactly on them, and throwing them is
 ## how the player lets it through - that must not count as throwing them under it.
 const _UNDER_MARGIN := 0.05
-## How long each half of a blink lasts, in seconds.
-const _BLINK := 0.25
+## How far ahead a rolling start looks for a signal or dead end to come in under, in
+## metres.
+const _ROLL_LOOK := 600.0
 
-const _COLOR_BODY := Color(0.16, 0.32, 0.52)
-const _COLOR_BODY_SELECTED := Color(0.45, 0.68, 0.96)
-const _COLOR_WRECK := Color(0.30, 0.32, 0.35)
-const _COLOR_WRECK_SELECTED := Color(0.55, 0.58, 0.62)
-const _COLOR_LOAD := Color(0.46, 0.31, 0.17)
 const _COLOR_GREEN := Color(0.2, 0.95, 0.3)
 const _COLOR_RED := Color(0.95, 0.12, 0.1)
 const _COLOR_YELLOW := Color(1.0, 0.82, 0.1)
 const _COLOR_BLACK := Color(0.02, 0.02, 0.02)
 const _COLOR_CYAN := Color(0.2, 0.85, 1.0)
-## The share a selected locomotive's livery is lightened by.
-const _SELECTED_LIGHTEN := 0.3
 ## A freight load changes in steps this big while a train dwells, so the wagons are
 ## rebuilt a handful of times and not every frame.
 const _LOAD_STEP := 0.1
@@ -229,7 +183,6 @@ static var _arrivals := 0
 static var show_stopping_strip := true
 ## Draw every car's collision box. A debug panel row.
 static var show_collision_boxes := false
-static var _stand_in: LocomotiveType
 
 ## +1 while moving nose-first, -1 while backing. Follows the throttle, but only
 ## changes at a standstill: a train told to reverse at speed brakes first.
@@ -241,9 +194,8 @@ var _length := 0.0
 var _mass := 0.0
 var _brake_force := 0.0
 var _traction := 0.0
-var _body_material: StandardMaterial3D
-var _load_material: StandardMaterial3D
-var _marker_material: StandardMaterial3D
+## The materials every car shares. Made once the train is in the tree.
+var _paint: TrainPaint
 var _bound_types: Array[CarType] = []
 ## Signals at danger this train found too late and is running past. Forgotten once
 ## it is past them, or standing and released.
@@ -262,10 +214,8 @@ var _points_dirty := true
 ## the editor the rails can move under a standing train.
 var _front: TrackWalker.Step
 var _rear: TrackWalker.Step
-var _strip: MeshInstance3D
+var _strip: StoppingStrip
 var _icons: RouteIcons
-var _loco_material: StandardMaterial3D
-var _stripe_material: StandardMaterial3D
 var _dwell_left := 0.0
 var _dwell_total := 0.0
 var _load_before := 0.0
@@ -306,18 +256,26 @@ func _exit_tree() -> void:
 func _physics_process(delta: float) -> void:
 	_take_pending_click()
 	if not derailed and rail != null and rail.rail_length() > 0.0:
-		_check_points_under()
-		if not derailed:
-			_drive(delta)
-		if not derailed:
-			_check_route_end()
-		if not derailed and not is_queued_for_deletion():
-			if _points_dirty:
-				_points_under = _find_points_under()
-				_points_dirty = false
-			_check_collisions()
+		_tick(delta)
 	_update_state()
 	_refresh_strip()
+
+
+## One frame on the rails. Whatever derails the train ends the frame there.
+func _tick(delta: float) -> void:
+	_check_points_under()
+	if derailed:
+		return
+	_drive(delta)
+	if derailed:
+		return
+	_check_route_end()
+	if derailed or is_queued_for_deletion():
+		return
+	if _points_dirty:
+		_points_under = _find_points_under()
+		_points_dirty = false
+	_check_collisions()
 
 
 func _process(_delta: float) -> void:
@@ -329,39 +287,71 @@ func _process(_delta: float) -> void:
 #region Driving
 ## One frame: look ahead, choose a rate, move, and see what the train is up against.
 ##
-## Two walks, as before step 5: one from the centre out past the leading end to
-## find what the train is about to run into, and one to move the centre. The
-## first is now as long as the stopping distance rather than one frame's travel,
-## and decides how hard to brake as well as where the train has to stop.
+## Two walks: one from the centre out past the leading end, as far as the stopping
+## distance, to find what the train is about to run into and so how hard to brake
+## and where it has to stop; and one to move the centre.
 ##
 ## The look-ahead obeys signals from half a train on - from the leading end
 ## outwards. A signal nearer than that is one the leading end has already passed,
 ## and a signal only stops a train that has yet to reach it.
 func _drive(delta: float) -> void:
-	blocking_turnout = null
-	blocking_signal = null
-	at_dead_end = false
+	_clear_holds()
 	braking = 0.0
 	_braking_for_obstruction = false
 	if _dwell_left > 0.0:
 		_dwell(delta)
 		return
 	if current_speed <= _STANDING:
-		current_speed = 0.0
-		if not tripped:
-			# Standing and not running away from anything: a signal it was excused
-			# applies again, which matters only if it never got past it.
-			_excused.clear()
-			if throttle != 0:
-				_motion = signi(throttle)
+		_stand()
+	# Decided before the look ahead, which may trip the train.
 	var driving := throttle != 0 and signi(throttle) == _motion and not tripped
 	var direction := _motion * facing
 	var half := half_length()
 	if not _excused.is_empty():
 		_forget_passed_signals(direction, half)
 
+	var station := _choose_stop(direction, half, delta)
+	var ahead := _ahead
+	var limit := obstruction_gap
+	var gap := stop_gap
+	var rate := _braking_rate(gap, driving)
+	braking = rate
+	var was := current_speed
+	var travel := _integrate(rate, gap, driving, delta)
+
+	# A tripped train is past caring where it meant to stop: only the obstruction
+	# itself stops it.
+	var stop := limit if tripped else minf(gap, limit)
+	if not is_inf(stop) and travel >= stop - _HELD_GAP:
+		var arrival := sqrt(maxf(was * was - 2.0 * rate * stop, 0.0))
+		if ahead.blocking_signal == null and stop == limit and arrival > _CRASH_SPEED:
+			_move(direction, stop)
+			derail(_run_into(ahead, arrival))
+			return
+		travel = stop
+		current_speed = 0.0
+	if travel > 0.0:
+		_move(direction, travel)
+	_come_to_rest(ahead, station, stop, travel)
+
+
+## Standing still: the speed is exactly zero, and, unless it is tripped, the train
+## takes the way its throttle points.
+func _stand() -> void:
+	current_speed = 0.0
+	if not tripped:
+		# Standing and not running away from anything: a signal it was excused
+		# applies again, which matters only if it never got past it.
+		_excused.clear()
+		if throttle != 0:
+			_motion = signi(throttle)
+
+
+## Looks ahead and decides where the train means to stop, into [member _ahead],
+## [member obstruction_gap] and [member stop_gap]. Trips the train for a stop it
+## cannot make. Returns the station it is stopping at, or null.
+func _choose_stop(direction: int, half: float, delta: float) -> Station:
 	var full := full_brake_rate()
-	var service := service_brake_rate()
 	var ahead := _look_ahead(direction, half, delta)
 	var limit := _gap_to(ahead, half)
 	# A signal at danger the train cannot stop for even at 100% is run past. It is
@@ -393,7 +383,13 @@ func _drive(delta: float) -> void:
 	_ahead = ahead
 	obstruction_gap = limit
 	stop_gap = gap
+	return station
 
+
+## How hard to brake this frame, to stop [param gap] ahead.
+func _braking_rate(gap: float, driving: bool) -> float:
+	var full := full_brake_rate()
+	var service := service_brake_rate()
 	var rate := 0.0
 	if tripped:
 		rate = full
@@ -410,10 +406,14 @@ func _drive(delta: float) -> void:
 		if not driving and current_speed > 0.0 and rate < service:
 			# Throttle cut, or reversed at speed: a normal stop first.
 			rate = service
-	braking = rate
+	return rate
 
-	# Integrated as constant acceleration over the frame, so a train braking at
-	# exactly the rate it needs lands exactly where it means to stop.
+
+## Sets the speed at the end of the frame and returns how far the train goes in it.
+## Integrated as constant acceleration over the frame, so a train braking at exactly
+## the rate it needs lands exactly where it means to stop.
+func _integrate(rate: float, gap: float, driving: bool, delta: float) -> float:
+	var service := service_brake_rate()
 	var was := current_speed
 	var travel := 0.0
 	if rate > 0.0:
@@ -434,21 +434,14 @@ func _drive(delta: float) -> void:
 		else:
 			current_speed = minf(was + acceleration_rate() * delta, target)
 		travel = (was + current_speed) * 0.5 * delta
+	return travel
 
-	# A tripped train is past caring where it meant to stop: only the obstruction
-	# itself stops it.
-	var stop := limit if tripped else minf(gap, limit)
-	if not is_inf(stop) and travel >= stop - _HELD_GAP:
-		var arrival := sqrt(maxf(was * was - 2.0 * rate * stop, 0.0))
-		if ahead.blocking_signal == null and stop == limit and arrival > _CRASH_SPEED:
-			_move(direction, stop)
-			derail(_run_into(ahead, arrival))
-			return
-		travel = stop
-		current_speed = 0.0
-	if travel > 0.0:
-		_move(direction, travel)
 
+## Having moved [param travel] towards a stop [param stop] ahead: a train standing on
+## its station's mark arrives there, and one standing at whatever it stopped for is
+## held by it.
+func _come_to_rest(ahead: TrackWalker.Step, station: Station, stop: float,
+		travel: float) -> void:
 	if station != null and current_speed == 0.0 and stop - travel <= _HELD_GAP:
 		_arrive_at(station)
 		return
@@ -462,6 +455,13 @@ func _drive(delta: float) -> void:
 		# falls back to `end_behavior`.
 		if at_dead_end and not tripped:
 			_handle_end_of_rail()
+
+
+## Lets go of whatever the train was standing at.
+func _clear_holds() -> void:
+	blocking_turnout = null
+	blocking_signal = null
+	at_dead_end = false
 
 
 ## From the centre, out past the leading end as far as the train could need to
@@ -502,7 +502,6 @@ func _move(direction: int, travel: float) -> void:
 	# The rail underneath may have changed. The nose has not turned round, so
 	# `facing` becomes whichever direction on the new rail still points that way.
 	_apply_state(moved.rail, moved.distance, moved.direction * _motion)
-	_points_dirty = true
 
 
 ## Nothing is attached to this rail end, so there is nowhere to be handed on to.
@@ -535,7 +534,7 @@ func roll_safely(speed: float) -> void:
 		return
 	var cap := speed
 	var half := half_length()
-	var ahead := TrackWalker.walk(rail, distance, signi(throttle) * facing, 600.0 + half, half)
+	var ahead := TrackWalker.walk(rail, distance, signi(throttle) * facing, _ROLL_LOOK + half, half)
 	if ahead.blocking_signal != null or ahead.at_dead_end:
 		var gap := maxf(ahead.travelled - half - STOP_SHORT, 0.0)
 		cap = minf(cap, sqrt(2.0 * service_brake_rate() * gap))
@@ -604,12 +603,6 @@ static func stopping_distance(speed: float, rate: float) -> float:
 	return speed * speed / (2.0 * rate) if rate > 0.0 else INF
 
 
-## The place the leading end has reached - the nose when driving forward, the tail
-## when backing.
-func leading_end() -> TrackWalker.Step:
-	return TrackWalker.walk(rail, distance, _motion * facing, half_length())
-
-
 ## Where the nose is.
 func nose() -> TrackWalker.Step:
 	return TrackWalker.walk(rail, distance, facing, half_length())
@@ -634,9 +627,7 @@ func derail(reason: String) -> void:
 	current_speed = 0.0
 	braking = 0.0
 	tripped = false
-	blocking_turnout = null
-	blocking_signal = null
-	at_dead_end = false
+	_clear_holds()
 	dwelling_at = null
 	_dwell_left = 0.0
 	_excused.clear()
@@ -694,7 +685,7 @@ func _check_collisions() -> void:
 		if global_position.distance_squared_to(other.global_position) > reach * reach:
 			continue
 		for car in _cars:
-			for other_car in other._cars:
+			for other_car in other.cars():
 				if car.touches(other_car):
 					derail("collided with %s" % other.name)
 					other.derail("collided with %s" % name)
@@ -882,10 +873,6 @@ func is_selected() -> bool:
 	return selected_train() == self
 
 
-func _on_car_clicked() -> void:
-	select()
-
-
 ## A click that reaches unhandled input is one no widget or panel took. Only the
 ## selected train listens, and it decides on the next physics frame - where the
 ## space can be asked - whether the click landed on anything clickable at all.
@@ -960,47 +947,27 @@ func state_name() -> String:
 
 
 func _paint_marker() -> void:
-	if _marker_material == null:
-		return
-	var color := state_color(state)
-	if state_blinks(state) and int(Time.get_ticks_msec() / (_BLINK * 1000.0)) % 2 == 1:
-		color = color.darkened(0.8)
-	_marker_material.albedo_color = color
-	_marker_material.emission = color
-	_marker_material.emission_energy_multiplier = 0.0 if state == State.DERAILED else 0.6
+	if _paint != null:
+		_paint.paint_marker(state_color(state), state_blinks(state), state == State.DERAILED)
 
 
 func _refresh_look() -> void:
-	if _body_material == null:
+	if _paint == null:
 		return
-	var selected := is_selected()
-	if derailed:
-		_body_material.albedo_color = _COLOR_WRECK_SELECTED if selected else _COLOR_WRECK
-	else:
-		_body_material.albedo_color = _COLOR_BODY_SELECTED if selected else _COLOR_BODY
-	# The engine's paint, when it has some: a wreck is grey like the rest of it, and a
-	# selected one is lightened, which the wagons - plain blue - show by going lighter.
-	if livery != null and _loco_material != null:
-		if derailed:
-			_loco_material.albedo_color = _body_material.albedo_color
-			_stripe_material.albedo_color = _body_material.albedo_color.lightened(0.25)
-		else:
-			_loco_material.albedo_color = (livery.body.lerp(Color.WHITE, _SELECTED_LIGHTEN)
-					if selected else livery.body)
-			_stripe_material.albedo_color = livery.stripe
+	_paint.refresh(livery, is_selected(), derailed)
 	_paint_marker()
 
 
 ## What the locomotive is painted: its livery, or the same as the wagons without one.
 func engine_color() -> Color:
-	if livery != null and _loco_material != null:
-		return _loco_material.albedo_color
+	if livery != null and _paint != null:
+		return _paint.engine.albedo_color
 	return body_color()
 
 
 ## What every car's body is painted: blue, lighter while selected, grey once wrecked.
 func body_color() -> Color:
-	return _body_material.albedo_color if _body_material != null else _COLOR_BODY
+	return _paint.body.albedo_color if _paint != null else TrainPaint.BODY_COLOR
 
 
 ## What is holding or stopping the train, for the readouts.
@@ -1010,12 +977,10 @@ func blocked_description() -> String:
 	if dwelling_at != null:
 		return "at %s, %.1f s more" % [dwelling_at.label(), _dwell_left]
 	if blocking_signal != null:
-		return "held at %s (danger)" % blocking_signal.name
+		return "held at %s" % _obstruction_text(blocking_signal, null, "")
 	if blocking_turnout != null:
-		# A member of a compound turnout is named through its assembly, since
-		# the assembly is the thing the player has to change.
-		return "held by %s (set %s)" % [_turnout_label(blocking_turnout),
-				Turnout.Position.keys()[blocking_turnout.turnout_position]]
+		return "held by %s" % _obstruction_text(null, blocking_turnout,
+				str(Turnout.Position.keys()[blocking_turnout.turnout_position]))
 	if at_dead_end:
 		return "at dead end"
 	if tripped:
@@ -1029,13 +994,21 @@ func ahead_description() -> String:
 	if _ahead == null or is_inf(obstruction_gap) or not _ahead.is_blocked():
 		return ""
 	var what := ""
-	if _ahead.blocking_signal != null:
-		what = "%s (danger)" % _ahead.blocking_signal.name
-	elif _ahead.blocking_turnout != null:
-		what = "%s (set against)" % _turnout_label(_ahead.blocking_turnout)
+	if _ahead.blocking_signal != null or _ahead.blocking_turnout != null:
+		what = _obstruction_text(_ahead.blocking_signal, _ahead.blocking_turnout, "against")
 	else:
 		what = "end of %s" % _ahead.rail.name
 	return "%s in %.1f m" % [what, obstruction_gap]
+
+
+## A signal at danger, or else points [param setting], as the readouts name them. A
+## member of a compound turnout is named through its assembly, since the assembly is
+## the thing the player has to change.
+static func _obstruction_text(rail_signal: RailSignal, turnout: Turnout,
+		setting: String) -> String:
+	if rail_signal != null:
+		return "%s (danger)" % rail_signal.name
+	return "%s (set %s)" % [_turnout_label(turnout), setting]
 #endregion
 
 
@@ -1051,8 +1024,7 @@ func stopping_reach() -> float:
 	return stopping_distance(current_speed, maxf(rate, braking))
 
 
-## The selected train's stopping distance, drawn on the track from its leading end
-## in the marker's colour, with a bar across where it would stand.
+## The selected train's stopping distance, drawn on the track from its leading end.
 func _refresh_strip() -> void:
 	var shown := show_stopping_strip and is_selected() and not derailed and rail != null
 	var reach := stopping_reach() if shown else 0.0
@@ -1061,42 +1033,9 @@ func _refresh_strip() -> void:
 			_strip.visible = false
 		return
 	if _strip == null:
-		_strip = MeshInstance3D.new()
-		_strip.name = "StoppingStrip"
-		_strip.top_level = true
+		_strip = StoppingStrip.new()
 		add_child(_strip, false, Node.INTERNAL_MODE_BACK)
-	_strip.visible = true
-	_strip.global_transform = Transform3D.IDENTITY
-	var mesh := ImmediateMesh.new()
-	_strip.mesh = mesh
-	const STEP := 1.0
-	const HALF_WIDTH := 0.55
-	const LIFT := 0.45
-	var color := state_color(state)
-	var half := half_length()
-	var walk := TrackWalker.walk(rail, distance, _motion * facing, half + reach)
-	var steps := maxi(1, ceili(reach / STEP))
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES, TrainCar._get_wire_material())
-	var previous := Vector3.ZERO
-	var previous_side := Vector3.ZERO
-	for i in steps + 1:
-		var spot := walk.locate(half + reach * float(i) / float(steps))
-		var point := spot.position() + Vector3.UP * LIFT
-		var side := spot.rail.sample_transform(spot.distance).basis.x * HALF_WIDTH
-		if i > 0:
-			for offset: float in [-1.0, 0.0, 1.0]:
-				_line(mesh, previous + previous_side * offset, point + side * offset, color)
-		previous = point
-		previous_side = side
-	_line(mesh, previous - previous_side * 2.0, previous + previous_side * 2.0, color)
-	mesh.surface_end()
-
-
-func _line(mesh: ImmediateMesh, from: Vector3, to: Vector3, color: Color) -> void:
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(from)
-	mesh.surface_set_color(color)
-	mesh.surface_add_vertex(to)
+	_strip.draw(rail, distance, _motion * facing, half_length(), reach, state_color(state))
 #endregion
 
 
@@ -1187,7 +1126,8 @@ static func _locate(front: TrackWalker.Step, rear: TrackWalker.Step,
 
 
 ## Writes a whole new position at once, so the setters below do not each re-place
-## the train from a half-updated state.
+## the train from a half-updated state. The train moved itself, so what is under it
+## is looked for again.
 func _apply_state(new_rail: Rail, new_distance: float, new_facing: int) -> void:
 	_suspend_placement = true
 	rail = new_rail
@@ -1195,6 +1135,7 @@ func _apply_state(new_rail: Rail, new_distance: float, new_facing: int) -> void:
 	facing = new_facing
 	_suspend_placement = false
 	_place_on_rail()
+	_points_dirty = true
 
 
 ## Moves the centre [param by] metres towards the nose, or towards the tail when
@@ -1205,7 +1146,6 @@ func _shift_centre(by: float) -> void:
 	var towards := 1 if by > 0.0 else -1
 	var step := TrackWalker.walk(rail, distance, facing * towards, absf(by))
 	_apply_state(step.rail, step.distance, step.direction * towards)
-	_points_dirty = true
 
 
 ## Somebody other than the train moved it. Whatever was under it before is not under
@@ -1218,28 +1158,27 @@ func _teleported() -> void:
 	_excused.clear()
 
 
-func _set_rail(value: Rail) -> void:
-	rail = value
+## Any of the three setters: the walks the train was placed with no longer hold.
+func _position_changed() -> void:
 	_front = null
 	_teleported()
 	_place_on_rail()
 	update_configuration_warnings()
+
+
+func _set_rail(value: Rail) -> void:
+	rail = value
+	_position_changed()
 
 
 func _set_distance(value: float) -> void:
 	distance = value
-	_front = null
-	_teleported()
-	_place_on_rail()
-	update_configuration_warnings()
+	_position_changed()
 
 
 func _set_facing(value: int) -> void:
 	facing = ALONG_RAIL if value >= 0 else AGAINST_RAIL
-	_front = null
-	_teleported()
-	_place_on_rail()
-	update_configuration_warnings()
+	_position_changed()
 #endregion
 
 
@@ -1247,23 +1186,24 @@ func _set_facing(value: int) -> void:
 ## Couples [param type] on behind the last wagon. The nose stays where it is; the
 ## train grows backwards.
 func add_wagon(type: WagonType) -> void:
-	var before := half_length()
-	_suspend_placement = true
 	var list := wagons.duplicate()
 	list.append(type)
-	wagons = list
-	_suspend_placement = false
-	_shift_centre(before - half_length())
+	_recouple(list)
 
 
 ## Uncouples the last wagon, if there is one. The nose stays where it is.
 func remove_wagon() -> void:
 	if wagons.is_empty():
 		return
-	var before := half_length()
-	_suspend_placement = true
 	var list := wagons.duplicate()
 	list.pop_back()
+	_recouple(list)
+
+
+## Puts [param list] in as the wagons, keeping the nose where it is.
+func _recouple(list: Array[WagonType]) -> void:
+	var before := half_length()
+	_suspend_placement = true
 	wagons = list
 	_suspend_placement = false
 	_shift_centre(before - half_length())
@@ -1271,7 +1211,7 @@ func remove_wagon() -> void:
 
 ## Locomotive first, then every wagon that is set.
 func _car_types() -> Array[CarType]:
-	var types: Array[CarType] = [locomotive if locomotive != null else _stand_in_locomotive()]
+	var types: Array[CarType] = [locomotive if locomotive != null else LocomotiveType.stand_in()]
 	for wagon in wagons:
 		if wagon != null:
 			types.append(wagon)
@@ -1303,7 +1243,8 @@ func _rebuild_cars() -> void:
 	if not is_inside_tree():
 		return
 
-	_ensure_materials()
+	if _paint == null:
+		_paint = TrainPaint.new()
 	while _cars.size() > types.size():
 		var spare: TrainCar = _cars.pop_back()
 		remove_child(spare)
@@ -1312,30 +1253,17 @@ func _rebuild_cars() -> void:
 		var car := TrainCar.new()
 		car.name = "Car%d" % _cars.size()
 		add_child(car, false, Node.INTERNAL_MODE_BACK)
-		car.clicked.connect(_on_car_clicked)
+		car.clicked.connect(select)
 		_cars.append(car)
 	var painted := livery != null
 	for i in types.size():
 		var engine := i == 0 and painted
 		_cars[i].build(types[i], i == 0, load_factor,
-				_loco_material if engine else _body_material, _load_material, _marker_material,
-				_stripe_material if engine and livery.striped else null)
+				_paint.engine if engine else _paint.body, _paint.cargo, _paint.marker,
+				_paint.stripe if engine and livery.striped else null)
 	_update_state()
 	_refresh_look()
 	_place_on_rail()
-
-
-func _ensure_materials() -> void:
-	if _body_material != null:
-		return
-	_body_material = StandardMaterial3D.new()
-	_body_material.albedo_color = _COLOR_BODY
-	_load_material = StandardMaterial3D.new()
-	_load_material.albedo_color = _COLOR_LOAD
-	_marker_material = StandardMaterial3D.new()
-	_marker_material.emission_enabled = true
-	_loco_material = StandardMaterial3D.new()
-	_stripe_material = StandardMaterial3D.new()
 
 
 ## Listens to every type the train is built from, so editing a shared type in the
@@ -1349,16 +1277,6 @@ func _bind_types() -> void:
 		if not _bound_types.has(type):
 			type.changed.connect(_rebuild_cars)
 			_bound_types.append(type)
-
-
-static func _stand_in_locomotive() -> LocomotiveType:
-	if _stand_in == null:
-		_stand_in = LocomotiveType.new()
-		_stand_in.display_name = "stand-in locomotive"
-		_stand_in.length = 16.0
-		_stand_in.mass = 80.0
-		_stand_in.traction = 360.0
-	return _stand_in
 
 
 func _set_locomotive(value: LocomotiveType) -> void:

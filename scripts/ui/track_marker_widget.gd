@@ -19,8 +19,13 @@ const COLLAPSED_SIZE := Vector2(20.0, 20.0)
 ## floats above its marker rather than over it, so it never hides it.
 const STANDOFF := 16.0
 
+## The palette every widget draws with.
 const _COLOR_BACKGROUND := Color(0.06, 0.07, 0.09, 0.72)
 const _COLOR_TEXT := Color(0.93, 0.94, 0.96)
+## A route that is set, a signal at clear.
+const _COLOR_GO := Color(0.25, 1.0, 0.35)
+## A route that is not set, a signal at danger.
+const _COLOR_STOP := Color(0.85, 0.2, 0.18)
 
 var camera: Camera3D
 ## A dot with a leader line instead of the full widget. Set by the overlay, which
@@ -93,10 +98,7 @@ func _draw_expanded(_accent: Color) -> void:
 ## The widget's outline. A subclass overrides this when its shape carries meaning
 ## rather than just holding the contents.
 func _draw_frame(accent: Color) -> void:
-	var background := _COLOR_BACKGROUND
-	if _hovered:
-		background = background.lightened(0.3)
-	draw_rect(Rect2(Vector2.ZERO, size), background)
+	draw_rect(Rect2(Vector2.ZERO, size), _background_color())
 	draw_rect(Rect2(Vector2.ZERO, size), accent, false, 1.0)
 
 
@@ -113,26 +115,17 @@ func _draw_collapsed(accent: Color) -> void:
 ## when the marker is behind the camera or off screen, in which case the overlay
 ## hides the widget rather than laying it out.
 func track_camera() -> bool:
-	if camera == null or not camera.is_inside_tree() or not is_alive():
+	var on_screen := _project_anchor()
+	if not on_screen:
 		_hovered = false
-		return false
-	var anchor := marker_anchor()
-	if camera.is_position_behind(anchor):
-		_hovered = false
-		return false
-	anchor_screen = camera.unproject_position(anchor)
-	camera_distance = camera.global_position.distance_to(anchor)
-	if not Rect2(Vector2.ZERO, get_viewport_rect().size).has_point(anchor_screen):
-		_hovered = false
-		return false
-	return true
+	return on_screen
 
 
-## Where the widget would sit if nothing else were on screen: centred above its
-## marker, kept inside the viewport.
+## Where the widget would sit if nothing else were on screen - see
+## [method _anchor_offset] - kept inside the viewport.
 func desired_rect(viewport: Vector2) -> Rect2:
 	var extent := size * scale
-	var top_left := anchor_screen - Vector2(extent.x * 0.5, extent.y + STANDOFF)
+	var top_left := anchor_screen - _anchor_offset(extent)
 	return Rect2(top_left.clamp(Vector2.ZERO, Vector2(
 			maxf(viewport.x - extent.x, 0.0), maxf(viewport.y - extent.y, 0.0))), extent)
 
@@ -177,6 +170,48 @@ func refresh_size() -> void:
 	if not is_inside_tree():
 		return
 	size = COLLAPSED_SIZE if collapsed else expanded_size()
+
+
+## How far up and left of its anchor the widget's corner goes, for a widget
+## [param extent] big on screen: centred above the marker, [constant STANDOFF] clear of it.
+func _anchor_offset(extent: Vector2) -> Vector2:
+	return Vector2(extent.x * 0.5, extent.y + STANDOFF)
+
+
+## The part of [method track_camera] that can fail: false when the anchor is
+## behind the camera or off screen.
+func _project_anchor() -> bool:
+	if camera == null or not camera.is_inside_tree() or not is_alive():
+		return false
+	var anchor := marker_anchor()
+	if camera.is_position_behind(anchor):
+		return false
+	anchor_screen = camera.unproject_position(anchor)
+	camera_distance = camera.global_position.distance_to(anchor)
+	return Rect2(Vector2.ZERO, get_viewport_rect().size).has_point(anchor_screen)
+#endregion
+
+
+#region Drawing helpers
+func _background_color() -> Color:
+	return _COLOR_BACKGROUND.lightened(0.3) if _hovered else _COLOR_BACKGROUND
+
+
+func _text_width(text: String) -> float:
+	return get_theme_default_font().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
+			get_theme_default_font_size()).x
+
+
+## [param text] in the theme's default font, left-aligned with its baseline at [param at].
+func _draw_text(at: Vector2, text: String, color: Color) -> void:
+	draw_string(get_theme_default_font(), at, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
+			get_theme_default_font_size(), color)
+
+
+## For a setter whose value changes the widget's size as well as its looks.
+func _restyle() -> void:
+	refresh_size()
+	queue_redraw()
 #endregion
 
 
@@ -206,8 +241,7 @@ func _set_collapsed(value: bool) -> void:
 	if collapsed == value:
 		return
 	collapsed = value
-	refresh_size()
-	queue_redraw()
+	_restyle()
 
 
 func _on_hover(entered: bool) -> void:

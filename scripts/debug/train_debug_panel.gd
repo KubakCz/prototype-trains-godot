@@ -16,12 +16,12 @@ const _SPARE_WAGON := "res://rolling_stock/coach.tres"
 var _trains: Array[Train] = []
 
 
-func _ready() -> void:
-	super._ready()
+func _missing_warning() -> String:
 	_collect_trains()
 	# A level with a spawner starts with none: the trains come a frame later.
 	if _trains.is_empty() and get_tree().get_nodes_in_group(TrainSpawner.GROUP).is_empty():
-		push_warning("No trains in group '%s'." % train_group)
+		return "No trains in group '%s'." % train_group
+	return ""
 
 
 func _panel_title() -> String:
@@ -72,8 +72,8 @@ func _panel_key(keycode: Key) -> bool:
 
 func _panel_controls() -> Array[String]:
 	return [
-		"stopping strip: %s" % ("on" if Train.show_stopping_strip else "off"),
-		"collision boxes: %s" % ("on" if Train.show_collision_boxes else "off"),
+		"stopping strip: %s" % _on_off(Train.show_stopping_strip),
+		"collision boxes: %s" % _on_off(Train.show_collision_boxes),
 	]
 
 
@@ -104,7 +104,7 @@ func _describe(train: Train) -> Array[String]:
 	var rail_length: float = train.rail.rail_length() if train.rail != null else 0.0
 	var lines: Array[String] = []
 	lines.append("%s %-13s %-9s %s   on %s %.1f / %.1f m  nose %s" % [
-		">" if train.is_selected() else " ",
+		_mark(train.is_selected()),
 		train.name,
 		train.state_name(),
 		_describe_motion(train),

@@ -2,7 +2,7 @@ extends SceneTree
 ## Builds the playground, [code]scenes/main.tscn[/code], and bakes the terrain under it.
 ##
 ## [codeblock]
-## Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tools/build_playground.gd
+## godot --headless --path . --script res://tools/build_playground.gd
 ## [/codeblock]
 ##
 ## The level is drawn here as plain geometry - straights and circular arcs, each rail
@@ -14,6 +14,9 @@ extends SceneTree
 ##
 ## Coordinates below are the layout's own: x east, z south, the oval centred on the
 ## origin. [constant SHIFT] moves the whole level on the way out.
+
+const Kit := preload("res://tools/scene_kit.gd")
+const Track := Kit.Track
 
 const SCENE_PATH := "res://scenes/main.tscn"
 const HEIGHTS_PATH := "res://scenes/main_heights.res"
@@ -104,82 +107,13 @@ const STREAM_LEVEL := -5.4
 const POND_DEPTH := 1.2
 const POND_RADIUS := 24.0
 const POND_LEVEL := -0.4
-## Carving, as on the desert level: a flat bed either side of the centre line, cuttings at
-## 1:1 and banks at 1:1.6 beyond it. Ground this far over the railhead is a tunnel and is
-## kept a roof's height above it; ground this far under the bed is a bridge and is left be.
-const BED_HALF_WIDTH := 3.0
-const CUT_SLOPE := 1.0
-const BANK_SLOPE := 1.6
-const TUNNEL_COVER := 7.0
-const TUNNEL_ROOF := 6.5
-const BRIDGE_DROP := 1.5
+## How far either side of the track carving reaches; the rest of the rules are
+## [code]Kit[/code]'s.
 const CARVE_REACH := 24.0
 #endregion
 
 const _CLEARANCE := 4.6
 
-enum Kind { TRACK, TUNNEL, BRIDGE }
-
-
-## A rail drawn as a turtle walk in plan: a list of poses, each a point and the heading
-## the track has there in degrees clockwise from +X seen from above - 0 is east, 90 is
-## south. Consecutive poses become one cubic segment of the curve.
-class Track:
-	var points: Array[Vector2] = []
-	var headings: Array[float] = []
-
-	func _init(start: Vector2, toward: float) -> void:
-		points.append(start)
-		headings.append(toward)
-
-
-	func position() -> Vector2:
-		return points[-1]
-
-
-	func heading() -> float:
-		return headings[-1]
-
-
-	func line(length: float) -> Track:
-		return to(position() + direction(heading()) * length, heading())
-
-
-	## Straight on until x reaches [param x].
-	func line_to_x(x: float) -> Track:
-		return line((x - position().x) / direction(heading()).x)
-
-
-	## Straight on until z reaches [param z].
-	func line_to_z(z: float) -> Track:
-		return line((z - position().y) / direction(heading()).y)
-
-
-	## Right for positive [param degrees], left for negative. Split into steps of at most
-	## 45 degrees, which a cubic follows to within a few millimetres.
-	func arc(radius: float, degrees: float) -> Track:
-		var steps := maxi(1, ceili(absf(degrees) / 45.0 - 1e-6))
-		var step := degrees / float(steps)
-		for _i in steps:
-			var centre := position() + direction(heading() + 90.0 * signf(degrees)) * radius
-			var arm := (position() - centre).rotated(deg_to_rad(step))
-			to(centre + arm, heading() + step)
-		return self
-
-
-	## Any pose at all, joined to the last by a cubic leaving and arriving along the two
-	## headings - an S-bend when they are parallel.
-	func to(point: Vector2, toward: float) -> Track:
-		points.append(point)
-		headings.append(toward)
-		return self
-
-
-	static func direction(degrees: float) -> Vector2:
-		return Vector2.from_angle(deg_to_rad(degrees))
-
-
-var _tracks: Dictionary[String, Track] = {}
 var _curves: Dictionary[String, Curve3D] = {}
 var _rail_order: Array[String] = []
 var _turnouts: Array[Dictionary] = []
@@ -202,22 +136,13 @@ func _initialize() -> void:
 	_place_signals()
 	_place_trains()
 	_check_clearances()
-	var heights := _bake_terrain()
-	var error := ResourceSaver.save(heights, HEIGHTS_PATH)
-	if error != OK:
-		push_error("Could not save %s: %s" % [HEIGHTS_PATH, error_string(error)])
+	if not Kit.save_heights(_bake_terrain(), HEIGHTS_PATH) \
+			or not Kit.write_scene(SCENE_PATH, _scene_text()):
 		quit(1)
 		return
-	var file := FileAccess.open(SCENE_PATH, FileAccess.WRITE)
-	if file == null:
-		push_error("Could not write %s" % SCENE_PATH)
-		quit(1)
-		return
-	file.store_string(_scene_text())
-	file.close()
 	print("Wrote %s: %d rails, %d turnouts, %d assemblies, %d crossings, %d signals, %d trains"
-			% [SCENE_PATH, _rail_order.size(), _turnout_count(), _compounds.size(),
-			_crossings.size(), _signals.size(), _trains.size()])
+			% [SCENE_PATH, _rail_order.size(), Kit.all_turnouts(_turnouts, _compounds).size(),
+			_compounds.size(), _crossings.size(), _signals.size(), _trains.size()])
 	quit(0)
 
 
@@ -307,34 +232,12 @@ func _on_freight(along: float) -> Vector2:
 
 
 func _add(rail: String, track: Track) -> void:
-	_tracks[rail] = track
-	_curves[rail] = _curve(track)
+	_curves[rail] = Kit.curve(track, RAILHEAD, SHIFT)
 	_rail_order.append(rail)
 
 
-## The track as a [Curve3D]: one point per pose, with handles along the headings. A
-## segment between two poses on an arc gets the handles that make it follow the arc;
-## a straight or an S-bend gets a third of its chord.
-func _curve(track: Track) -> Curve3D:
-	var curve := Curve3D.new()
-	for point in track.points:
-		curve.add_point(_world(point))
-	for i in track.points.size() - 1:
-		var chord := track.points[i].distance_to(track.points[i + 1])
-		var turn := deg_to_rad(absf(wrapf(track.headings[i + 1] - track.headings[i],
-				-180.0, 180.0)))
-		var handle := chord / 3.0
-		if turn > 1e-4:
-			handle = chord * 2.0 / 3.0 * tan(turn / 4.0) / sin(turn / 2.0)
-		var out := Track.direction(track.headings[i]) * handle
-		var back := Track.direction(track.headings[i + 1]) * -handle
-		curve.set_point_out(i, Vector3(out.x, 0.0, out.y))
-		curve.set_point_in(i + 1, Vector3(back.x, 0.0, back.y))
-	return curve
-
-
 func _world(point: Vector2) -> Vector3:
-	return Vector3(point.x + SHIFT.x, RAILHEAD, point.y + SHIFT.y)
+	return Kit.world(point, RAILHEAD, SHIFT)
 
 
 ## Metres along [param rail] to the point nearest [param point].
@@ -435,12 +338,6 @@ func _crossing(name: String, rail_a: String, rail_b: String, at: Vector2) -> Dic
 	return {"name": name, "a": rail_a, "distance_a": _distance(rail_a, at), "b": rail_b,
 			"distance_b": _distance(rail_b, at), "at": at}
 
-
-func _turnout_count() -> int:
-	var count := _turnouts.size()
-	for compound in _compounds:
-		count += (compound["members"] as Array).size()
-	return count
 #endregion
 
 
@@ -449,9 +346,13 @@ func _turnout_count() -> int:
 ## the junction it protects and the side a train comes at it from, stands
 ## [constant FACING_SIGNAL], [constant TRAILING_SIGNAL] or [constant CROSSING_SIGNAL]
 ## out from it, and governs the direction that train is travelling along the rail.
+##
+## A row is name, rail, where on it the junction is - a point in plan, or the rail's
+## "start" or "end" for a junction its end is welded into - and how far from there the
+## signal stands. Short of the junction along the rail is towards its end, so a
+## negative offset governs [constant RailSignal.Governs.TOWARDS_RAIL_END] and a positive
+## one [constant RailSignal.Governs.TOWARDS_RAIL_START].
 func _place_signals() -> void:
-	var towards_end := RailSignal.Governs.TOWARDS_RAIL_END
-	var towards_start := RailSignal.Governs.TOWARDS_RAIL_START
 	var balloon_west := Vector2(BALLOON_WEST_X, -OUTER)
 	var balloon_east := Vector2(BALLOON_EAST_X, -OUTER)
 	var crossover_outer := Vector2(CROSSOVER_X, -OUTER)
@@ -461,113 +362,87 @@ func _place_signals() -> void:
 	var wye_north := Vector2(STRAIGHT, -OUTER)
 	var wye_south := Vector2(STRAIGHT, OUTER)
 	var yard_entry := Vector2(YARD_ENTRY_X, -INNER)
-
-	# The balloon. OuterLine runs west past BalloonWest, NorthLine west past BalloonEast
-	# and on round the loop, so it arrives back at BalloonWest heading east.
-	_add_signal("BalloonWestFromEast", "OuterLine",
-			_distance("OuterLine", balloon_west) - FACING_SIGNAL, towards_end)
-	_add_signal("BalloonWestFromWest", "OuterLine",
-			_distance("OuterLine", balloon_west) + TRAILING_SIGNAL, towards_start)
-	_add_signal("BalloonWestFromLoop", "NorthLine",
-			_length("NorthLine") - TRAILING_SIGNAL, towards_end)
-	_add_signal("BalloonEastFromEast", "NorthLine",
-			_distance("NorthLine", balloon_east) - FACING_SIGNAL, towards_end)
-	_add_signal("BalloonEastFromLoop", "NorthLine",
-			_distance("NorthLine", balloon_east) + TRAILING_SIGNAL, towards_start)
-	_add_signal("BalloonEastFromWest", "OuterLine", TRAILING_SIGNAL, towards_start)
-
-	# The north straight: NorthLine runs west along the outer track, InnerLine east along
-	# the inner one.
-	_add_signal("NorthCrossoverOuterFromEast", "NorthLine",
-			_distance("NorthLine", crossover_outer) - TRAILING_SIGNAL, towards_end)
-	_add_signal("NorthCrossoverOuterFromWest", "NorthLine",
-			_distance("NorthLine", crossover_outer) + FACING_SIGNAL, towards_start)
-	_add_signal("NorthCrossoverInnerFromWest", "InnerLine",
-			_distance("InnerLine", crossover_inner) - TRAILING_SIGNAL, towards_end)
-	_add_signal("NorthCrossoverInnerFromEast", "InnerLine",
-			_distance("InnerLine", crossover_inner) + FACING_SIGNAL, towards_start)
-	_add_signal("NorthMergeFromEast", "NorthLine",
-			_distance("NorthLine", north_merge) - FACING_SIGNAL, towards_end)
-	_add_signal("NorthMergeFromWest", "NorthLine",
-			_distance("NorthLine", north_merge) + TRAILING_SIGNAL, towards_start)
-	_add_signal("NorthMergeFromInner", "InnerLine",
-			_length("InnerLine") - TRAILING_SIGNAL, towards_end)
-	_add_signal("YardEntryFromWest", "InnerLine",
-			_distance("InnerLine", yard_entry) - FACING_SIGNAL, towards_end)
-	_add_signal("YardEntryFromEast", "InnerLine",
-			_distance("InnerLine", yard_entry) + TRAILING_SIGNAL, towards_start)
-	_add_signal("YardEntryFromYard", "YardLead", TRAILING_SIGNAL, towards_start)
-
-	# The wye. NorthLine starts at the apex, HillLine runs from the tail through the apex
-	# and down the south leg, and OuterLine ends coming round the east curve.
-	_add_signal("WyeNorthFromWest", "NorthLine",
-			_distance("NorthLine", wye_north) + FACING_SIGNAL, towards_start)
-	_add_signal("WyeNorthFromWye", "NorthLine",
-			_distance("NorthLine", wye_north) - TRAILING_SIGNAL, towards_end)
-	_add_signal("WyeNorthFromCurve", "OuterLine",
-			_length("OuterLine") - TRAILING_SIGNAL, towards_end)
-	_add_signal("WyeSouthFromWest", "OuterLine",
-			_distance("OuterLine", wye_south) - FACING_SIGNAL, towards_end)
-	_add_signal("WyeSouthFromCurve", "OuterLine",
-			_distance("OuterLine", wye_south) + TRAILING_SIGNAL, towards_start)
-	_add_signal("WyeSouthFromWye", "HillLine",
-			_length("HillLine") - TRAILING_SIGNAL, towards_end)
-	_add_signal("WyeEastFromTail", "HillLine",
-			_distance("HillLine", _apex) - FACING_SIGNAL, towards_end)
-	_add_signal("WyeEastFromSouth", "HillLine",
-			_distance("HillLine", _apex) + TRAILING_SIGNAL, towards_start)
-	_add_signal("WyeEastFromNorth", "NorthLine", TRAILING_SIGNAL, towards_start)
-
-	# The south straight: OuterLine runs east, InnerLine west.
-	_add_signal("SouthMergeFromEast", "OuterLine",
-			_distance("OuterLine", south_merge) + FACING_SIGNAL, towards_start)
-	_add_signal("SouthMergeFromWest", "OuterLine",
-			_distance("OuterLine", south_merge) - TRAILING_SIGNAL, towards_end)
-	_add_signal("SouthMergeFromInner", "InnerLine", TRAILING_SIGNAL, towards_start)
-	_add_signal("SouthScissorsOuterFromWest", "OuterLine",
-			_distance("OuterLine", Vector2(SCISSORS_X, OUTER)) - FACING_SIGNAL, towards_end)
-	_add_signal("SouthScissorsOuterFromEast", "OuterLine",
-			_distance("OuterLine", Vector2(SCISSORS_X + LINK_LENGTH, OUTER)) + FACING_SIGNAL,
-			towards_start)
-	_add_signal("SouthScissorsInnerFromWest", "InnerLine",
-			_distance("InnerLine", Vector2(SCISSORS_X, INNER)) + FACING_SIGNAL, towards_start)
-	_add_signal("SouthScissorsInnerFromEast", "InnerLine",
-			_distance("InnerLine", Vector2(SCISSORS_X + LINK_LENGTH, INNER)) - FACING_SIGNAL,
-			towards_end)
-
 	# The two diamonds are 5 m apart, so they are protected as one: from both ends of
 	# both tracks and from both ends of the freight line, which runs north here.
 	var outer_diamond := Vector2(DIAMOND_X, OUTER)
 	var inner_diamond := Vector2(DIAMOND_X, INNER)
-	_add_signal("DiamondOuterFromWest", "OuterLine",
-			_distance("OuterLine", outer_diamond) - CROSSING_SIGNAL, towards_end)
-	_add_signal("DiamondOuterFromEast", "OuterLine",
-			_distance("OuterLine", outer_diamond) + CROSSING_SIGNAL, towards_start)
-	_add_signal("DiamondInnerFromWest", "InnerLine",
-			_distance("InnerLine", inner_diamond) + CROSSING_SIGNAL, towards_start)
-	_add_signal("DiamondInnerFromEast", "InnerLine",
-			_distance("InnerLine", inner_diamond) - CROSSING_SIGNAL, towards_end)
-	_add_signal("DiamondFromSouth", "FreightLine",
-			_distance("FreightLine", outer_diamond) - CROSSING_SIGNAL, towards_end)
-	_add_signal("DiamondFromNorth", "FreightLine",
-			_distance("FreightLine", inner_diamond) + CROSSING_SIGNAL, towards_start)
 
-	# The yard. Both the lead and the freight line run east through the slip.
-	_add_signal("YardSlipLeadFromWest", "YardLead",
-			_distance("YardLead", _on_lead(-SLIP_REACH)) - FACING_SIGNAL, towards_end)
-	_add_signal("YardSlipFreightFromWest", "FreightLine",
-			_distance("FreightLine", _on_freight(-SLIP_REACH)) - FACING_SIGNAL, towards_end)
-	_add_signal("YardSlipLeadFromEast", "YardLead",
-			_distance("YardLead", _on_lead(SLIP_REACH)) + FACING_SIGNAL, towards_start)
-	_add_signal("YardSlipFreightFromEast", "FreightLine",
-			_distance("FreightLine", _on_freight(SLIP_REACH)) + FACING_SIGNAL, towards_start)
-	_add_signal("YardThreeWayFromWest", "YardLead",
-			_distance("YardLead", _on_lead(THREE_WAY_AT)) - FACING_SIGNAL, towards_end)
-	_add_signal("YardThreeWayFromLeft", "YardLeft", TRAILING_SIGNAL, towards_start)
-	_add_signal("YardThreeWayFromMiddle", "YardLead",
-			_distance("YardLead", _on_lead(THREE_WAY_AT + THREE_WAY_STAGGER)) + TRAILING_SIGNAL,
-			towards_start)
-	_add_signal("YardThreeWayFromRight", "YardRight", TRAILING_SIGNAL, towards_start)
+	for row: Array in [
+		# The balloon. OuterLine runs west past BalloonWest, NorthLine west past
+		# BalloonEast and on round the loop, so it arrives back at BalloonWest heading east.
+		["BalloonWestFromEast", "OuterLine", balloon_west, -FACING_SIGNAL],
+		["BalloonWestFromWest", "OuterLine", balloon_west, TRAILING_SIGNAL],
+		["BalloonWestFromLoop", "NorthLine", "end", -TRAILING_SIGNAL],
+		["BalloonEastFromEast", "NorthLine", balloon_east, -FACING_SIGNAL],
+		["BalloonEastFromLoop", "NorthLine", balloon_east, TRAILING_SIGNAL],
+		["BalloonEastFromWest", "OuterLine", "start", TRAILING_SIGNAL],
+
+		# The north straight: NorthLine runs west along the outer track, InnerLine east
+		# along the inner one.
+		["NorthCrossoverOuterFromEast", "NorthLine", crossover_outer, -TRAILING_SIGNAL],
+		["NorthCrossoverOuterFromWest", "NorthLine", crossover_outer, FACING_SIGNAL],
+		["NorthCrossoverInnerFromWest", "InnerLine", crossover_inner, -TRAILING_SIGNAL],
+		["NorthCrossoverInnerFromEast", "InnerLine", crossover_inner, FACING_SIGNAL],
+		["NorthMergeFromEast", "NorthLine", north_merge, -FACING_SIGNAL],
+		["NorthMergeFromWest", "NorthLine", north_merge, TRAILING_SIGNAL],
+		["NorthMergeFromInner", "InnerLine", "end", -TRAILING_SIGNAL],
+		["YardEntryFromWest", "InnerLine", yard_entry, -FACING_SIGNAL],
+		["YardEntryFromEast", "InnerLine", yard_entry, TRAILING_SIGNAL],
+		["YardEntryFromYard", "YardLead", "start", TRAILING_SIGNAL],
+
+		# The wye. NorthLine starts at the apex, HillLine runs from the tail through the
+		# apex and down the south leg, and OuterLine ends coming round the east curve.
+		["WyeNorthFromWest", "NorthLine", wye_north, FACING_SIGNAL],
+		["WyeNorthFromWye", "NorthLine", wye_north, -TRAILING_SIGNAL],
+		["WyeNorthFromCurve", "OuterLine", "end", -TRAILING_SIGNAL],
+		["WyeSouthFromWest", "OuterLine", wye_south, -FACING_SIGNAL],
+		["WyeSouthFromCurve", "OuterLine", wye_south, TRAILING_SIGNAL],
+		["WyeSouthFromWye", "HillLine", "end", -TRAILING_SIGNAL],
+		["WyeEastFromTail", "HillLine", _apex, -FACING_SIGNAL],
+		["WyeEastFromSouth", "HillLine", _apex, TRAILING_SIGNAL],
+		["WyeEastFromNorth", "NorthLine", "start", TRAILING_SIGNAL],
+
+		# The south straight: OuterLine runs east, InnerLine west.
+		["SouthMergeFromEast", "OuterLine", south_merge, FACING_SIGNAL],
+		["SouthMergeFromWest", "OuterLine", south_merge, -TRAILING_SIGNAL],
+		["SouthMergeFromInner", "InnerLine", "start", TRAILING_SIGNAL],
+		["SouthScissorsOuterFromWest", "OuterLine", Vector2(SCISSORS_X, OUTER),
+				-FACING_SIGNAL],
+		["SouthScissorsOuterFromEast", "OuterLine", Vector2(SCISSORS_X + LINK_LENGTH, OUTER),
+				FACING_SIGNAL],
+		["SouthScissorsInnerFromWest", "InnerLine", Vector2(SCISSORS_X, INNER),
+				FACING_SIGNAL],
+		["SouthScissorsInnerFromEast", "InnerLine", Vector2(SCISSORS_X + LINK_LENGTH, INNER),
+				-FACING_SIGNAL],
+
+		["DiamondOuterFromWest", "OuterLine", outer_diamond, -CROSSING_SIGNAL],
+		["DiamondOuterFromEast", "OuterLine", outer_diamond, CROSSING_SIGNAL],
+		["DiamondInnerFromWest", "InnerLine", inner_diamond, CROSSING_SIGNAL],
+		["DiamondInnerFromEast", "InnerLine", inner_diamond, -CROSSING_SIGNAL],
+		["DiamondFromSouth", "FreightLine", outer_diamond, -CROSSING_SIGNAL],
+		["DiamondFromNorth", "FreightLine", inner_diamond, CROSSING_SIGNAL],
+
+		# The yard. Both the lead and the freight line run east through the slip.
+		["YardSlipLeadFromWest", "YardLead", _on_lead(-SLIP_REACH), -FACING_SIGNAL],
+		["YardSlipFreightFromWest", "FreightLine", _on_freight(-SLIP_REACH), -FACING_SIGNAL],
+		["YardSlipLeadFromEast", "YardLead", _on_lead(SLIP_REACH), FACING_SIGNAL],
+		["YardSlipFreightFromEast", "FreightLine", _on_freight(SLIP_REACH), FACING_SIGNAL],
+		["YardThreeWayFromWest", "YardLead", _on_lead(THREE_WAY_AT), -FACING_SIGNAL],
+		["YardThreeWayFromLeft", "YardLeft", "start", TRAILING_SIGNAL],
+		["YardThreeWayFromMiddle", "YardLead", _on_lead(THREE_WAY_AT + THREE_WAY_STAGGER),
+				TRAILING_SIGNAL],
+		["YardThreeWayFromRight", "YardRight", "start", TRAILING_SIGNAL],
+	]:
+		var rail: String = row[1]
+		var from := 0.0
+		if row[2] is Vector2:
+			from = _distance(rail, row[2] as Vector2)
+		elif row[2] == "end":
+			from = _length(rail)
+		var offset: float = row[3]
+		_add_signal(row[0] as String, rail, from + offset,
+				RailSignal.Governs.TOWARDS_RAIL_END if offset < 0.0
+				else RailSignal.Governs.TOWARDS_RAIL_START)
 
 
 func _add_signal(name: String, rail: String, distance: float, governs: int) -> void:
@@ -629,11 +504,8 @@ func _add_train(name: String, signal_name: String, gap: float, speed: float, end
 ## are what to change.
 func _check_clearances() -> void:
 	var meeting: Array[Vector2] = []
-	for turnout in _turnouts:
+	for turnout in Kit.all_turnouts(_turnouts, _compounds):
 		meeting.append(turnout["at"] as Vector2)
-	for compound in _compounds:
-		for member: Dictionary in compound["members"]:
-			meeting.append(member["at"] as Vector2)
 	for crossing in _crossings:
 		meeting.append(crossing["at"] as Vector2)
 
@@ -706,15 +578,6 @@ func _pond_centre() -> Vector2:
 	return Vector2(BALLOON_WEST_X, -OUTER - LOOP_RADIUS)
 
 
-## What the track needs of the ground where it stands on [param natural] ground.
-func _kind(natural: float) -> Kind:
-	if natural > RAILHEAD + TUNNEL_COVER:
-		return Kind.TUNNEL
-	if natural < RAILHEAD - BED_DEPTH - BRIDGE_DROP:
-		return Kind.BRIDGE
-	return Kind.TRACK
-
-
 ## The natural ground, carved to the track and baked into the heightmap
 ## [member Ground.heightmap] reads: [constant Image.FORMAT_RF], first row at -Z.
 ##
@@ -754,25 +617,25 @@ func _bake_terrain() -> Image:
 		kinds.resize(columns * rows)
 		railheads.resize(columns * rows)
 		var along := 0.0
-		var run_kind := Kind.TRACK
+		var run_kind := Kit.Kind.TRACK
 		var run_start := 0.0
 		while along <= curve.get_baked_length():
 			var at := curve.sample_baked(along, true)
 			var plan := Vector2(at.x, at.z)
 			var here := along
 			along += 0.5
-			var kind := Kind.TRACK
+			var kind := Kit.Kind.TRACK
 			if not _is_flat_around(plan - SHIFT):
-				kind = _kind(_natural(plan - SHIFT))
+				kind = Kit.kind(_natural(plan - SHIFT), RAILHEAD, BED_DEPTH)
 			if kind != run_kind:
 				_close_structure(rail, run_kind, run_start, here)
 				run_kind = kind
 				run_start = here
-			if kind == Kind.TRACK and _is_flat_around(plan - SHIFT):
+			if kind == Kit.Kind.TRACK and _is_flat_around(plan - SHIFT):
 				continue
-			if kind == Kind.TUNNEL:
+			if kind == Kit.Kind.TUNNEL:
 				tunnels += 0.5
-			elif kind == Kind.BRIDGE:
+			elif kind == Kit.Kind.BRIDGE:
 				bridges += 0.5
 			var centre_column := roundi((plan.x + half.x) / GRID)
 			var centre_row := roundi((plan.y + half.y) / GRID)
@@ -792,18 +655,11 @@ func _bake_terrain() -> Image:
 			var gap := nearest[index]
 			if gap > CARVE_REACH:
 				continue
-			var bed := railheads[index] - BED_DEPTH
-			var beyond := maxf(gap - BED_HALF_WIDTH, 0.0)
-			match kinds[index]:
-				Kind.TRACK:
-					ceiling[index] = minf(ceiling[index], bed + beyond * CUT_SLOPE)
-					floor_height[index] = maxf(floor_height[index], bed - beyond / BANK_SLOPE)
-				Kind.BRIDGE:
-					ceiling[index] = minf(ceiling[index], bed + beyond * CUT_SLOPE)
-				Kind.TUNNEL:
-					if gap < BED_HALF_WIDTH + 1.0:
-						floor_height[index] = maxf(floor_height[index],
-								railheads[index] + TUNNEL_ROOF)
+			var kind := kinds[index] as Kit.Kind
+			ceiling[index] = minf(ceiling[index],
+					Kit.cut_limit(kind, gap, railheads[index], BED_DEPTH))
+			floor_height[index] = maxf(floor_height[index],
+					Kit.fill_limit(kind, gap, railheads[index], BED_DEPTH))
 	print("  terrain: %d x %d vertices, %.0f m of track in tunnels, %.0f m on bridges"
 			% [columns, rows, tunnels, bridges])
 
@@ -818,8 +674,8 @@ func _bake_terrain() -> Image:
 
 ## Records a finished run of tunnel or bridge along [param rail], for the scene.
 ## The stone arch is the playground's bridge; the structures demo has the rest.
-func _close_structure(rail: String, kind: Kind, from: float, to: float) -> void:
-	if kind == Kind.TRACK or to - from < 2.0:
+func _close_structure(rail: String, kind: Kit.Kind, from: float, to: float) -> void:
+	if kind == Kit.Kind.TRACK or to - from < 2.0:
 		return
 	_structures.append({"kind": kind, "rail": rail, "from": from, "to": to})
 
@@ -869,92 +725,34 @@ func _scene_text() -> String:
 	lines.append("")
 	lines.append_array(_environment_text())
 	for rail in _rail_order:
-		lines.append_array(_curve_text(rail))
+		lines.append_array(Kit.curve_text(rail, _curves[rail]))
 
 	lines.append('[node name="Main" type="Node3D"]')
 	lines.append("")
-	lines.append('[node name="WorldEnvironment" type="WorldEnvironment" parent="."]')
-	lines.append('environment = SubResource("Environment_1")')
-	lines.append("")
-	lines.append('[node name="Sun" type="DirectionalLight3D" parent="."]')
-	lines.append("transform = Transform3D(0.6452, -0.628, 0.4352, 0, 0.5696, 0.822, -0.764, "
-			+ "-0.5303, 0.3675, 0, 60, 0)")
-	lines.append("light_energy = 1.3")
-	lines.append("shadow_enabled = true")
-	lines.append("directional_shadow_max_distance = 500.0")
-	lines.append("")
-	lines.append('[node name="Ground" type="MeshInstance3D" parent="." groups=["snap_surface"]]')
-	lines.append('script = ExtResource("1_ground")')
-	lines.append("size = Vector2(%s, %s)" % [_num(GROUND_SIZE.x), _num(GROUND_SIZE.y)])
-	lines.append('heightmap = ExtResource("13_heights")')
-	lines.append("low_color = Color(0.27, 0.4, 0.21, 1)")
-	lines.append("high_color = Color(0.4, 0.52, 0.28, 1)")
-	lines.append("steep_color = Color(0.46, 0.4, 0.3, 1)")
-	lines.append("steep_amount = 0.8")
-	lines.append("")
+	lines.append_array(Kit.world_environment_and_sun_text(500.0))
+	lines.append_array(Kit.heightmap_ground_text("1_ground", GROUND_SIZE, "13_heights"))
 	var pond := _pond_centre() + SHIFT
 	lines.append('[node name="Pond" type="MeshInstance3D" parent="."]')
 	lines.append("transform = Transform3D(16, 0, 0, 0, 1, 0, 0, 0, 16, %s, %s, %s)"
-			% [_num(pond.x), _num(POND_LEVEL), _num(pond.y)])
+			% [Kit.num(pond.x), Kit.num(POND_LEVEL), Kit.num(pond.y)])
 	lines.append('mesh = SubResource("CylinderMesh_pond")')
 	lines.append('material_override = SubResource("StandardMaterial3D_water")')
 	lines.append("")
 	lines.append('[node name="Stream" type="MeshInstance3D" parent="."]')
 	lines.append("transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, %s, %s, 0)"
-			% [_num(GULLY_X + SHIFT.x), _num(STREAM_LEVEL)])
+			% [Kit.num(GULLY_X + SHIFT.x), Kit.num(STREAM_LEVEL)])
 	lines.append('mesh = SubResource("BoxMesh_stream")')
 	lines.append('material_override = SubResource("StandardMaterial3D_water")')
 	lines.append("")
 
-	lines.append('[node name="Rails" type="Node3D" parent="."]')
-	lines.append("")
-	for rail in _rail_order:
-		lines.append('[node name="%s" type="Path3D" parent="Rails" '
-				% rail + 'node_paths=PackedStringArray("surface_root")]')
-		lines.append('curve = SubResource("Curve3D_%s")' % rail)
-		lines.append('script = ExtResource("2_rail")')
-		lines.append('surface_root = NodePath("../../Ground")')
-		lines.append("surface_offset = %s" % _num(BED_DEPTH))
-		lines.append("snap_on_ready = false")
-		lines.append("")
+	lines.append_array(Kit.rails_text(_rail_order, "2_rail", BED_DEPTH))
+	lines.append_array(Kit.turnouts_text(_turnouts, _compounds, "6_turnout", "11_compound"))
+	lines.append_array(Kit.crossings_text(_crossings, "12_crossing"))
 
-	lines.append('[node name="Turnouts" type="Node3D" parent="."]')
-	lines.append("")
-	for turnout in _turnouts:
-		lines.append_array(_turnout_text(turnout))
-
-	lines.append('[node name="Compounds" type="Node3D" parent="."]')
-	lines.append("")
-	for compound in _compounds:
-		var paths := PackedStringArray()
-		for member: Dictionary in compound["members"]:
-			paths.append('NodePath("%s")' % member["name"])
-		lines.append('[node name="%s" type="Node3D" parent="Compounds" ' % compound["name"]
-				+ 'groups=["compound_turnouts"] node_paths=PackedStringArray("members")]')
-		lines.append('script = ExtResource("11_compound")')
-		lines.append("kind = %d" % compound["kind"])
-		lines.append("members = [%s]" % ", ".join(paths))
-		lines.append("")
-		for member: Dictionary in compound["members"]:
-			lines.append_array(_turnout_text(member))
-
-	lines.append('[node name="Crossings" type="Node3D" parent="."]')
-	lines.append("")
-	for crossing in _crossings:
-		lines.append('[node name="%s" type="Node3D" parent="Crossings" groups=["crossings"] '
-				% crossing["name"] + 'node_paths=PackedStringArray("rail_a", "rail_b")]')
-		lines.append('script = ExtResource("12_crossing")')
-		lines.append('rail_a = NodePath("../../Rails/%s")' % crossing["a"])
-		lines.append("distance_a = %s" % _num(crossing["distance_a"]))
-		lines.append('rail_b = NodePath("../../Rails/%s")' % crossing["b"])
-		lines.append("distance_b = %s" % _num(crossing["distance_b"]))
-		lines.append("")
-
-	lines.append('[node name="Structures" type="Node3D" parent="."]')
-	lines.append("")
+	lines.append_array(Kit.group("Structures"))
 	var counts := {}
 	for structure in _structures:
-		var is_bridge: bool = structure["kind"] == Kind.BRIDGE
+		var is_bridge: bool = structure["kind"] == Kit.Kind.BRIDGE
 		var stem := "%s%s" % ["Bridge" if is_bridge else "Tunnel", structure["rail"]]
 		counts[stem] = int(counts.get(stem, 0)) + 1
 		var label: String = stem if counts[stem] == 1 else "%s%d" % [stem, counts[stem]]
@@ -962,41 +760,12 @@ func _scene_text() -> String:
 				+ 'node_paths=PackedStringArray("rail")]')
 		lines.append('script = ExtResource("%s")' % ("19_bridge" if is_bridge else "20_tunnel"))
 		lines.append('rail = NodePath("../../Rails/%s")' % structure["rail"])
-		lines.append("from_distance = %s" % _num(snappedf(structure["from"], 0.5)))
-		lines.append("to_distance = %s" % _num(snappedf(structure["to"], 0.5)))
+		lines.append("from_distance = %s" % Kit.num(snappedf(structure["from"], 0.5)))
+		lines.append("to_distance = %s" % Kit.num(snappedf(structure["to"], 0.5)))
 		lines.append("")
 
-	lines.append('[node name="Signals" type="Node3D" parent="."]')
-	lines.append("")
-	for rail_signal in _signals:
-		lines.append('[node name="%s" type="Node3D" parent="Signals" groups=["signals"] '
-				% rail_signal["name"] + 'node_paths=PackedStringArray("rail")]')
-		lines.append('script = ExtResource("9_signal")')
-		lines.append('rail = NodePath("../../Rails/%s")' % rail_signal["rail"])
-		lines.append("distance = %s" % _num(rail_signal["distance"]))
-		lines.append("governs = %d" % rail_signal["governs"])
-		lines.append("")
-
-	lines.append('[node name="Trains" type="Node3D" parent="."]')
-	lines.append("")
-	for train in _trains:
-		lines.append('[node name="%s" type="Node3D" parent="Trains" groups=["trains"] '
-				% train["name"] + 'node_paths=PackedStringArray("rail")]')
-		lines.append('script = ExtResource("3_train")')
-		lines.append('rail = NodePath("../../Rails/%s")' % train["rail"])
-		lines.append("distance = %s" % _num(train["distance"]))
-		lines.append("facing = %d" % train["facing"])
-		lines.append("max_speed = %s" % _num(train["speed"]))
-		lines.append("end_behavior = %d" % train["end"])
-		lines.append('locomotive = ExtResource("%s")' % _STOCK[train["locomotive"]][1])
-		var wagons: Array[String] = []
-		for wagon: String in train["wagons"]:
-			wagons.append('ExtResource("%s")' % _STOCK[wagon][1])
-		if not wagons.is_empty():
-			lines.append('wagons = Array[ExtResource("17_wagon_type")]([%s])' % ", ".join(wagons))
-		if train["load"] > 0.0:
-			lines.append("load_factor = %s" % _num(train["load"]))
-		lines.append("")
+	lines.append_array(Kit.signals_text(_signals, "9_signal"))
+	lines.append_array(Kit.trains_text(_trains, "3_train", "17_wagon_type", _STOCK))
 
 	lines.append('[node name="Track" type="Node3D" parent="."]')
 	lines.append('script = ExtResource("18_mesher")')
@@ -1006,22 +775,10 @@ func _scene_text() -> String:
 	return "\n".join(lines)
 
 
+## The water under the pond and the stream, after the sky.
 func _environment_text() -> PackedStringArray:
-	return PackedStringArray([
-		'[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]',
-		"sky_horizon_color = Color(0.66, 0.7, 0.74, 1)",
-		"ground_bottom_color = Color(0.22, 0.24, 0.24, 1)",
-		"ground_horizon_color = Color(0.66, 0.7, 0.74, 1)",
-		"",
-		'[sub_resource type="Sky" id="Sky_1"]',
-		'sky_material = SubResource("ProceduralSkyMaterial_1")',
-		"",
-		'[sub_resource type="Environment" id="Environment_1"]',
-		"background_mode = 2",
-		'sky = SubResource("Sky_1")',
-		"tonemap_mode = 2",
-		"ssao_enabled = true",
-		"",
+	var lines := Kit.environment_text()
+	lines.append_array([
 		'[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_water"]',
 		"albedo_color = Color(0.22, 0.42, 0.5, 1)",
 		"metallic = 0.2",
@@ -1035,107 +792,17 @@ func _environment_text() -> PackedStringArray:
 		"rings = 1",
 		"",
 		'[sub_resource type="BoxMesh" id="BoxMesh_stream"]',
-		"size = Vector3(7, 0.02, %s)" % _num(GROUND_SIZE.y),
+		"size = Vector3(7, 0.02, %s)" % Kit.num(GROUND_SIZE.y),
 		"",
 	])
-
-
-## [code]in[/code], [code]out[/code], [code]position[/code] per point, handles relative
-## to their point - see .claude/rules/tscn.md.
-func _curve_text(rail: String) -> PackedStringArray:
-	var curve := _curves[rail]
-	var numbers := PackedStringArray()
-	var tilts := PackedStringArray()
-	for i in curve.point_count:
-		for v: Vector3 in [curve.get_point_in(i), curve.get_point_out(i),
-				curve.get_point_position(i)]:
-			numbers.append_array([_num(v.x), _num(v.y), _num(v.z)])
-		tilts.append("0")
-	return PackedStringArray([
-		'[sub_resource type="Curve3D" id="Curve3D_%s"]' % rail,
-		"_data = {",
-		'"points": PackedVector3Array(%s),' % ", ".join(numbers),
-		'"tilts": PackedFloat32Array(%s)' % ", ".join(tilts),
-		"}",
-		"point_count = %d" % curve.point_count,
-		"",
-	])
-
-
-func _turnout_text(turnout: Dictionary) -> PackedStringArray:
-	var parent: String = turnout["parent"]
-	var up := "../".repeat(parent.count("/") + 2)
-	return PackedStringArray([
-		'[node name="%s" type="Node3D" parent="%s" groups=["turnouts"] ' % [turnout["name"],
-				parent] + 'node_paths=PackedStringArray("main_rail", "branch_rail")]',
-		'script = ExtResource("6_turnout")',
-		'main_rail = NodePath("%sRails/%s")' % [up, turnout["main"]],
-		"main_distance = %s" % _num(turnout["distance"]),
-		"diverge_towards = %d" % turnout["diverge"],
-		'branch_rail = NodePath("%sRails/%s")' % [up, turnout["branch"]],
-		"branch_end = %d" % turnout["end"],
-		"",
-	])
+	return lines
 
 
 func _camera_and_ui_text() -> PackedStringArray:
-	return PackedStringArray([
-		'[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("camera")]',
-		"transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 2, 0)",
-		'script = ExtResource("4_camera")',
-		'camera = NodePath("Camera3D")',
-		"yaw_degrees = -15.0",
-		"pitch_degrees = -55.0",
-		"zoom = 360.0",
-		"max_zoom = 700.0",
-		"",
-		'[node name="Camera3D" type="Camera3D" parent="CameraRig"]',
-		"far = 3000.0",
-		"",
-		'[node name="DebugUi" type="CanvasLayer" parent="."]',
-		"",
-		'[node name="Panels" type="VBoxContainer" parent="DebugUi"]',
-		"offset_left = 12.0",
-		"offset_top = 12.0",
-		"mouse_filter = 2",
-		"theme_override_constants/separation = 8",
-		"",
-		'[node name="TrainDebugPanel" type="PanelContainer" parent="DebugUi/Panels"]',
-		"layout_mode = 2",
-		"size_flags_horizontal = 0",
-		"mouse_filter = 2",
-		'script = ExtResource("5_panel")',
-		"",
-		'[node name="TurnoutDebugPanel" type="PanelContainer" parent="DebugUi/Panels" '
-				+ 'node_paths=PackedStringArray("overlay")]',
-		"layout_mode = 2",
-		"size_flags_horizontal = 0",
-		"mouse_filter = 2",
-		'script = ExtResource("7_tpanel")',
-		'overlay = NodePath("../../MarkerOverlay")',
-		"",
-		'[node name="SignalDebugPanel" type="PanelContainer" parent="DebugUi/Panels" '
-				+ 'node_paths=PackedStringArray("overlay")]',
-		"layout_mode = 2",
-		"size_flags_horizontal = 0",
-		"mouse_filter = 2",
-		'script = ExtResource("10_spanel")',
-		'overlay = NodePath("../../MarkerOverlay")',
-		"",
-		'[node name="MarkerOverlay" type="Control" parent="DebugUi" '
-				+ 'node_paths=PackedStringArray("camera")]',
-		"anchor_right = 1.0",
-		"anchor_bottom = 1.0",
-		"mouse_filter = 2",
-		'script = ExtResource("8_overlay")',
-		'camera = NodePath("../../CameraRig/Camera3D")',
-		"",
-	])
-
-
-## Four decimals, no trailing zeros, and no negative zero.
-func _num(value: float) -> String:
-	if absf(value) < 5e-5:
-		return "0"
-	return String.num(value, 4)
+	return Kit.camera_and_ui_text({"script": "4_camera", "origin": Vector3i(-40, 2, 0),
+			"yaw": -15.0, "pitch": -55.0, "zoom": 360.0, "max_zoom": 700.0}, [
+		["TrainDebugPanel", "5_panel", false],
+		["TurnoutDebugPanel", "7_tpanel", true],
+		["SignalDebugPanel", "10_spanel", true],
+	], "8_overlay")
 #endregion

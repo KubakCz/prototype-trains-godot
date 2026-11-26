@@ -27,11 +27,9 @@ var _crossings: Array[Crossing] = []
 var _rail_lines := false
 
 
-func _ready() -> void:
-	super._ready()
+func _missing_warning() -> String:
 	_collect()
-	if _turnouts.is_empty():
-		push_warning("No turnouts in group '%s'." % turnout_group)
+	return "No turnouts in group '%s'." % turnout_group if _turnouts.is_empty() else ""
 
 
 func _panel_title() -> String:
@@ -41,9 +39,9 @@ func _panel_title() -> String:
 func _panel_controls() -> Array[String]:
 	var rows: Array[String] = []
 	if overlay != null:
-		rows.append("overlay: %s   ▸" % overlay.mode_label())
-		rows.append("schematic text: %s   ▸" % overlay.turnout_caption_label())
-	rows.append("rail lines: %s   ▸" % ("on" if _rail_lines else "off"))
+		rows.append(_cycle_row("overlay", overlay.mode_label()))
+		rows.append(_cycle_row("schematic text", overlay.turnout_caption_label()))
+	rows.append(_cycle_row("rail lines", _on_off(_rail_lines)))
 	return rows
 
 
@@ -109,9 +107,9 @@ func _panel_lines() -> Array[String]:
 
 func _describe_compound(compound: CompoundTurnout, is_hovered: bool) -> String:
 	if not compound.is_usable():
-		return "%s %s  <not configured>" % [">" if is_hovered else " ", compound.name]
+		return _unconfigured(compound, is_hovered)
 	return "%s %s  %s  %s (%d of %d)" % [
-		">" if is_hovered else " ",
+		_mark(is_hovered),
 		compound.name,
 		CompoundTurnout.Kind.keys()[compound.kind],
 		compound.position_label(compound.compound_position),
@@ -122,7 +120,7 @@ func _describe_compound(compound: CompoundTurnout, is_hovered: bool) -> String:
 
 func _describe_crossing(crossing: Crossing) -> String:
 	if not crossing.is_usable():
-		return "  %s  <not configured>" % crossing.name
+		return _unconfigured(crossing, false)
 	var names: Array[String] = []
 	for train in crossing.occupants():
 		names.append(str(train.name))
@@ -140,10 +138,10 @@ func _describe_crossing(crossing: Crossing) -> String:
 ## branch leaves on, and who is currently waiting at it.
 func _describe(turnout: Turnout, is_hovered: bool) -> String:
 	if not turnout.is_usable():
-		return "%s %s  <not configured>" % [">" if is_hovered else " ", turnout.name]
+		return _unconfigured(turnout, is_hovered)
 	var toe := "towards start" if turnout.diverge_sign() > 0 else "towards end"
 	var line := "%s %s  %s  on %s @ %.1f m  toe %s  branch %s %s(%s)" % [
-		">" if is_hovered else " ",
+		_mark(is_hovered),
 		turnout.name,
 		"REVERSE" if turnout.turnout_position == Turnout.Position.REVERSE else "NORMAL ",
 		turnout.main_rail.name,
@@ -153,13 +151,5 @@ func _describe(turnout: Turnout, is_hovered: bool) -> String:
 		turnout.branch_rail.name,
 		Turnout.RailEnd.keys()[turnout.branch_end],
 	]
-	var held := _held_train(turnout)
-	return line if held.is_empty() else "%s  <- holding %s" % [line, held]
-
-
-func _held_train(turnout: Turnout) -> String:
-	for node in get_tree().get_nodes_in_group(train_group):
-		var train := node as Train
-		if train != null and train.blocking_turnout == turnout:
-			return str(train.name)
-	return ""
+	return _with_held(line, _train_held_by(train_group,
+			func(train: Train) -> bool: return train.blocking_turnout == turnout))
